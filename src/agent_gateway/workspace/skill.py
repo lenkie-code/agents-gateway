@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SkillDefinition:
     """A fully parsed skill definition."""
-    id: str                                  # Directory name
-    path: Path                               # Directory path
-    name: str                                # From frontmatter
-    description: str                         # From frontmatter
+
+    id: str  # Directory name
+    path: Path  # Directory path
+    name: str  # From frontmatter
+    description: str  # From frontmatter
     tools: list[str] = field(default_factory=list)  # Tool names this skill uses
-    instructions: str = ""                   # Markdown body (injected into prompt)
+    instructions: str = ""  # Markdown body (injected into prompt)
 
     @classmethod
     def load(cls, skill_dir: Path) -> SkillDefinition | None:

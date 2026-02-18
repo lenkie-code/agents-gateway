@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScheduleConfig:
     """A cron schedule for an agent."""
+
     name: str
     cron: str
     message: str
@@ -26,6 +27,7 @@ class ScheduleConfig:
 @dataclass
 class AgentModelConfig:
     """Per-agent model configuration from CONFIG.md."""
+
     name: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
@@ -35,10 +37,11 @@ class AgentModelConfig:
 @dataclass
 class AgentDefinition:
     """A fully parsed agent definition."""
-    id: str                                     # Directory name (e.g., "underwriting")
-    path: Path                                  # Directory path
-    agent_prompt: str                           # Content of AGENT.md
-    soul_prompt: str = ""                       # Content of SOUL.md (optional)
+
+    id: str  # Directory name (e.g., "underwriting")
+    path: Path  # Directory path
+    agent_prompt: str  # Content of AGENT.md
+    soul_prompt: str = ""  # Content of SOUL.md (optional)
 
     # Parsed from CONFIG.md frontmatter
     skills: list[str] = field(default_factory=list)
@@ -91,14 +94,16 @@ class AgentDefinition:
         schedules = []
         for s in schedules_data:
             try:
-                schedules.append(ScheduleConfig(
-                    name=s["name"],
-                    cron=s["cron"],
-                    message=s["message"],
-                    context=s.get("context", {}),
-                    enabled=s.get("enabled", True),
-                    timezone=s.get("timezone", "UTC"),
-                ))
+                schedules.append(
+                    ScheduleConfig(
+                        name=s["name"],
+                        cron=s["cron"],
+                        message=s["message"],
+                        context=s.get("context", {}),
+                        enabled=s.get("enabled", True),
+                        timezone=s.get("timezone", "UTC"),
+                    )
+                )
             except (KeyError, TypeError) as e:
                 logger.warning("Invalid schedule in %s: %s", agent_dir, e)
 

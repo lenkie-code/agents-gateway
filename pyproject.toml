@@ -57,6 +57,7 @@ dev = [
     "httpx",
     "ruff>=0.4",
     "mypy>=1.10",
+    "types-PyYAML>=6.0",
 ]
 all = ["agent-gateway[otlp,slack,postgresql,redis]"]
 
@@ -88,3 +89,7 @@ asyncio_mode = "auto"
 python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "frontmatter"
+ignore_missing_imports = true

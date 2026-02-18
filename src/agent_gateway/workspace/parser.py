@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParsedMarkdown:
     """Result of parsing a markdown file."""
-    content: str                           # Markdown body (no frontmatter)
+
+    content: str  # Markdown body (no frontmatter)
     metadata: dict[str, Any] = field(default_factory=dict)  # YAML frontmatter
-    path: Path | None = None               # Source file path
+    path: Path | None = None  # Source file path
 
 
 def parse_markdown_file(path: Path) -> ParsedMarkdown:

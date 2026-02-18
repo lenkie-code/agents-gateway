@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import FastAPI
 
 
@@ -17,7 +19,7 @@ class Gateway(FastAPI):
         workspace: str = "./workspace",
         auth: bool | None = True,
         reload: bool = False,
-        **fastapi_kwargs: object,
+        **fastapi_kwargs: Any,
     ) -> None:
         self._workspace_path = workspace
         self._auth_enabled = auth

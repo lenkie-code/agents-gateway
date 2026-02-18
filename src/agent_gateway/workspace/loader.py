@@ -20,13 +20,14 @@ _VALID_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 @dataclass
 class WorkspaceState:
     """The complete parsed state of a workspace."""
+
     path: Path
     agents: dict[str, AgentDefinition] = field(default_factory=dict)
     skills: dict[str, SkillDefinition] = field(default_factory=dict)
     tools: dict[str, ToolDefinition] = field(default_factory=dict)
     schedules: list[ScheduleConfig] = field(default_factory=list)
-    root_system_prompt: str = ""       # From agents/AGENTS.md
-    root_soul_prompt: str = ""         # From agents/SOUL.md
+    root_system_prompt: str = ""  # From agents/AGENTS.md
+    root_soul_prompt: str = ""  # From agents/SOUL.md
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -67,7 +68,10 @@ def load_workspace(workspace_path: str | Path) -> WorkspaceState:
     schedule_count = len(state.schedules)
     logger.info(
         "Workspace loaded: %d agents, %d skills, %d tools, %d schedules",
-        agent_count, skill_count, tool_count, schedule_count,
+        agent_count,
+        skill_count,
+        tool_count,
+        schedule_count,
     )
 
     return state
@@ -114,9 +118,7 @@ def _load_agents(agents_dir: Path, resolved_root: Path, state: WorkspaceState) -
         if not _is_safe_entry(entry, resolved_root):
             continue
         if not _is_valid_id(entry.name):
-            state.warnings.append(
-                f"Skipping agent directory with invalid ID: '{entry.name}'"
-            )
+            state.warnings.append(f"Skipping agent directory with invalid ID: '{entry.name}'")
             continue
 
         agent = AgentDefinition.load(entry)
@@ -133,9 +135,7 @@ def _load_skills(skills_dir: Path, resolved_root: Path, state: WorkspaceState) -
         if not _is_safe_entry(entry, resolved_root):
             continue
         if not _is_valid_id(entry.name):
-            state.warnings.append(
-                f"Skipping skill directory with invalid ID: '{entry.name}'"
-            )
+            state.warnings.append(f"Skipping skill directory with invalid ID: '{entry.name}'")
             continue
 
         skill = SkillDefinition.load(entry)
@@ -152,9 +152,7 @@ def _load_tools(tools_dir: Path, resolved_root: Path, state: WorkspaceState) -> 
         if not _is_safe_entry(entry, resolved_root):
             continue
         if not _is_valid_id(entry.name):
-            state.warnings.append(
-                f"Skipping tool directory with invalid ID: '{entry.name}'"
-            )
+            state.warnings.append(f"Skipping tool directory with invalid ID: '{entry.name}'")
             continue
 
         tool = ToolDefinition.load(entry)
@@ -168,9 +166,7 @@ def _validate_cross_references(state: WorkspaceState) -> None:
     for skill in state.skills.values():
         for tool_name in skill.tools:
             if tool_name not in state.tools:
-                state.warnings.append(
-                    f"Skill '{skill.id}' references unknown tool '{tool_name}'"
-                )
+                state.warnings.append(f"Skill '{skill.id}' references unknown tool '{tool_name}'")
 
     for agent in state.agents.values():
         for skill_name in agent.skills:
@@ -180,6 +176,4 @@ def _validate_cross_references(state: WorkspaceState) -> None:
                 )
         for tool_name in agent.tools:
             if tool_name not in state.tools:
-                state.warnings.append(
-                    f"Agent '{agent.id}' references unknown tool '{tool_name}'"
-                )
+                state.warnings.append(f"Agent '{agent.id}' references unknown tool '{tool_name}'")
