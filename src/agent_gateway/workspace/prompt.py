@@ -19,7 +19,9 @@ def assemble_system_prompt(
     3. Agent AGENT.md (agent-specific instructions)
     4. Agent SOUL.md (agent-specific personality)
     5. Skill instructions (from each skill the agent uses)
-    6. Business context (from gateway.yaml context block)
+
+    Note: Business context (gateway.yaml context block) is injected
+    by the Gateway at invocation time, not during workspace loading.
     """
     parts: list[str] = []
 
@@ -39,25 +41,16 @@ def assemble_system_prompt(
         parts.append(agent.soul_prompt)
 
     # 5. Skill instructions
-    resolved_skills = _resolve_skills(agent, workspace)
+    resolved_skills = [
+        skill
+        for name in agent.skills
+        if (skill := workspace.skills.get(name)) is not None
+    ]
     if resolved_skills:
         skill_section = _format_skills_section(resolved_skills)
         parts.append(skill_section)
 
     return "\n\n---\n\n".join(parts)
-
-
-def _resolve_skills(
-    agent: AgentDefinition,
-    workspace: WorkspaceState,
-) -> list[SkillDefinition]:
-    """Resolve skill names to definitions, skipping missing ones."""
-    resolved = []
-    for skill_name in agent.skills:
-        skill = workspace.skills.get(skill_name)
-        if skill is not None:
-            resolved.append(skill)
-    return resolved
 
 
 def _format_skills_section(skills: list[SkillDefinition]) -> str:

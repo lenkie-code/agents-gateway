@@ -19,7 +19,6 @@ class SkillDefinition:
     name: str                                # From frontmatter
     description: str                         # From frontmatter
     tools: list[str] = field(default_factory=list)  # Tool names this skill uses
-    version: str = "1.0.0"
     instructions: str = ""                   # Markdown body (injected into prompt)
 
     @classmethod
@@ -44,6 +43,5 @@ class SkillDefinition:
             name=name,
             description=description,
             tools=meta.get("tools", []),
-            version=meta.get("version", "1.0.0"),
             instructions=parsed.content,
         )

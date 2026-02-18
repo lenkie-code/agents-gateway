@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import frontmatter
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -46,17 +47,10 @@ def parse_markdown_file(path: Path) -> ParsedMarkdown:
             metadata=dict(post.metadata),
             path=path,
         )
-    except Exception:
-        logger.warning("Failed to parse frontmatter in %s, treating as plain markdown", path)
+    except (yaml.YAMLError, ValueError):
+        logger.warning(
+            "Failed to parse frontmatter in %s, treating as plain markdown",
+            path,
+            exc_info=True,
+        )
         return ParsedMarkdown(content=text, path=path)
-
-
-def parse_markdown_string(text: str) -> ParsedMarkdown:
-    """Parse a markdown string with optional frontmatter."""
-    if not text.strip():
-        return ParsedMarkdown(content="")
-    try:
-        post = frontmatter.loads(text)
-        return ParsedMarkdown(content=post.content, metadata=dict(post.metadata))
-    except Exception:
-        return ParsedMarkdown(content=text)

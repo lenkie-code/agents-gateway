@@ -70,13 +70,3 @@ class TestSkillDefinition:
         assert skill is not None
         assert skill.name == "my-skill"
 
-    def test_version_from_frontmatter(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "versioned"
-        skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: versioned\ndescription: test\nversion: '2.0.0'\n---\n# Skill"
-        )
-
-        skill = SkillDefinition.load(skill_dir)
-        assert skill is not None
-        assert skill.version == "2.0.0"

@@ -47,7 +47,6 @@ class TestAgentDefinition:
         assert agent.tools == ["echo", "add-numbers"]
         assert agent.model.name == "gpt-4o"
         assert agent.model.temperature == 0.5
-        assert "Config notes" in agent.config_doc
 
     def test_missing_agent_md_returns_none(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "no-agent"

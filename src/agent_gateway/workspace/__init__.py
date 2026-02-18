@@ -1,5 +1,5 @@
 """Workspace loading and parsing."""
 
-from agent_gateway.workspace.loader import WorkspaceLoader, WorkspaceState
+from agent_gateway.workspace.loader import WorkspaceState, load_workspace
 
-__all__ = ["WorkspaceLoader", "WorkspaceState"]
+__all__ = ["WorkspaceState", "load_workspace"]

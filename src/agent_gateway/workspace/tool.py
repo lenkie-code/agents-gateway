@@ -5,11 +5,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from agent_gateway.workspace.parser import parse_markdown_file
 
 logger = logging.getLogger(__name__)
+
+ToolType = Literal["http", "function", "script"]
+VALID_TOOL_TYPES: set[str] = {"http", "function", "script"}
 
 
 @dataclass
@@ -47,16 +50,12 @@ class ToolDefinition:
     path: Path                               # Directory path
     name: str                                # From frontmatter
     description: str                         # From frontmatter
-    type: str = "function"                   # http | function | script
+    type: ToolType = "function"
     parameters: list[ToolParameter] = field(default_factory=list)
     http: HttpConfig | None = None
     script: ScriptConfig | None = None
-    permissions: dict[str, Any] = field(default_factory=dict)
-    version: str = "1.0.0"
     instructions: str = ""                   # Markdown body
     handler_path: Path | None = None         # Path to handler.py (for function tools)
-    is_broken: bool = False                  # Set if handler has import errors
-    error_message: str = ""                  # Why the tool is broken
 
     @classmethod
     def load(cls, tool_dir: Path) -> ToolDefinition | None:
@@ -74,6 +73,14 @@ class ToolDefinition:
 
         if not description:
             logger.warning("Tool %s has no description", tool_dir.name)
+
+        if tool_type not in VALID_TOOL_TYPES:
+            logger.warning(
+                "Tool %s has unknown type '%s', defaulting to 'function'",
+                tool_dir.name,
+                tool_type,
+            )
+            tool_type = "function"
 
         # Parse parameters
         params_data = meta.get("parameters", {})
@@ -123,45 +130,6 @@ class ToolDefinition:
             parameters=parameters,
             http=http_config,
             script=script_config,
-            permissions=meta.get("permissions", {}),
-            version=meta.get("version", "1.0.0"),
             instructions=parsed.content,
             handler_path=handler_path if has_handler else None,
         )
-
-    def to_json_schema(self) -> dict[str, Any]:
-        """Convert parameters to JSON Schema for LLM function calling."""
-        properties: dict[str, Any] = {}
-        required: list[str] = []
-
-        for param in self.parameters:
-            prop: dict[str, Any] = {
-                "type": param.type,
-                "description": param.description,
-            }
-            if param.enum:
-                prop["enum"] = param.enum
-            if param.default is not None:
-                prop["default"] = param.default
-            properties[param.name] = prop
-            if param.required:
-                required.append(param.name)
-
-        schema: dict[str, Any] = {
-            "type": "object",
-            "properties": properties,
-        }
-        if required:
-            schema["required"] = required
-        return schema
-
-    def to_llm_declaration(self) -> dict[str, Any]:
-        """Convert to LLM tool declaration format."""
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.to_json_schema(),
-            },
-        }

@@ -39,16 +39,11 @@ class AgentDefinition:
     path: Path                                  # Directory path
     agent_prompt: str                           # Content of AGENT.md
     soul_prompt: str = ""                       # Content of SOUL.md (optional)
-    config_metadata: dict[str, Any] = field(default_factory=dict)  # CONFIG.md frontmatter
-    config_doc: str = ""                        # CONFIG.md markdown body
 
     # Parsed from CONFIG.md frontmatter
     skills: list[str] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
-    guardrails: dict[str, Any] = field(default_factory=dict)
-    output_schema: dict[str, Any] | None = None
-    notifications: dict[str, Any] = field(default_factory=dict)
     schedules: list[ScheduleConfig] = field(default_factory=list)
 
     @classmethod
@@ -79,11 +74,9 @@ class AgentDefinition:
         # Parse CONFIG.md (optional)
         config_md = agent_dir / "CONFIG.md"
         config_metadata: dict[str, Any] = {}
-        config_doc = ""
         if config_md.exists():
             config_parsed = parse_markdown_file(config_md)
             config_metadata = config_parsed.metadata
-            config_doc = config_parsed.content
 
         # Extract typed fields from config metadata
         model_data = config_metadata.get("model", {})
@@ -114,13 +107,8 @@ class AgentDefinition:
             path=agent_dir,
             agent_prompt=agent_parsed.content,
             soul_prompt=soul_prompt,
-            config_metadata=config_metadata,
-            config_doc=config_doc,
             skills=config_metadata.get("skills", []),
             tools=config_metadata.get("tools", []),
             model=model_config,
-            guardrails=config_metadata.get("guardrails", {}),
-            output_schema=config_metadata.get("output_schema"),
-            notifications=config_metadata.get("notifications", {}),
             schedules=schedules,
         )
