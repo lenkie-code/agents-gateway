@@ -42,9 +42,7 @@ def assemble_system_prompt(
 
     # 5. Skill instructions
     resolved_skills = [
-        skill
-        for name in agent.skills
-        if (skill := workspace.skills.get(name)) is not None
+        skill for name in agent.skills if (skill := workspace.skills.get(name)) is not None
     ]
     if resolved_skills:
         skill_section = _format_skills_section(resolved_skills)

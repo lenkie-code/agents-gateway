@@ -93,12 +93,7 @@ class TestAgentDefinition:
         agent_dir = tmp_path / "bad-schedule"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
-            "---\n"
-            "schedules:\n"
-            "  - name: missing-fields\n"
-            "---\n"
-        )
+        (agent_dir / "CONFIG.md").write_text("---\nschedules:\n  - name: missing-fields\n---\n")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None

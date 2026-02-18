@@ -51,9 +51,7 @@ class TestSkillDefinition:
     def test_missing_description_uses_empty(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "no-desc"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: no-desc\n---\n# Skill\n\nInstructions."
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: no-desc\n---\n# Skill\n\nInstructions.")
 
         skill = SkillDefinition.load(skill_dir)
         assert skill is not None
@@ -62,11 +60,8 @@ class TestSkillDefinition:
     def test_name_defaults_to_dir_name(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "my-skill"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\ndescription: A skill\n---\n# Skill"
-        )
+        (skill_dir / "SKILL.md").write_text("---\ndescription: A skill\n---\n# Skill")
 
         skill = SkillDefinition.load(skill_dir)
         assert skill is not None
         assert skill.name == "my-skill"
-

@@ -18,6 +18,7 @@ VALID_TOOL_TYPES: set[str] = {"http", "function", "script"}
 @dataclass
 class HttpConfig:
     """HTTP tool configuration."""
+
     method: str = "GET"
     url: str = ""
     headers: dict[str, str] = field(default_factory=dict)
@@ -28,6 +29,7 @@ class HttpConfig:
 @dataclass
 class ScriptConfig:
     """Script tool configuration."""
+
     command: str = ""
     timeout_ms: int = 30_000
 
@@ -35,6 +37,7 @@ class ScriptConfig:
 @dataclass
 class ToolParameter:
     """A single tool parameter."""
+
     name: str
     type: str = "string"
     description: str = ""
@@ -46,16 +49,17 @@ class ToolParameter:
 @dataclass
 class ToolDefinition:
     """A fully parsed file-based tool definition."""
-    id: str                                  # Directory name
-    path: Path                               # Directory path
-    name: str                                # From frontmatter
-    description: str                         # From frontmatter
+
+    id: str  # Directory name
+    path: Path  # Directory path
+    name: str  # From frontmatter
+    description: str  # From frontmatter
     type: ToolType = "function"
     parameters: list[ToolParameter] = field(default_factory=list)
     http: HttpConfig | None = None
     script: ScriptConfig | None = None
-    instructions: str = ""                   # Markdown body
-    handler_path: Path | None = None         # Path to handler.py (for function tools)
+    instructions: str = ""  # Markdown body
+    handler_path: Path | None = None  # Path to handler.py (for function tools)
 
     @classmethod
     def load(cls, tool_dir: Path) -> ToolDefinition | None:
@@ -87,14 +91,16 @@ class ToolDefinition:
         parameters = []
         for param_name, param_def in params_data.items():
             if isinstance(param_def, dict):
-                parameters.append(ToolParameter(
-                    name=param_name,
-                    type=param_def.get("type", "string"),
-                    description=param_def.get("description", param_name),
-                    required=param_def.get("required", False),
-                    enum=param_def.get("enum"),
-                    default=param_def.get("default"),
-                ))
+                parameters.append(
+                    ToolParameter(
+                        name=param_name,
+                        type=param_def.get("type", "string"),
+                        description=param_def.get("description", param_name),
+                        required=param_def.get("required", False),
+                        enum=param_def.get("enum"),
+                        default=param_def.get("default"),
+                    )
+                )
 
         # Parse HTTP config
         http_config = None

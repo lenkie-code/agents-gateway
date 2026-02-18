@@ -56,16 +56,13 @@ class TestAssembleSystemPrompt:
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
         (agent_dir / "AGENT.md").write_text("# Agent\n\nUses skills.")
-        (agent_dir / "CONFIG.md").write_text(
-            "---\nskills:\n  - math-workflow\n---\n"
-        )
+        (agent_dir / "CONFIG.md").write_text("---\nskills:\n  - math-workflow\n---\n")
 
         # Create skill
         skill_dir = tmp_path / "skills" / "math-workflow"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: math-workflow\ndescription: Do math\n---\n"
-            "# Math\n\nBreak into steps."
+            "---\nname: math-workflow\ndescription: Do math\n---\n# Math\n\nBreak into steps."
         )
 
         state = load_workspace(tmp_path)
@@ -79,9 +76,7 @@ class TestAssembleSystemPrompt:
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
         (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
-            "---\nskills:\n  - nonexistent\n---\n"
-        )
+        (agent_dir / "CONFIG.md").write_text("---\nskills:\n  - nonexistent\n---\n")
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]
