@@ -1,7 +1,7 @@
 ---
 title: "Phase 1.2: Workspace Loader"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [01]
 blocks: [03, 04, 08]
@@ -744,11 +744,11 @@ Test prompt assembly: layered concatenation, skills injected, missing skills ski
 
 ## Acceptance Criteria
 
-- [ ] `WorkspaceLoader.load("tests/fixtures/workspace")` returns a valid `WorkspaceState`
-- [ ] Agents, skills, tools all parsed with correct fields
-- [ ] Invalid files produce warnings, not crashes
-- [ ] Cross-reference warnings generated for missing tools/skills
-- [ ] Prompt assembly produces correct layered output
-- [ ] Schedule definitions parsed from CONFIG.md
-- [ ] All edge cases tested (empty files, missing dirs, bad UTF-8)
-- [ ] `uv run pytest tests/test_workspace/` passes
+- [x] `WorkspaceLoader.load("tests/fixtures/workspace")` returns a valid `WorkspaceState`
+- [x] Agents, skills, tools all parsed with correct fields
+- [x] Invalid files produce warnings, not crashes
+- [x] Cross-reference warnings generated for missing tools/skills
+- [x] Prompt assembly produces correct layered output
+- [x] Schedule definitions parsed from CONFIG.md
+- [x] All edge cases tested (empty files, missing dirs, bad UTF-8)
+- [x] `uv run pytest tests/test_workspace/` passes

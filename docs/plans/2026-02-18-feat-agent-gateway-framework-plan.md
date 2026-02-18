@@ -385,13 +385,13 @@ class AuthError(AgentGatewayError): ...
 
 #### 1.4 Workspace Loader
 
-- [ ] `src/agent_gateway/workspace/parser.py` — Markdown + YAML frontmatter parser using `python-frontmatter`
-- [ ] `src/agent_gateway/workspace/agent.py` — Agent model: load AGENT.md + SOUL.md + CONFIG.md, validate
-- [ ] `src/agent_gateway/workspace/skill.py` — Skill model: load SKILL.md, parse tools list
-- [ ] `src/agent_gateway/workspace/tool.py` — Tool model: load TOOL.md, parse parameters + type + handler
-- [ ] `src/agent_gateway/workspace/schedule.py` — Schedule model: parse cron schedules from CONFIG.md
-- [ ] `src/agent_gateway/workspace/loader.py` — Scan workspace dirs, discover agents/skills/tools/schedules, validate cross-references
-- [ ] `src/agent_gateway/workspace/prompt.py` — Assemble layered system prompt (root AGENTS.md + root SOUL.md + agent AGENT.md + agent SOUL.md + skill instructions + tool descriptions + context)
+- [x] `src/agent_gateway/workspace/parser.py` — Markdown + YAML frontmatter parser using `python-frontmatter`
+- [x] `src/agent_gateway/workspace/agent.py` — Agent model: load AGENT.md + SOUL.md + CONFIG.md, validate
+- [x] `src/agent_gateway/workspace/skill.py` — Skill model: load SKILL.md, parse tools list
+- [x] `src/agent_gateway/workspace/tool.py` — Tool model: load TOOL.md, parse parameters + type + handler
+- [x] `src/agent_gateway/workspace/schedule.py` — Schedule model: parse cron schedules from CONFIG.md (integrated into agent.py)
+- [x] `src/agent_gateway/workspace/loader.py` — Scan workspace dirs, discover agents/skills/tools/schedules, validate cross-references
+- [x] `src/agent_gateway/workspace/prompt.py` — Assemble layered system prompt (root AGENTS.md + root SOUL.md + agent AGENT.md + agent SOUL.md + skill instructions + tool descriptions + context)
 
 **Robustness requirements:**
 - Invalid UTF-8 in markdown files: skip file with warning, don't crash
