@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from agent_gateway.auth.domain import ApiKeyRecord
-from agent_gateway.auth.providers.api_key import ApiKeyProvider, generate_api_key, hash_api_key
+from agent_gateway.auth.providers.api_key import ApiKeyProvider, hash_api_key
 
 
 class TestHashHelpers:
@@ -14,11 +14,6 @@ class TestHashHelpers:
 
     def test_hash_api_key_different_inputs(self) -> None:
         assert hash_api_key("key-a") != hash_api_key("key-b")
-
-    def test_generate_api_key(self) -> None:
-        raw, hashed = generate_api_key()
-        assert raw.startswith("ag_")
-        assert hash_api_key(raw) == hashed
 
 
 class TestApiKeyProvider:
@@ -34,7 +29,6 @@ class TestApiKeyProvider:
             id="1",
             name=name,
             key_hash=hash_api_key(raw_key),
-            key_prefix=raw_key[:8],
             scopes=scopes or ["*"],
             revoked=revoked,
             expires_at=expires_at,

@@ -39,7 +39,7 @@ class TestAuthResult:
 
 class TestApiKeyRecord:
     def test_defaults(self) -> None:
-        rec = ApiKeyRecord(id="1", name="test", key_hash="abc", key_prefix="ag_12345")
+        rec = ApiKeyRecord(id="1", name="test", key_hash="abc")
         assert rec.scopes == ["*"]
         assert rec.revoked is False
         assert rec.expires_at is None

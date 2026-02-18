@@ -54,6 +54,35 @@ def gateway_app(gemini_key: str) -> Gateway:
         """Add two numbers - for testing structured params."""
         return {"result": a + b}
 
+    @gw.tool(name="get-weather")
+    async def get_weather(destination: str, date: str) -> dict[str, Any]:
+        """Get the weather forecast for a destination on a given date."""
+        return {
+            "destination": destination,
+            "date": date,
+            "condition": "partly cloudy",
+            "temperature_celsius": 22,
+            "humidity_percent": 55,
+            "wind_kmh": 12.5,
+        }
+
+    @gw.tool(
+        name="search-flights",
+        description="Search for available flights between two cities on a given date.",
+    )
+    async def search_flights(origin: str, destination: str, date: str) -> dict[str, Any]:
+        """Return mock flight results."""
+        return {
+            "origin": origin,
+            "destination": destination,
+            "date": date,
+            "flights": [
+                {"airline": "SkyWay", "departure": "08:00", "price_usd": 320},
+                {"airline": "AeroConnect", "departure": "14:15", "price_usd": 275},
+                {"airline": "GlobalJet", "departure": "19:00", "price_usd": 410},
+            ],
+        }
+
     return gw
 
 

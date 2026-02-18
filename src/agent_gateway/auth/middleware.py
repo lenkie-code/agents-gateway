@@ -76,11 +76,13 @@ class AuthMiddleware:
     @staticmethod
     def _extract_bearer_token(scope: Scope) -> str | None:
         """Extract Bearer token from raw ASGI headers."""
-        headers: dict[bytes, bytes] = dict(scope.get("headers", []))
-        auth_value = headers.get(b"authorization", b"").decode("latin-1")
-        if auth_value.startswith("Bearer "):
-            token: str = auth_value[7:]
-            return token
+        for name, value in scope.get("headers", []):
+            if name == b"authorization":
+                decoded = value.decode("latin-1")
+                if decoded.startswith("Bearer "):
+                    token: str = decoded[7:]
+                    return token
+                return None
         return None
 
     @staticmethod

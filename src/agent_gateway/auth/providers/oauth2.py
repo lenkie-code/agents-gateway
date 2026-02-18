@@ -174,16 +174,12 @@ class OAuth2Provider:
     @staticmethod
     def _find_key(kid: str, keys: list[dict[str, Any]]) -> Any:
         """Find a JWKS key by kid and convert to a public key."""
-        import jwt as pyjwt
+        from jwt import PyJWK
 
         for key_data in keys:
             if key_data.get("kid") == kid:
-                alg = key_data.get("alg", key_data.get("kty", ""))
-                if alg.startswith("EC") or key_data.get("kty") == "EC":
-                    return pyjwt.algorithms.ECAlgorithm(
-                        pyjwt.algorithms.ECAlgorithm.SHA256
-                    ).from_jwk(key_data)
-                return pyjwt.algorithms.RSAAlgorithm.from_jwk(key_data)
+                jwk = PyJWK(key_data)
+                return jwk.key
         raise KeyError(kid)
 
     async def close(self) -> None:

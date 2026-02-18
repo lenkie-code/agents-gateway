@@ -72,9 +72,10 @@ class TestGatewayAuthIntegration:
             gw.use_oauth2(issuer="https://a.com", audience="b")
 
     async def test_use_auth_none_disables(self) -> None:
-        """use_auth(None) disables auth."""
+        """use_auth(None) explicitly disables auth."""
         gw = Gateway(auth=True)
         gw.use_auth(None)
+        # use_auth(None) sets _auth_provider to None (not the sentinel)
         assert gw._auth_provider is None
 
     async def test_custom_callable_auth(self) -> None:

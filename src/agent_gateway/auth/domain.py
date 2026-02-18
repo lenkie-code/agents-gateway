@@ -52,9 +52,6 @@ class ApiKeyRecord:
     id: str
     name: str
     key_hash: str  # SHA-256 hex digest
-    key_prefix: str  # first 8 chars for identification
     scopes: list[str] = field(default_factory=lambda: ["*"])
     expires_at: datetime | None = None
     revoked: bool = False
-    created_at: datetime | None = None
-    last_used_at: datetime | None = None

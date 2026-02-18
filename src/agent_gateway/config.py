@@ -41,11 +41,19 @@ def _resolve_env_vars(data: Any) -> Any:
             # Full replacement if the entire string is a single ${VAR}
             if match.group(0) == data:
                 return var_value
+
             # Partial replacement for embedded vars
-            return _ENV_VAR_PATTERN.sub(
-                lambda m: os.environ.get(m.group(1), ""),
-                data,
-            )
+            def _replace(m: re.Match[str]) -> str:
+                name = m.group(1)
+                val = os.environ.get(name)
+                if val is None:
+                    raise ValueError(
+                        f"Environment variable '${{{name}}}' is not defined. "
+                        f"Set it or remove the reference from gateway.yaml."
+                    )
+                return val
+
+            return _ENV_VAR_PATTERN.sub(_replace, data)
     return data
 
 

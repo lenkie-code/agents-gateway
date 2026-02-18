@@ -36,6 +36,7 @@ from agent_gateway.workspace.registry import CodeTool, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+_AUTH_NOT_SET = object()  # sentinel: distinguishes "not configured" from "explicitly disabled"
 _MAX_CONCURRENT_EXECUTIONS = 50
 
 
@@ -73,7 +74,7 @@ class Gateway(FastAPI):
         self._snapshot: WorkspaceSnapshot | None = None
         self._llm_client: LLMClient | None = None
         self._persistence_backend: PersistenceBackend | None = None
-        self._auth_provider: AuthProvider | None = None  # set by fluent API
+        self._auth_provider: AuthProvider | None | object = _AUTH_NOT_SET  # fluent API
         self._started = False
         self._execution_repo: ExecutionRepository = NullExecutionRepository()
         self._audit_repo: AuditRepository = NullAuditRepository()
@@ -292,7 +293,7 @@ class Gateway(FastAPI):
 
             public = frozenset(self._config.auth.public_paths)
             self.add_middleware(
-                AuthMiddleware,  # type: ignore[arg-type]
+                AuthMiddleware,
                 provider=auth_provider,
                 public_paths=public,
             )
@@ -338,7 +339,8 @@ class Gateway(FastAPI):
         if self._llm_client:
             await self._llm_client.close()
 
-        if self._auth_provider is not None:
+        if self._auth_provider is not _AUTH_NOT_SET and self._auth_provider is not None:
+            assert isinstance(self._auth_provider, AuthProvider)
             await self._auth_provider.close()
 
         if self._persistence_backend is not None:
@@ -434,7 +436,6 @@ class Gateway(FastAPI):
                 id=str(i),
                 name=k.get("name", f"key-{i}"),
                 key_hash=hash_api_key(k["key"]),
-                key_prefix=k["key"][:8],
                 scopes=k.get("scopes", ["*"]),
             )
             for i, k in enumerate(keys)
@@ -491,7 +492,10 @@ class Gateway(FastAPI):
         Precedence: fluent API > constructor auth= param > gateway.yaml config.
         """
         # 1. Fluent API (use_api_keys, use_oauth2, use_auth)
-        if self._auth_provider is not None:
+        if self._auth_provider is not _AUTH_NOT_SET:
+            if self._auth_provider is None:
+                return None  # explicitly disabled via use_auth(None)
+            assert isinstance(self._auth_provider, AuthProvider)
             return self._auth_provider
 
         # 2. Constructor param
@@ -500,26 +504,13 @@ class Gateway(FastAPI):
         if isinstance(self._auth_setting, bool):
             # auth=True — fall through to config
             pass
-        elif callable(self._auth_setting):
-            # Custom async function wrapped in an adapter
-            from agent_gateway.auth.domain import AuthResult as _AR
-
-            fn = self._auth_setting
-
-            class _CallableAuthProvider:
-                async def authenticate(self, token: str) -> _AR:
-                    result = await fn(token)
-                    if isinstance(result, _AR):
-                        return result
-                    return _AR.denied("Custom auth returned non-AuthResult")
-
-                async def close(self) -> None:
-                    pass
-
-            self._auth_provider = _CallableAuthProvider()
-            return self._auth_provider
         elif isinstance(self._auth_setting, AuthProvider):
             self._auth_provider = self._auth_setting
+            return self._auth_provider
+        elif callable(self._auth_setting):
+            from agent_gateway.auth import CallableAuthProvider
+
+            self._auth_provider = CallableAuthProvider(self._auth_setting)
             return self._auth_provider
 
         # 3. Config-based
@@ -538,7 +529,6 @@ class Gateway(FastAPI):
                     id=str(i),
                     name=k.name,
                     key_hash=hash_api_key(k.key),
-                    key_prefix=k.key[:8],
                     scopes=k.scopes,
                 )
                 for i, k in enumerate(auth_cfg.api_keys)
@@ -559,6 +549,45 @@ class Gateway(FastAPI):
                 clock_skew_seconds=o.clock_skew_seconds,
             )
             return self._auth_provider
+
+        if auth_cfg.mode == "composite":
+            from agent_gateway.auth.providers.composite import CompositeProvider
+
+            providers: list[AuthProvider] = []
+            if auth_cfg.api_keys:
+                from agent_gateway.auth.domain import ApiKeyRecord as _AKR
+                from agent_gateway.auth.providers.api_key import (
+                    ApiKeyProvider,
+                    hash_api_key,
+                )
+
+                records = [
+                    _AKR(
+                        id=str(i),
+                        name=k.name,
+                        key_hash=hash_api_key(k.key),
+                        scopes=k.scopes,
+                    )
+                    for i, k in enumerate(auth_cfg.api_keys)
+                ]
+                providers.append(ApiKeyProvider(records))
+            if auth_cfg.oauth2:
+                from agent_gateway.auth.providers.oauth2 import OAuth2Provider as _O2
+
+                o = auth_cfg.oauth2
+                providers.append(
+                    _O2(
+                        issuer=o.issuer,
+                        audience=o.audience,
+                        jwks_uri=o.jwks_uri,
+                        algorithms=o.algorithms,
+                        scope_claim=o.scope_claim,
+                        clock_skew_seconds=o.clock_skew_seconds,
+                    )
+                )
+            if providers:
+                self._auth_provider = CompositeProvider(providers)
+                return self._auth_provider
 
         return None
 
