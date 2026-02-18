@@ -1,0 +1,11 @@
+[project]
+name = "test-project"
+version = "0.1.0"
+description = "Test project for agent-gateway development"
+requires-python = ">=3.11"
+dependencies = [
+    "agent-gateway",
+]
+
+[tool.uv.sources]
+agent-gateway = { workspace = true }
