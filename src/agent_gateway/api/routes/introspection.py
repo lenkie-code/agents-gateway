@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response, not_found
 from agent_gateway.api.models import AgentInfo, SkillInfo, ToolInfo
 from agent_gateway.api.routes.base import GatewayAPIRoute
+from agent_gateway.auth.scopes import RequireScope
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
@@ -22,7 +23,11 @@ router = APIRouter(route_class=GatewayAPIRoute)
 _ID_PATTERN = r"^[a-zA-Z0-9_.-]+$"
 
 
-@router.get("/agents", response_model=list[AgentInfo])
+@router.get(
+    "/agents",
+    response_model=list[AgentInfo],
+    dependencies=[Depends(RequireScope("agents:read"))],
+)
 async def list_agents(request: Request) -> list[AgentInfo]:
     """List all discovered agents."""
     gw: Gateway = request.app
@@ -43,7 +48,11 @@ async def list_agents(request: Request) -> list[AgentInfo]:
     ]
 
 
-@router.get("/agents/{agent_id}", response_model=AgentInfo)
+@router.get(
+    "/agents/{agent_id}",
+    response_model=AgentInfo,
+    dependencies=[Depends(RequireScope("agents:read"))],
+)
 async def get_agent(
     request: Request,
     agent_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
@@ -68,7 +77,11 @@ async def get_agent(
     )
 
 
-@router.get("/skills", response_model=list[SkillInfo])
+@router.get(
+    "/skills",
+    response_model=list[SkillInfo],
+    dependencies=[Depends(RequireScope("agents:read"))],
+)
 async def list_skills(request: Request) -> list[SkillInfo]:
     """List all discovered skills."""
     gw: Gateway = request.app
@@ -87,7 +100,11 @@ async def list_skills(request: Request) -> list[SkillInfo]:
     ]
 
 
-@router.get("/skills/{skill_id}", response_model=SkillInfo)
+@router.get(
+    "/skills/{skill_id}",
+    response_model=SkillInfo,
+    dependencies=[Depends(RequireScope("agents:read"))],
+)
 async def get_skill(
     request: Request,
     skill_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
@@ -110,7 +127,11 @@ async def get_skill(
     )
 
 
-@router.get("/tools", response_model=list[ToolInfo])
+@router.get(
+    "/tools",
+    response_model=list[ToolInfo],
+    dependencies=[Depends(RequireScope("agents:read"))],
+)
 async def list_tools(request: Request) -> list[ToolInfo]:
     """List all registered tools (file-based + code-based)."""
     gw: Gateway = request.app
@@ -129,7 +150,11 @@ async def list_tools(request: Request) -> list[ToolInfo]:
     ]
 
 
-@router.get("/tools/{tool_id}", response_model=ToolInfo)
+@router.get(
+    "/tools/{tool_id}",
+    response_model=ToolInfo,
+    dependencies=[Depends(RequireScope("agents:read"))],
+)
 async def get_tool(
     request: Request,
     tool_id: str = Path(..., min_length=1, max_length=128, pattern=_ID_PATTERN),
@@ -152,7 +177,7 @@ async def get_tool(
     )
 
 
-@router.post("/reload")
+@router.post("/reload", dependencies=[Depends(RequireScope("admin"))])
 async def reload_workspace(request: Request) -> JSONResponse:
     """Re-scan workspace and reload all definitions."""
     gw: Gateway = request.app

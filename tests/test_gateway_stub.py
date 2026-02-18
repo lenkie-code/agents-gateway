@@ -26,13 +26,13 @@ class TestGatewayStub:
     def test_gateway_default_params(self) -> None:
         gw = Gateway()
         assert gw._workspace_path == "./workspace"
-        assert gw._auth_enabled is True
+        assert gw._auth_setting is True
         assert gw._reload_enabled is False
 
     def test_gateway_custom_params(self) -> None:
         gw = Gateway(workspace="./my-agents", auth=False, reload=True, title="Test")
         assert gw._workspace_path == "./my-agents"
-        assert gw._auth_enabled is False
+        assert gw._auth_setting is False
         assert gw._reload_enabled is True
         assert gw.title == "Test"
 

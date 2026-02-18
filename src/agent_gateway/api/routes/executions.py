@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response
 from agent_gateway.api.models import ExecutionResponse
 from agent_gateway.api.routes.base import GatewayAPIRoute
+from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import ExecutionStatus
 from agent_gateway.persistence.domain import ExecutionRecord
 
@@ -36,7 +37,11 @@ def _record_to_response(record: ExecutionRecord) -> ExecutionResponse:
     )
 
 
-@router.get("/executions/{execution_id}", response_model=ExecutionResponse)
+@router.get(
+    "/executions/{execution_id}",
+    response_model=ExecutionResponse,
+    dependencies=[Depends(RequireScope("executions:read"))],
+)
 async def get_execution(
     request: Request,
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
@@ -51,7 +56,11 @@ async def get_execution(
     return _record_to_response(record)
 
 
-@router.get("/executions", response_model=list[ExecutionResponse])
+@router.get(
+    "/executions",
+    response_model=list[ExecutionResponse],
+    dependencies=[Depends(RequireScope("executions:read"))],
+)
 async def list_executions(
     request: Request,
     agent_id: str | None = Query(None, description="Filter by agent ID"),
@@ -68,7 +77,10 @@ async def list_executions(
     return [_record_to_response(r) for r in records]
 
 
-@router.post("/executions/{execution_id}/cancel")
+@router.post(
+    "/executions/{execution_id}/cancel",
+    dependencies=[Depends(RequireScope("executions:cancel"))],
+)
 async def cancel_execution(
     request: Request,
     execution_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
