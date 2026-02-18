@@ -1,7 +1,7 @@
 ---
 title: "Phase 2.1: Authentication Middleware"
 type: feat
-status: pending
+status: completed
 date: 2026-02-18
 depends_on: [08]
 blocks: []
@@ -96,9 +96,9 @@ Keys in gateway.yaml use `${VAR}` syntax — resolve from environment at startup
 
 ## Acceptance Criteria
 
-- [ ] `/v1/` routes require valid API key
-- [ ] Scopes enforced per endpoint
-- [ ] Custom routes bypass auth
-- [ ] Custom auth function works
-- [ ] Auth can be disabled
-- [ ] Pure ASGI middleware (no BaseHTTPMiddleware)
+- [x] `/v1/` routes require valid API key
+- [x] Scopes enforced per endpoint
+- [x] Custom routes bypass auth
+- [x] Custom auth function works
+- [x] Auth can be disabled
+- [x] Pure ASGI middleware (no BaseHTTPMiddleware)

@@ -15,6 +15,7 @@ from typing import Any, overload
 
 from fastapi import APIRouter, FastAPI
 
+from agent_gateway.auth.protocols import AuthProvider
 from agent_gateway.chat.session import ChatSession, SessionStore
 from agent_gateway.config import GatewayConfig, PersistenceConfig
 from agent_gateway.engine.executor import ExecutionEngine
@@ -57,12 +58,12 @@ class Gateway(FastAPI):
     def __init__(
         self,
         workspace: str | Path = "./workspace",
-        auth: bool = True,
+        auth: bool | Callable[..., Any] | AuthProvider = True,
         reload: bool = False,
         **fastapi_kwargs: Any,
     ) -> None:
         self._workspace_path = str(workspace)
-        self._auth_enabled = auth
+        self._auth_setting = auth
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
         self._hooks = HookRegistry()
@@ -72,6 +73,7 @@ class Gateway(FastAPI):
         self._snapshot: WorkspaceSnapshot | None = None
         self._llm_client: LLMClient | None = None
         self._persistence_backend: PersistenceBackend | None = None
+        self._auth_provider: AuthProvider | None = None  # set by fluent API
         self._started = False
         self._execution_repo: ExecutionRepository = NullExecutionRepository()
         self._audit_repo: AuditRepository = NullAuditRepository()
@@ -284,11 +286,16 @@ class Gateway(FastAPI):
         )
 
         # 9. Wire auth middleware if enabled
-        if self._auth_enabled and self._config.auth.enabled and self._config.auth.api_keys:
-            from agent_gateway.api.auth import ApiKeyAuthMiddleware
+        auth_provider = self._resolve_auth_provider()
+        if auth_provider is not None:
+            from agent_gateway.auth.middleware import AuthMiddleware
 
-            valid_keys = {k.key: k.scopes for k in self._config.auth.api_keys}
-            self.add_middleware(ApiKeyAuthMiddleware, valid_keys=valid_keys)  # type: ignore[arg-type]
+            public = frozenset(self._config.auth.public_paths)
+            self.add_middleware(
+                AuthMiddleware,  # type: ignore[arg-type]
+                provider=auth_provider,
+                public_paths=public,
+            )
 
         self._started = True
 
@@ -330,6 +337,9 @@ class Gateway(FastAPI):
 
         if self._llm_client:
             await self._llm_client.close()
+
+        if self._auth_provider is not None:
+            await self._auth_provider.close()
 
         if self._persistence_backend is not None:
             await self._persistence_backend.dispose()
@@ -401,6 +411,156 @@ class Gateway(FastAPI):
             raise RuntimeError("Cannot configure persistence after gateway has started")
         self._persistence_backend = backend
         return self
+
+    # --- Auth configuration (fluent API) ---
+
+    def use_api_keys(
+        self,
+        keys: list[dict[str, Any]],
+    ) -> Gateway:
+        """Configure API key authentication.
+
+        Args:
+            keys: List of {"name": ..., "key": ..., "scopes": [...]} dicts.
+                  Keys are hashed immediately; plaintext is not retained.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure auth after gateway has started")
+        from agent_gateway.auth.domain import ApiKeyRecord
+        from agent_gateway.auth.providers.api_key import ApiKeyProvider, hash_api_key
+
+        records = [
+            ApiKeyRecord(
+                id=str(i),
+                name=k.get("name", f"key-{i}"),
+                key_hash=hash_api_key(k["key"]),
+                key_prefix=k["key"][:8],
+                scopes=k.get("scopes", ["*"]),
+            )
+            for i, k in enumerate(keys)
+        ]
+        self._auth_provider = ApiKeyProvider(records)
+        return self
+
+    def use_oauth2(
+        self,
+        issuer: str,
+        audience: str,
+        jwks_uri: str | None = None,
+        algorithms: list[str] | None = None,
+        scope_claim: str = "scope",
+    ) -> Gateway:
+        """Configure OAuth2/OIDC JWT validation.
+
+        Requires: pip install agent-gateway[oauth2]
+
+        Args:
+            issuer: Token issuer URL (e.g. "https://auth.example.com").
+            audience: Expected audience claim.
+            jwks_uri: JWKS endpoint URL. Defaults to {issuer}/.well-known/jwks.json.
+            algorithms: Allowed signing algorithms. Defaults to ["RS256", "ES256"].
+            scope_claim: JWT claim containing scopes. "scp" for Azure AD.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure auth after gateway has started")
+        from agent_gateway.auth.providers.oauth2 import OAuth2Provider
+
+        self._auth_provider = OAuth2Provider(
+            issuer=issuer,
+            audience=audience,
+            jwks_uri=jwks_uri,
+            algorithms=algorithms,
+            scope_claim=scope_claim,
+        )
+        return self
+
+    def use_auth(self, provider: AuthProvider | None) -> Gateway:
+        """Configure a custom auth provider, or None to disable auth.
+
+        Args:
+            provider: An AuthProvider implementation, or None to disable.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure auth after gateway has started")
+        self._auth_provider = provider
+        return self
+
+    def _resolve_auth_provider(self) -> AuthProvider | None:
+        """Resolve the auth provider from fluent API, constructor, or config.
+
+        Precedence: fluent API > constructor auth= param > gateway.yaml config.
+        """
+        # 1. Fluent API (use_api_keys, use_oauth2, use_auth)
+        if self._auth_provider is not None:
+            return self._auth_provider
+
+        # 2. Constructor param
+        if self._auth_setting is False:
+            return None
+        if isinstance(self._auth_setting, bool):
+            # auth=True — fall through to config
+            pass
+        elif callable(self._auth_setting):
+            # Custom async function wrapped in an adapter
+            from agent_gateway.auth.domain import AuthResult as _AR
+
+            fn = self._auth_setting
+
+            class _CallableAuthProvider:
+                async def authenticate(self, token: str) -> _AR:
+                    result = await fn(token)
+                    if isinstance(result, _AR):
+                        return result
+                    return _AR.denied("Custom auth returned non-AuthResult")
+
+                async def close(self) -> None:
+                    pass
+
+            self._auth_provider = _CallableAuthProvider()
+            return self._auth_provider
+        elif isinstance(self._auth_setting, AuthProvider):
+            self._auth_provider = self._auth_setting
+            return self._auth_provider
+
+        # 3. Config-based
+        if self._config is None:
+            return None
+        auth_cfg = self._config.auth
+        if not auth_cfg.enabled or auth_cfg.mode == "none":
+            return None
+
+        if auth_cfg.mode == "api_key" and auth_cfg.api_keys:
+            from agent_gateway.auth.domain import ApiKeyRecord
+            from agent_gateway.auth.providers.api_key import ApiKeyProvider, hash_api_key
+
+            records = [
+                ApiKeyRecord(
+                    id=str(i),
+                    name=k.name,
+                    key_hash=hash_api_key(k.key),
+                    key_prefix=k.key[:8],
+                    scopes=k.scopes,
+                )
+                for i, k in enumerate(auth_cfg.api_keys)
+            ]
+            self._auth_provider = ApiKeyProvider(records)
+            return self._auth_provider
+
+        if auth_cfg.mode == "oauth2" and auth_cfg.oauth2:
+            from agent_gateway.auth.providers.oauth2 import OAuth2Provider
+
+            o = auth_cfg.oauth2
+            self._auth_provider = OAuth2Provider(
+                issuer=o.issuer,
+                audience=o.audience,
+                jwks_uri=o.jwks_uri,
+                algorithms=o.algorithms,
+                scope_claim=o.scope_claim,
+                clock_skew_seconds=o.clock_skew_seconds,
+            )
+            return self._auth_provider
+
+        return None
 
     def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
         """Create a backend from YAML/env configuration (backward compat)."""

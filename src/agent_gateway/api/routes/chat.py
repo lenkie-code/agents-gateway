@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from agent_gateway.api.errors import error_response
@@ -18,6 +18,7 @@ from agent_gateway.api.models import (
 )
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.api.routes.status import stop_reason_to_status
+from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import ExecutionHandle, ExecutionOptions
 
 if TYPE_CHECKING:
@@ -28,7 +29,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(route_class=GatewayAPIRoute)
 
 
-@router.post("/agents/{agent_id}/chat", response_model=None)
+@router.post(
+    "/agents/{agent_id}/chat",
+    response_model=None,
+    dependencies=[Depends(RequireScope("agents:invoke"))],
+)
 async def chat_with_agent(
     body: ChatRequest,
     request: Request,
@@ -192,7 +197,11 @@ def _create_streaming_response(
 # --- Session CRUD endpoints ---
 
 
-@router.get("/sessions/{session_id}", response_model=SessionInfo)
+@router.get(
+    "/sessions/{session_id}",
+    response_model=SessionInfo,
+    dependencies=[Depends(RequireScope("sessions:read"))],
+)
 async def get_session(
     request: Request,
     session_id: str = Path(..., min_length=1),
@@ -217,7 +226,10 @@ async def get_session(
     )
 
 
-@router.delete("/sessions/{session_id}")
+@router.delete(
+    "/sessions/{session_id}",
+    dependencies=[Depends(RequireScope("sessions:manage"))],
+)
 async def delete_session(
     request: Request,
     session_id: str = Path(..., min_length=1),
@@ -235,7 +247,7 @@ async def delete_session(
     return JSONResponse(status_code=200, content={"deleted": True})
 
 
-@router.get("/sessions")
+@router.get("/sessions", dependencies=[Depends(RequireScope("sessions:read"))])
 async def list_sessions(
     request: Request,
     agent_id: str | None = Query(None),

@@ -5,12 +5,48 @@ Precedence: Environment variables > gateway.yaml > defaults.
 
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
+
+_ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
+
+
+def _resolve_env_vars(data: Any) -> Any:
+    """Recursively resolve ${VAR} placeholders from environment.
+
+    Raises ValueError if a referenced variable is undefined.
+    """
+    if isinstance(data, dict):
+        for key, value in data.items():
+            data[key] = _resolve_env_vars(value)
+    elif isinstance(data, list):
+        for i, item in enumerate(data):
+            data[i] = _resolve_env_vars(item)
+    elif isinstance(data, str):
+        match = _ENV_VAR_PATTERN.search(data)
+        if match:
+            var_name = match.group(1)
+            var_value = os.environ.get(var_name)
+            if var_value is None:
+                raise ValueError(
+                    f"Environment variable '${{{var_name}}}' is not defined. "
+                    f"Set it or remove the reference from gateway.yaml."
+                )
+            # Full replacement if the entire string is a single ${VAR}
+            if match.group(0) == data:
+                return var_value
+            # Partial replacement for embedded vars
+            return _ENV_VAR_PATTERN.sub(
+                lambda m: os.environ.get(m.group(1), ""),
+                data,
+            )
+    return data
 
 
 class ServerConfig(BaseModel):
@@ -38,10 +74,21 @@ class AuthKeyConfig(BaseModel):
     scopes: list[str] = Field(default_factory=lambda: ["*"])
 
 
+class OAuth2Config(BaseModel):
+    issuer: str
+    audience: str
+    jwks_uri: str | None = None
+    algorithms: list[str] = Field(default_factory=lambda: ["RS256", "ES256"])
+    scope_claim: str = "scope"  # "scp" for Azure AD
+    clock_skew_seconds: int = 30
+
+
 class AuthConfig(BaseModel):
     enabled: bool = True
-    mode: str = "api_key"  # api_key | custom | none
+    mode: str = "api_key"  # api_key | oauth2 | composite | custom | none
     api_keys: list[AuthKeyConfig] = Field(default_factory=list)
+    oauth2: OAuth2Config | None = None
+    public_paths: list[str] = Field(default_factory=lambda: ["/v1/health"])
 
 
 class SlackConfig(BaseModel):
@@ -116,6 +163,7 @@ class GatewayConfig(BaseSettings):
             return cls()
         with open(path) as f:
             data = yaml.safe_load(f) or {}
+        _resolve_env_vars(data)
         return cls(**data)
 
     @classmethod

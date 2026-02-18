@@ -9,7 +9,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response
@@ -21,6 +21,7 @@ from agent_gateway.api.models import (
 )
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.api.routes.status import stop_reason_to_status
+from agent_gateway.auth.scopes import RequireScope
 from agent_gateway.engine.models import (
     ExecutionHandle,
     ExecutionOptions,
@@ -70,7 +71,11 @@ def _build_response(
     )
 
 
-@router.post("/agents/{agent_id}/invoke", response_model=InvokeResponse)
+@router.post(
+    "/agents/{agent_id}/invoke",
+    response_model=InvokeResponse,
+    dependencies=[Depends(RequireScope("agents:invoke"))],
+)
 async def invoke_agent(
     body: InvokeRequest,
     request: Request,
