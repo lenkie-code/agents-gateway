@@ -1,7 +1,7 @@
 ---
 title: "feat: Pluggable Notification Backends (Slack + Webhooks)"
 type: feat
-status: active
+status: completed
 date: 2026-02-19
 depends_on: [08-api-layer-and-gateway, 2026-02-18-feat-pluggable-persistence-backends-plan]
 parent: 2026-02-18-feat-agent-gateway-framework-plan.md
@@ -1150,7 +1150,7 @@ Removed `TeamsConfig` from the config — Teams is out of scope for this phase.
 - [x] Create `notifications/protocols.py` with `NotificationBackend` protocol
 - [x] Create `notifications/engine.py` with dispatch + retry logic
 - [x] Update `notifications/__init__.py` with public exports
-- [ ] Unit tests for `NotificationEngine` with mock backends
+- [x] Unit tests for `NotificationEngine` with mock backends
 
 **Estimated files changed:** 4 new, 1 updated
 **Risk:** Low — additive, no existing code changes
@@ -1162,8 +1162,8 @@ Removed `TeamsConfig` from the config — Teams is out of scope for this phase.
 - [x] Add `notifications: AgentNotificationConfig` field to `AgentDefinition`
 - [x] Parse `notifications` from CONFIG.md frontmatter in `AgentDefinition.load()`
 - [x] Update `NotificationsConfig` in `config.py` (add `default_channel`, `payload_template`, remove `TeamsConfig`)
-- [ ] Update test workspace fixtures with notification config
-- [ ] Unit tests for frontmatter parsing with notifications
+- [x] Update test workspace fixtures with notification config
+- [x] Unit tests for frontmatter parsing with notifications
 
 **Estimated files changed:** 3 (agent.py, config.py, tests)
 **Risk:** Low — extends existing parsing, backward compatible (no notifications = empty config)
@@ -1176,8 +1176,8 @@ Removed `TeamsConfig` from the config — Teams is out of scope for this phase.
 - [x] Create `notifications/template.py` with Jinja2 rendering helpers
 - [x] Implement default Block Kit layouts for completed/failed/timeout events
 - [x] Support custom templates from `workspace/templates/notifications/`
-- [ ] Unit tests with mocked Slack client
-- [ ] Verify `agent-gateway[slack]` extra installs correctly
+- [x] Unit tests with mocked Slack client
+- [x] Verify `agent-gateway[slack]` extra installs correctly
 
 **Estimated files changed:** 3 new
 **Risk:** Medium — Block Kit JSON structure needs testing for Slack API compatibility
@@ -1191,8 +1191,8 @@ Removed `TeamsConfig` from the config — Teams is out of scope for this phase.
 - [x] Support custom payload templates via Jinja2 (`payload_template` field)
 - [x] Support event filtering (`events` list)
 - [x] Add `jinja2>=3.1` to `[webhooks]` extra in pyproject.toml
-- [ ] Unit tests with httpx mock
-- [ ] Verify HMAC signature generation/verification round-trip
+- [x] Unit tests with httpx mock
+- [x] Verify HMAC signature generation/verification round-trip
 
 **Estimated files changed:** 2 new, 1 updated (pyproject.toml)
 **Risk:** Low — straightforward HTTP POST + HMAC
@@ -1207,8 +1207,8 @@ Removed `TeamsConfig` from the config — Teams is out of scope for this phase.
 - [x] Fire notifications after sync execution in `_execute_inline()` / `invoke()`
 - [x] Fire notifications after async execution in `WorkerPool._run_execution()`
 - [x] Add `_build_notification_event()` helper
-- [ ] Integration tests: full invoke → notification flow
-- [ ] Integration tests: async queue → notification flow
+- [x] Integration tests: full invoke → notification flow
+- [x] Integration tests: async queue → notification flow
 
 **Estimated files changed:** 3 (gateway.py, worker.py, tests)
 **Risk:** Medium — touches Gateway startup/shutdown and worker pool
@@ -1217,10 +1217,10 @@ Removed `TeamsConfig` from the config — Teams is out of scope for this phase.
 
 **Goal:** Finalize extras and ensure clean install paths.
 
-- [ ] Verify `agent-gateway[slack]` extra works end-to-end
-- [ ] Verify `agent-gateway[webhooks]` extra works end-to-end
+- [x] Verify `agent-gateway[slack]` extra works end-to-end
+- [x] Verify `agent-gateway[webhooks]` extra works end-to-end
 - [x] Update `all` extra to include `slack` and `webhooks`
-- [ ] Verify base install (no extras) gracefully handles missing notification deps
+- [x] Verify base install (no extras) gracefully handles missing notification deps
 - [x] Remove `TeamsConfig` from config if still present
 
 **Estimated files changed:** 1-2
