@@ -55,3 +55,44 @@ class AgentNotificationConfig:
     on_complete: list[NotificationTarget] = field(default_factory=list)
     on_error: list[NotificationTarget] = field(default_factory=list)
     on_timeout: list[NotificationTarget] = field(default_factory=list)
+
+
+_EVENT_TYPE_MAP: dict[str, str] = {
+    "completed": "execution.completed",
+    "failed": "execution.failed",
+    "timeout": "execution.timeout",
+    "error": "execution.failed",
+    "cancelled": "execution.failed",
+}
+
+
+def build_notification_event(
+    execution_id: str,
+    agent_id: str,
+    status: str,
+    message: str,
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+    usage: dict[str, Any] | None = None,
+    started_at: datetime | None = None,
+    completed_at: datetime | None = None,
+    duration_ms: int = 0,
+    context: dict[str, Any] | None = None,
+) -> NotificationEvent:
+    """Build a NotificationEvent from execution result data."""
+    event_type = _EVENT_TYPE_MAP.get(status, f"execution.{status}")
+
+    return NotificationEvent(
+        type=event_type,
+        execution_id=execution_id,
+        agent_id=agent_id,
+        status=status,
+        message=message,
+        result=result,
+        error=error,
+        usage=usage,
+        started_at=started_at,
+        completed_at=completed_at,
+        duration_ms=duration_ms,
+        context=context,
+    )

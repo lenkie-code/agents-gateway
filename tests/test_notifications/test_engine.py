@@ -13,6 +13,7 @@ from agent_gateway.notifications.models import (
     AgentNotificationConfig,
     NotificationEvent,
     NotificationTarget,
+    build_notification_event,
 )
 
 
@@ -254,3 +255,56 @@ class TestNotificationEngine:
         working_backend.send.assert_awaited_once()
         # Webhook should have retried and failed
         assert failing_backend.send.await_count == MAX_RETRIES
+
+
+class TestBuildNotificationEvent:
+    """Tests for the build_notification_event factory function."""
+
+    def test_completed_event(self) -> None:
+        event = build_notification_event(
+            execution_id="exec-1",
+            agent_id="agent-1",
+            status="completed",
+            message="hello",
+        )
+        assert event.type == "execution.completed"
+        assert event.execution_id == "exec-1"
+        assert event.agent_id == "agent-1"
+
+    def test_failed_event(self) -> None:
+        event = build_notification_event(
+            execution_id="exec-2",
+            agent_id="agent-1",
+            status="failed",
+            message="hello",
+            error="crash",
+        )
+        assert event.type == "execution.failed"
+        assert event.error == "crash"
+
+    def test_timeout_event(self) -> None:
+        event = build_notification_event(
+            execution_id="exec-3",
+            agent_id="agent-1",
+            status="timeout",
+            message="hello",
+        )
+        assert event.type == "execution.timeout"
+
+    def test_cancelled_maps_to_failed(self) -> None:
+        event = build_notification_event(
+            execution_id="exec-4",
+            agent_id="agent-1",
+            status="cancelled",
+            message="hello",
+        )
+        assert event.type == "execution.failed"
+
+    def test_unknown_status_uses_prefix(self) -> None:
+        event = build_notification_event(
+            execution_id="exec-5",
+            agent_id="agent-1",
+            status="custom",
+            message="hello",
+        )
+        assert event.type == "execution.custom"

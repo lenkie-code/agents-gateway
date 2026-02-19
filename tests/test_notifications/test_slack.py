@@ -207,3 +207,21 @@ class TestSlackBackendTemplates:
         # Should be the hardcoded default
         assert blocks[0]["type"] == "header"
         assert "Completed" in blocks[0]["text"]["text"]
+
+    def test_path_traversal_blocked(self, tmp_path: Path) -> None:
+        """Path traversal in template names falls back to default blocks."""
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+
+        backend = SlackBackend(bot_token="xoxb-test", templates_dir=templates_dir)
+        event = _make_event()
+        target = NotificationTarget(
+            channel="slack",
+            target="#alerts",
+            template="../../etc/passwd",
+        )
+
+        blocks = backend._build_blocks(event, target)
+        # Should fall back to hardcoded default, not crash or read outside dir
+        assert blocks[0]["type"] == "header"
+        assert "Completed" in blocks[0]["text"]["text"]

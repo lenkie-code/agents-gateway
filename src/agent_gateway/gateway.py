@@ -27,7 +27,7 @@ from agent_gateway.engine.models import (
 )
 from agent_gateway.hooks import HookRegistry
 from agent_gateway.notifications import NotificationEngine
-from agent_gateway.notifications.models import NotificationEvent
+from agent_gateway.notifications.models import NotificationEvent, build_notification_event
 from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
@@ -1004,7 +1004,7 @@ class Gateway(FastAPI):
 
             # Fire notifications in background (fire-and-forget)
             if self._notification_engine.has_backends and agent.notifications:
-                notification_event = _build_notification_event(
+                notification_event = build_notification_event(
                     execution_id=execution_id,
                     agent_id=agent_id,
                     status=result.stop_reason.value,
@@ -1240,42 +1240,3 @@ class Gateway(FastAPI):
 
         self._setup_logging()
         uvicorn.run(self, host=host, port=port, **kwargs)  # type: ignore[arg-type]
-
-
-def _build_notification_event(
-    execution_id: str,
-    agent_id: str,
-    status: str,
-    message: str,
-    result: dict[str, Any] | None = None,
-    error: str | None = None,
-    usage: dict[str, Any] | None = None,
-    started_at: Any | None = None,
-    completed_at: Any | None = None,
-    duration_ms: int = 0,
-    context: dict[str, Any] | None = None,
-) -> NotificationEvent:
-    """Build a NotificationEvent from execution result data."""
-    event_type_map = {
-        "completed": "execution.completed",
-        "failed": "execution.failed",
-        "timeout": "execution.timeout",
-        "error": "execution.failed",
-        "cancelled": "execution.failed",
-    }
-    event_type = event_type_map.get(status, f"execution.{status}")
-
-    return NotificationEvent(
-        type=event_type,
-        execution_id=execution_id,
-        agent_id=agent_id,
-        status=status,
-        message=message,
-        result=result,
-        error=error,
-        usage=usage,
-        started_at=started_at,
-        completed_at=completed_at,
-        duration_ms=duration_ms,
-        context=context,
-    )

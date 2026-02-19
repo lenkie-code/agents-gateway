@@ -91,13 +91,18 @@ class SlackBackend:
         3. Built-in hardcoded Block Kit layout
         """
         if target.template and self._templates_dir:
-            template_path = self._templates_dir / f"{target.template}.json.j2"
+            template_path = (self._templates_dir / f"{target.template}.json.j2").resolve()
+            if not template_path.is_relative_to(self._templates_dir.resolve()):
+                logger.warning("Template path traversal blocked: %s", target.template)
+                return self._default_blocks(event)
             if template_path.exists():
                 return self._render_template(template_path, event, target)
 
         if self._templates_dir:
             event_suffix = event.type.split(".")[-1]  # completed | failed | timeout
-            event_template = self._templates_dir / f"default-{event_suffix}.json.j2"
+            event_template = (self._templates_dir / f"default-{event_suffix}.json.j2").resolve()
+            if not event_template.is_relative_to(self._templates_dir.resolve()):
+                return self._default_blocks(event)
             if event_template.exists():
                 return self._render_template(event_template, event, target)
 

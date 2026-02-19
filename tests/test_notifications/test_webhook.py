@@ -11,7 +11,11 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from agent_gateway.notifications.backends.webhook import WebhookBackend, WebhookEndpoint
+from agent_gateway.notifications.backends.webhook import (
+    WebhookBackend,
+    WebhookEndpoint,
+    _validate_webhook_url,
+)
 from agent_gateway.notifications.models import NotificationEvent, NotificationTarget
 
 _DUMMY_REQUEST = httpx.Request("POST", "https://example.com")
@@ -272,5 +276,67 @@ class TestWebhookBackendEdgeCases:
         with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
             await backend.send(event, target)
             assert mock_post.call_args[0][0] == "https://dynamic.example.com/hook"
+
+        await backend.dispose()
+
+
+class TestSSRFProtection:
+    """SSRF protection on webhook URLs."""
+
+    def test_blocks_localhost(self) -> None:
+        with pytest.raises(ValueError, match="Blocked hostname"):
+            _validate_webhook_url("http://localhost/hook")
+
+    def test_blocks_metadata_endpoint(self) -> None:
+        with pytest.raises(ValueError, match="Blocked hostname"):
+            _validate_webhook_url("http://metadata.google.internal/computeMetadata/v1/")
+
+    def test_blocks_private_ipv4_loopback(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://127.0.0.1/hook")
+
+    def test_blocks_private_ipv4_10(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://10.0.0.1/hook")
+
+    def test_blocks_private_ipv4_172(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://172.16.0.1/hook")
+
+    def test_blocks_private_ipv4_192(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://192.168.1.1/hook")
+
+    def test_blocks_link_local(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://169.254.169.254/latest/meta-data/")
+
+    def test_blocks_ipv6_loopback(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://[::1]/hook")
+
+    def test_blocks_unsupported_scheme(self) -> None:
+        with pytest.raises(ValueError, match="Unsupported URL scheme"):
+            _validate_webhook_url("file:///etc/passwd")
+
+    def test_blocks_ftp_scheme(self) -> None:
+        with pytest.raises(ValueError, match="Unsupported URL scheme"):
+            _validate_webhook_url("ftp://evil.com/payload")
+
+    def test_allows_public_https(self) -> None:
+        _validate_webhook_url("https://hooks.slack.com/services/T00/B00/xxx")
+
+    def test_allows_public_http(self) -> None:
+        _validate_webhook_url("http://example.com/hook")
+
+    async def test_ssrf_blocked_during_send(self) -> None:
+        backend = WebhookBackend()
+        await backend.initialize()
+
+        event = _make_event()
+        target = NotificationTarget(channel="webhook", url="http://169.254.169.254/latest/")
+
+        with pytest.raises(ValueError, match="blocked network"):
+            await backend.send(event, target)
 
         await backend.dispose()

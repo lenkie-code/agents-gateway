@@ -139,11 +139,12 @@ class WorkerPool:
             await self._queue.nack(job.execution_id)
             return
 
+        notify_args: dict[str, Any] | None = None
         start = time.monotonic()
         with queue_process_span(job.execution_id, job.agent_id, worker_id) as span:
             try:
                 async with semaphore:
-                    await self._run_execution(worker_id, job)
+                    notify_args = await self._run_execution(worker_id, job)
                 await self._queue.ack(job.execution_id)
 
                 duration_ms = int((time.monotonic() - start) * 1000)
@@ -162,8 +163,18 @@ class WorkerPool:
                 set_span_error(span, exc)
                 await self._queue.nack(job.execution_id)
 
-    async def _run_execution(self, worker_id: int, job: ExecutionJob) -> None:
-        """Run the agent execution for a job."""
+        # Fire notifications OUTSIDE the semaphore to avoid blocking worker slots
+        if notify_args is not None:
+            await self._fire_notifications(**notify_args)
+
+    async def _run_execution(
+        self, worker_id: int, job: ExecutionJob
+    ) -> dict[str, Any] | None:
+        """Run the agent execution for a job.
+
+        Returns notification keyword arguments to be fired *after* the
+        semaphore is released, or ``None`` if no notification is needed.
+        """
         gw = self._gateway
         snapshot = gw._snapshot
         if snapshot is None or snapshot.engine is None:
@@ -176,7 +187,7 @@ class WorkerPool:
                 ExecutionStatus.FAILED,
                 error=f"Agent '{job.agent_id}' not found",
             )
-            return
+            return None
 
         # Update status to running
         await gw._execution_repo.update_status(job.execution_id, ExecutionStatus.RUNNING)
@@ -235,17 +246,16 @@ class WorkerPool:
                 duration_ms,
             )
 
-            # Fire notifications (fire-and-forget, never affects execution)
-            await self._fire_notifications(
-                agent=agent,
-                execution_id=job.execution_id,
-                status=status.value,
-                message=job.message,
-                result=result.to_dict() if result.raw_text else None,
-                usage=result.usage.to_dict() if result.usage else None,
-                context=job.context,
-                duration_ms=duration_ms,
-            )
+            return {
+                "agent": agent,
+                "execution_id": job.execution_id,
+                "status": status.value,
+                "message": job.message,
+                "result": result.to_dict() if result.raw_text else None,
+                "usage": result.usage.to_dict() if result.usage else None,
+                "context": job.context,
+                "duration_ms": duration_ms,
+            }
         except Exception as e:
             logger.error(
                 "Worker %d: job %s execution failed: %s",
@@ -257,15 +267,14 @@ class WorkerPool:
                 job.execution_id, ExecutionStatus.FAILED, error=str(e)
             )
 
-            # Fire error notification
-            await self._fire_notifications(
-                agent=agent,
-                execution_id=job.execution_id,
-                status="failed",
-                message=job.message,
-                error=str(e),
-                context=job.context,
-            )
+            return {
+                "agent": agent,
+                "execution_id": job.execution_id,
+                "status": "failed",
+                "message": job.message,
+                "error": str(e),
+                "context": job.context,
+            }
         finally:
             gw._execution_handles.pop(job.execution_id, None)
 
@@ -298,9 +307,9 @@ class WorkerPool:
             if not engine.has_backends or not agent.notifications:
                 return
 
-            from agent_gateway.gateway import _build_notification_event
+            from agent_gateway.notifications.models import build_notification_event
 
-            event = _build_notification_event(
+            event = build_notification_event(
                 execution_id=execution_id,
                 agent_id=agent.id,
                 status=status,

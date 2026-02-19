@@ -38,7 +38,7 @@ class NotificationEngine:
     @property
     def has_backends(self) -> bool:
         """Whether any notification backends are registered."""
-        return len(self._backends) > 0
+        return bool(self._backends)
 
     async def initialize(self) -> None:
         """Initialize all registered backends."""

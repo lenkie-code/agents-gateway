@@ -4,17 +4,51 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from agent_gateway.notifications.models import NotificationEvent, NotificationTarget
 
 logger = logging.getLogger(__name__)
+
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fd00::/8"),
+]
+
+_BLOCKED_HOSTNAMES = {"localhost", "metadata.google.internal"}
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Reject URLs targeting private/internal networks (SSRF protection)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https", "http"):
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Missing hostname in webhook URL")
+    if hostname.lower() in _BLOCKED_HOSTNAMES:
+        raise ValueError(f"Blocked hostname: {hostname}")
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if any(addr in net for net in _BLOCKED_NETWORKS):
+            raise ValueError(f"Webhook URL resolves to blocked network: {hostname}")
+    except ValueError as exc:
+        if "blocked" in str(exc).lower() or "Unsupported" in str(exc):
+            raise
+        # hostname is a DNS name, not an IP literal — allowed
 
 
 @dataclass
@@ -111,6 +145,7 @@ class WebhookBackend:
             headers["X-AgentGateway-Signature"] = f"sha256={signature}"
             headers["X-AgentGateway-Timestamp"] = timestamp
 
+        _validate_webhook_url(url)
         response = await self._client.post(url, content=body, headers=headers)
         response.raise_for_status()
 
