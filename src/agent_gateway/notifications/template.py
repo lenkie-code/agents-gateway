@@ -13,7 +13,7 @@ def render_template(path: Path, **context: Any) -> str:
 
     env = Environment(
         loader=FileSystemLoader(path.parent),
-        autoescape=select_autoescape([]),
+        autoescape=select_autoescape(default=False, default_for_string=False),
     )
     env.filters["tojson"] = lambda v: json.dumps(v, default=str)
     template = env.get_template(path.name)
@@ -26,7 +26,7 @@ def render_template_string(source: str, **context: Any) -> str:
 
     env = Environment(
         loader=BaseLoader(),
-        autoescape=select_autoescape([]),
+        autoescape=select_autoescape(default=False, default_for_string=False),
     )
     env.filters["tojson"] = lambda v: json.dumps(v, default=str)
     template = env.from_string(source)
