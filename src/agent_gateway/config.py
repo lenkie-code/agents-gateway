@@ -102,24 +102,20 @@ class AuthConfig(BaseModel):
 class SlackConfig(BaseModel):
     enabled: bool = False
     bot_token: str = ""
+    default_channel: str = "#agent-alerts"
 
 
-class TeamsConfig(BaseModel):
-    enabled: bool = False
-    webhook_url: str = ""
-
-
-class WebhookConfig(BaseModel):
+class WebhookEndpointConfig(BaseModel):
     name: str
     url: str
     secret: str = ""
     events: list[str] = Field(default_factory=list)
+    payload_template: str | None = None
 
 
 class NotificationsConfig(BaseModel):
     slack: SlackConfig = SlackConfig()
-    teams: TeamsConfig = TeamsConfig()
-    webhooks: list[WebhookConfig] = Field(default_factory=list)
+    webhooks: list[WebhookEndpointConfig] = Field(default_factory=list)
     webhook_secret: str = ""
 
 

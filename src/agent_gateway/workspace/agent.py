@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agent_gateway.notifications.models import AgentNotificationConfig, NotificationTarget
 from agent_gateway.workspace.parser import parse_markdown_file
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class AgentDefinition:
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
     schedules: list[ScheduleConfig] = field(default_factory=list)
     execution_mode: str = "sync"  # "sync" | "async"
+    notifications: AgentNotificationConfig = field(default_factory=AgentNotificationConfig)
 
     @classmethod
     def load(cls, agent_dir: Path) -> AgentDefinition | None:
@@ -123,6 +125,10 @@ class AgentDefinition:
             except (KeyError, TypeError) as e:
                 logger.warning("Invalid schedule in %s: %s", agent_dir, e)
 
+        # Notifications: CONFIG.md wins (scalar precedence, same as model/execution_mode)
+        raw_notif = config_meta.get("notifications") or agent_meta.get("notifications", {})
+        notifications = _parse_notification_config(raw_notif, agent_dir)
+
         return cls(
             id=agent_id,
             path=agent_dir,
@@ -133,4 +139,42 @@ class AgentDefinition:
             model=model_config,
             schedules=schedules,
             execution_mode=execution_mode,
+            notifications=notifications,
         )
+
+
+def _parse_notification_config(
+    raw: dict[str, Any],
+    agent_dir: Path,
+) -> AgentNotificationConfig:
+    """Parse notifications block from agent frontmatter."""
+    if not isinstance(raw, dict):
+        return AgentNotificationConfig()
+
+    def _parse_targets(items: Any) -> list[NotificationTarget]:
+        if not isinstance(items, list):
+            return []
+        targets: list[NotificationTarget] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            try:
+                targets.append(
+                    NotificationTarget(
+                        channel=item["channel"],
+                        target=item.get("target", ""),
+                        template=item.get("template"),
+                        url=item.get("url"),
+                        secret=item.get("secret"),
+                        payload_template=item.get("payload_template"),
+                    )
+                )
+            except (KeyError, TypeError) as e:
+                logger.warning("Invalid notification target in %s: %s", agent_dir, e)
+        return targets
+
+    return AgentNotificationConfig(
+        on_complete=_parse_targets(raw.get("on_complete")),
+        on_error=_parse_targets(raw.get("on_error")),
+        on_timeout=_parse_targets(raw.get("on_timeout")),
+    )
