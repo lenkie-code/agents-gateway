@@ -7,7 +7,7 @@ import contextlib
 import logging
 import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agent_gateway.engine.models import (
     ExecutionHandle,
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from agent_gateway.config import QueueConfig
     from agent_gateway.gateway import Gateway
     from agent_gateway.queue.protocol import ExecutionQueue
+    from agent_gateway.workspace.agent import AgentDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +234,18 @@ class WorkerPool:
                 status,
                 duration_ms,
             )
+
+            # Fire notifications (fire-and-forget, never affects execution)
+            await self._fire_notifications(
+                agent=agent,
+                execution_id=job.execution_id,
+                status=status.value,
+                message=job.message,
+                result=result.to_dict() if result.raw_text else None,
+                usage=result.usage.to_dict() if result.usage else None,
+                context=job.context,
+                duration_ms=duration_ms,
+            )
         except Exception as e:
             logger.error(
                 "Worker %d: job %s execution failed: %s",
@@ -242,6 +255,16 @@ class WorkerPool:
             )
             await gw._execution_repo.update_status(
                 job.execution_id, ExecutionStatus.FAILED, error=str(e)
+            )
+
+            # Fire error notification
+            await self._fire_notifications(
+                agent=agent,
+                execution_id=job.execution_id,
+                status="failed",
+                message=job.message,
+                error=str(e),
+                context=job.context,
             )
         finally:
             gw._execution_handles.pop(job.execution_id, None)
@@ -256,3 +279,42 @@ class WorkerPool:
                     break
         except asyncio.CancelledError:
             pass
+
+    async def _fire_notifications(
+        self,
+        agent: AgentDefinition,
+        execution_id: str,
+        status: str,
+        message: str,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+        usage: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+        duration_ms: int = 0,
+    ) -> None:
+        """Fire notifications for an execution. Never raises."""
+        try:
+            engine = self._gateway._notification_engine
+            if not engine.has_backends or not agent.notifications:
+                return
+
+            from agent_gateway.gateway import _build_notification_event
+
+            event = _build_notification_event(
+                execution_id=execution_id,
+                agent_id=agent.id,
+                status=status,
+                message=message,
+                result=result,
+                error=error,
+                usage=usage,
+                duration_ms=duration_ms,
+                context=context,
+            )
+            await engine.notify(event, agent.notifications)
+        except Exception:
+            logger.warning(
+                "Notification failed for execution %s (non-fatal)",
+                execution_id,
+                exc_info=True,
+            )

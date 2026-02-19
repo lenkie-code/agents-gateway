@@ -17,7 +17,7 @@ from fastapi import APIRouter, FastAPI
 
 from agent_gateway.auth.protocols import AuthProvider
 from agent_gateway.chat.session import ChatSession, SessionStore
-from agent_gateway.config import GatewayConfig, PersistenceConfig
+from agent_gateway.config import GatewayConfig, NotificationsConfig, PersistenceConfig
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMClient
 from agent_gateway.engine.models import (
@@ -26,6 +26,9 @@ from agent_gateway.engine.models import (
     ExecutionResult,
 )
 from agent_gateway.hooks import HookRegistry
+from agent_gateway.notifications import NotificationEngine
+from agent_gateway.notifications.models import NotificationEvent
+from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
 from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
@@ -89,6 +92,8 @@ class Gateway(FastAPI):
         self._queue_backend: ExecutionQueue | NullQueue | None = None  # fluent API
         self._queue: ExecutionQueue | NullQueue = NullQueue()
         self._worker_pool: Any = None  # WorkerPool, set during startup
+        self._notification_engine = NotificationEngine()
+        self._notification_backends: list[NotificationBackend] = []  # pre-startup buffer
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -283,6 +288,18 @@ class Gateway(FastAPI):
                 logger.warning("Failed to init queue backend, using NullQueue", exc_info=True)
                 self._queue = NullQueue()
 
+        # 6.5: Init notifications
+        for backend in self._notification_backends:
+            self._notification_engine.register(backend)
+        if not self._notification_engine.has_backends:
+            self._init_notifications_from_config(self._config.notifications)
+        try:
+            await self._notification_engine.initialize()
+        except ImportError:
+            raise
+        except Exception:
+            logger.warning("Failed to initialize notification backends", exc_info=True)
+
         # 7. Build LLM client and execution engine
         engine: ExecutionEngine | None = None
         try:
@@ -385,6 +402,10 @@ class Gateway(FastAPI):
         if self._background_tasks:
             await asyncio.gather(*self._background_tasks, return_exceptions=True)
             self._background_tasks.clear()
+
+        # Dispose notification engine
+        if self._notification_engine.has_backends:
+            await self._notification_engine.dispose()
 
         if self._llm_client:
             await self._llm_client.close()
@@ -634,6 +655,132 @@ class Gateway(FastAPI):
         self._auth_provider = provider
         return self
 
+    # --- Notification configuration (fluent API) ---
+
+    def use_slack_notifications(
+        self,
+        bot_token: str,
+        default_channel: str = "#agent-alerts",
+        templates_dir: Path | str | None = None,
+    ) -> Gateway:
+        """Configure Slack notifications.
+
+        Requires: pip install agent-gateway[slack]
+
+        Args:
+            bot_token: Slack bot token (xoxb-...).
+            default_channel: Default channel for notifications.
+            templates_dir: Directory for custom Block Kit templates (.json.j2 files).
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure notifications after gateway has started")
+        from agent_gateway.notifications.backends.slack import SlackBackend
+
+        templates = Path(templates_dir) if templates_dir else None
+        backend = SlackBackend(
+            bot_token=bot_token,
+            default_channel=default_channel,
+            templates_dir=templates,
+        )
+        self._notification_backends.append(backend)
+        return self
+
+    def use_webhook_notifications(
+        self,
+        url: str,
+        name: str = "default",
+        secret: str = "",
+        events: list[str] | None = None,
+        payload_template: str | None = None,
+    ) -> Gateway:
+        """Add a webhook notification endpoint.
+
+        Can be called multiple times to register multiple endpoints.
+        Agents reference endpoints by name in CONFIG.md.
+
+        Args:
+            url: Webhook URL to POST to.
+            name: Endpoint name (referenced in agent CONFIG.md).
+            secret: HMAC-SHA256 signing secret.
+            events: Event types to filter (empty = all events).
+            payload_template: Jinja2 template for custom payloads.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure notifications after gateway has started")
+        from agent_gateway.notifications.backends.webhook import (
+            WebhookBackend,
+            WebhookEndpoint,
+        )
+
+        # Find or create WebhookBackend
+        existing = next(
+            (b for b in self._notification_backends if isinstance(b, WebhookBackend)),
+            None,
+        )
+        endpoint = WebhookEndpoint(
+            name=name,
+            url=url,
+            secret=secret,
+            events=events or [],
+            payload_template=payload_template,
+        )
+        if existing is not None:
+            existing.add_endpoint(endpoint)
+        else:
+            backend = WebhookBackend(endpoints=[endpoint])
+            self._notification_backends.append(backend)
+        return self
+
+    def use_notifications(self, backend: NotificationBackend | None) -> Gateway:
+        """Register a custom notification backend, or None to disable all.
+
+        Args:
+            backend: A NotificationBackend implementation, or None to clear.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure notifications after gateway has started")
+        if backend is None:
+            self._notification_backends.clear()
+        else:
+            self._notification_backends.append(backend)
+        return self
+
+    def _init_notifications_from_config(self, config: NotificationsConfig) -> None:
+        """Create notification backends from gateway.yaml config."""
+        if config.slack.enabled and config.slack.bot_token:
+            try:
+                from agent_gateway.notifications.backends.slack import SlackBackend
+
+                backend = SlackBackend(
+                    bot_token=config.slack.bot_token,
+                    default_channel=config.slack.default_channel,
+                )
+                self._notification_engine.register(backend)
+            except ImportError:
+                logger.warning("Slack notifications enabled but slack extra not installed")
+
+        if config.webhooks:
+            from agent_gateway.notifications.backends.webhook import (
+                WebhookBackend,
+                WebhookEndpoint,
+            )
+
+            endpoints = [
+                WebhookEndpoint(
+                    name=wh.name,
+                    url=wh.url,
+                    secret=wh.secret or config.webhook_secret,
+                    events=wh.events,
+                    payload_template=wh.payload_template,
+                )
+                for wh in config.webhooks
+            ]
+            backend = WebhookBackend(
+                endpoints=endpoints,
+                default_secret=config.webhook_secret,
+            )
+            self._notification_engine.register(backend)
+
     def _resolve_auth_provider(self) -> AuthProvider | None:
         """Resolve the auth provider from fluent API, constructor, or config.
 
@@ -845,7 +992,7 @@ class Gateway(FastAPI):
         self._execution_handles[execution_id] = handle
 
         try:
-            return await snapshot.engine.execute(
+            result = await snapshot.engine.execute(
                 agent=agent,
                 message=message,
                 workspace=snapshot.workspace,
@@ -854,6 +1001,27 @@ class Gateway(FastAPI):
                 handle=handle,
                 tool_executor=execute_tool,
             )
+
+            # Fire notifications in background (fire-and-forget)
+            if self._notification_engine.has_backends and agent.notifications:
+                notification_event = _build_notification_event(
+                    execution_id=execution_id,
+                    agent_id=agent_id,
+                    status=result.stop_reason.value,
+                    message=message,
+                    result=result.to_dict() if result.raw_text else None,
+                    usage=result.usage.to_dict() if result.usage else None,
+                    context=context,
+                )
+                task = asyncio.create_task(
+                    self._notification_engine.notify(
+                        notification_event, agent.notifications
+                    )
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+
+            return result
         finally:
             self._execution_handles.pop(execution_id, None)
 
@@ -1072,3 +1240,42 @@ class Gateway(FastAPI):
 
         self._setup_logging()
         uvicorn.run(self, host=host, port=port, **kwargs)  # type: ignore[arg-type]
+
+
+def _build_notification_event(
+    execution_id: str,
+    agent_id: str,
+    status: str,
+    message: str,
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+    usage: dict[str, Any] | None = None,
+    started_at: Any | None = None,
+    completed_at: Any | None = None,
+    duration_ms: int = 0,
+    context: dict[str, Any] | None = None,
+) -> NotificationEvent:
+    """Build a NotificationEvent from execution result data."""
+    event_type_map = {
+        "completed": "execution.completed",
+        "failed": "execution.failed",
+        "timeout": "execution.timeout",
+        "error": "execution.failed",
+        "cancelled": "execution.failed",
+    }
+    event_type = event_type_map.get(status, f"execution.{status}")
+
+    return NotificationEvent(
+        type=event_type,
+        execution_id=execution_id,
+        agent_id=agent_id,
+        status=status,
+        message=message,
+        result=result,
+        error=error,
+        usage=usage,
+        started_at=started_at,
+        completed_at=completed_at,
+        duration_ms=duration_ms,
+        context=context,
+    )
