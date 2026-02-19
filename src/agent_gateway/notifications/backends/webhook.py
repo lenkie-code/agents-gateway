@@ -162,21 +162,20 @@ class WebhookBackend:
             result: dict[str, Any] = json.loads(rendered)
             return result
 
-        # Default payload schema
-        return {
+        # Default payload — just the event data, no internal metrics
+        result = event.result or {}
+        payload: dict[str, Any] = {
             "event": event.type,
             "execution_id": event.execution_id,
             "agent_id": event.agent_id,
             "status": event.status,
             "message": event.message[:4096],
-            "result": event.result,
-            "error": event.error,
-            "usage": event.usage,
-            "started_at": event.started_at.isoformat() if event.started_at else None,
-            "completed_at": event.completed_at.isoformat() if event.completed_at else None,
+            "output": result.get("output"),
             "duration_ms": event.duration_ms,
-            "context": event.context,
         }
+        if event.error:
+            payload["error"] = event.error
+        return payload
 
     @staticmethod
     def _sign(body: str, secret: str, timestamp: str) -> str:

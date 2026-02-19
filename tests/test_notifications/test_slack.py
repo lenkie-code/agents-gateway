@@ -50,8 +50,8 @@ class TestSlackBackendBlockKit:
         assert any("exec-789" in t for t in field_texts)
         # Duration should be formatted
         assert any("45.0s" in t for t in field_texts)
-        # Cost
-        assert any("$0.0036" in t for t in field_texts)
+        # Cost/usage should NOT be in blocks
+        assert not any("$" in t for t in field_texts)
 
     def test_default_blocks_failed(self) -> None:
         backend = SlackBackend(bot_token="xoxb-test")

@@ -150,11 +150,6 @@ class SlackBackend:
             duration_str = f"{duration_s / 60:.1f}m" if duration_s >= 60 else f"{duration_s:.1f}s"
             fields.append({"type": "mrkdwn", "text": f"*Duration*\n{duration_str}"})
 
-        if event.usage and event.usage.get("cost_usd"):
-            fields.append(
-                {"type": "mrkdwn", "text": f"*Cost*\n${event.usage['cost_usd']:.4f}"}
-            )
-
         blocks.append({"type": "section", "fields": fields})
 
         # User message (truncated)
@@ -168,7 +163,8 @@ class SlackBackend:
 
         # Result or Error
         if event.type == "execution.completed" and event.result:
-            result_text = _format_result(event.result)
+            output = event.result.get("output", event.result)
+            result_text = _format_result(output) if isinstance(output, dict) else str(output)
             blocks.append(
                 {
                     "type": "section",
@@ -201,9 +197,12 @@ class SlackBackend:
         return f"Agent '{event.agent_id}' execution {event.status}: {event.execution_id}"
 
 
-def _format_result(result: dict[str, Any], max_len: int = 2000) -> str:
-    """Format result dict as readable text, truncated to max_len."""
-    text = json.dumps(result, indent=2, default=str)
+def _format_result(result: Any, max_len: int = 2000) -> str:
+    """Format result as readable text, truncated to max_len."""
+    if isinstance(result, str):
+        text = result
+    else:
+        text = json.dumps(result, indent=2, default=str)
     if len(text) > max_len:
         text = text[:max_len] + "\n... (truncated)"
     return text

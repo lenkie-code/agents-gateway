@@ -234,7 +234,7 @@ class TestWebhookBackendEdgeCases:
         await backend.dispose()
 
     async def test_default_payload_schema(self) -> None:
-        """Default payload includes all expected fields."""
+        """Default payload includes event data without internal metrics."""
         backend = WebhookBackend()
         await backend.initialize()
 
@@ -255,10 +255,50 @@ class TestWebhookBackendEdgeCases:
             assert payload["agent_id"] == "test-agent"
             assert payload["status"] == "completed"
             assert payload["message"] == "Summarize quarterly report"
-            assert payload["result"] == {"output": "summary here"}
-            assert payload["usage"] == {"total_tokens": 500}
-            assert payload["context"] == {"user_id": "u-1"}
+            assert payload["output"] == "summary here"
             assert payload["duration_ms"] == 3200
+            # Internal metrics should not be in the default payload
+            assert "usage" not in payload
+            assert "context" not in payload
+            assert "result" not in payload
+
+        await backend.dispose()
+
+    async def test_error_payload_includes_error_field(self) -> None:
+        """Error events include the error field in the payload."""
+        backend = WebhookBackend()
+        await backend.initialize()
+
+        event = _make_event(
+            type="execution.failed",
+            status="failed",
+            error="Agent crashed",
+        )
+        target = NotificationTarget(channel="webhook", url="https://example.com/hook")
+
+        mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
+        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+            await backend.send(event, target)
+
+            payload = json.loads(mock_post.call_args[1]["content"])
+            assert payload["error"] == "Agent crashed"
+
+        await backend.dispose()
+
+    async def test_success_payload_omits_error_field(self) -> None:
+        """Successful events omit the error field entirely."""
+        backend = WebhookBackend()
+        await backend.initialize()
+
+        event = _make_event()
+        target = NotificationTarget(channel="webhook", url="https://example.com/hook")
+
+        mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
+        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+            await backend.send(event, target)
+
+            payload = json.loads(mock_post.call_args[1]["content"])
+            assert "error" not in payload
 
         await backend.dispose()
 
