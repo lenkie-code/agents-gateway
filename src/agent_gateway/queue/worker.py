@@ -163,9 +163,11 @@ class WorkerPool:
                 set_span_error(span, exc)
                 await self._queue.nack(job.execution_id)
 
-        # Fire notifications OUTSIDE the semaphore to avoid blocking worker slots
+        # Fire notifications as a background task (fire-and-forget)
         if notify_args is not None:
-            await self._fire_notifications(**notify_args)
+            task = asyncio.create_task(self._fire_notifications(**notify_args))
+            self._gateway._background_tasks.add(task)
+            task.add_done_callback(self._gateway._background_tasks.discard)
 
     async def _run_execution(
         self, worker_id: int, job: ExecutionJob
