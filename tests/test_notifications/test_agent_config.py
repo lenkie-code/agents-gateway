@@ -98,9 +98,7 @@ class TestAgentNotificationParsing:
         """Agent with no notification config gets empty AgentNotificationConfig."""
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text(
-            "---\nmodel:\n  name: gpt-4o\n---\n# Agent\n\nHello."
-        )
+        (agent_dir / "AGENT.md").write_text("---\nmodel:\n  name: gpt-4o\n---\n# Agent\n\nHello.")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
