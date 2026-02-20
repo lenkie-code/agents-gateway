@@ -207,7 +207,7 @@ class TestWorkflowExecutorSequential:
         )
 
         assert "error" in result["output"]
-        assert "kaboom" in result["output"]["error"]
+        assert "Tool 'bomb' failed" in result["output"]["error"]
 
     @pytest.mark.asyncio
     async def test_step_with_no_input(self) -> None:
@@ -603,7 +603,7 @@ class TestWorkflowExecutorParallel:
         outputs = result["steps"]["par"]["output"]
         assert outputs[0]["ok"] is True
         assert "error" in outputs[1]
-        assert "tool failure" in outputs[1]["error"]
+        assert "Tool 'bad' failed" in outputs[1]["error"]
 
     @pytest.mark.asyncio
     async def test_fan_out_three_tools(self) -> None:

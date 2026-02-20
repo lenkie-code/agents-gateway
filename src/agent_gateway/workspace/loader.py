@@ -31,6 +31,19 @@ class WorkspaceState:
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
+    def resolve_agent_tools(self, agent: AgentDefinition) -> list[str]:
+        """Gather deduplicated tool names from all skills an agent uses."""
+        tool_names: list[str] = []
+        seen: set[str] = set()
+        for skill_name in agent.skills:
+            skill = self.skills.get(skill_name)
+            if skill:
+                for t in skill.tools:
+                    if t not in seen:
+                        seen.add(t)
+                        tool_names.append(t)
+        return tool_names
+
 
 def load_workspace(workspace_path: str | Path) -> WorkspaceState:
     """Load the full workspace. Never raises — collects warnings/errors."""

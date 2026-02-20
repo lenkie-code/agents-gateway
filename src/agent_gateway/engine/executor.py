@@ -724,11 +724,7 @@ class ExecutionEngine:
             validation_errors=validation_errors or None,
         )
 
-    def _resolve_skill_tools(self, agent: AgentDefinition, workspace: WorkspaceState) -> list[str]:
+    @staticmethod
+    def _resolve_skill_tools(agent: AgentDefinition, workspace: WorkspaceState) -> list[str]:
         """Gather tool names from all skills an agent uses."""
-        tool_names: list[str] = []
-        for skill_name in agent.skills:
-            skill = workspace.skills.get(skill_name)
-            if skill:
-                tool_names.extend(skill.tools)
-        return tool_names
+        return workspace.resolve_agent_tools(agent)

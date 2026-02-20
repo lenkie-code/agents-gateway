@@ -14,6 +14,7 @@ import re
 from typing import Any
 
 _REF_PATTERN = re.compile(r"^\$\.(input|steps)\.(.+)$")
+_BRACKET_PATTERN = re.compile(r"^(\w+)\[(\d+)\]$")
 
 
 def resolve_input(template: dict[str, str], context: dict[str, Any]) -> dict[str, Any]:
@@ -57,15 +58,14 @@ def _navigate(obj: Any, path: str) -> Any:
     - ``enrich.output`` — nested key lookup
     - ``score[0].output`` — array index then key lookup
     """
-    segments = _split_path(path)
     current = obj
 
-    for segment in segments:
+    for segment in path.split("."):
         if current is None:
             return None
 
         # Check for array index: "name[0]"
-        bracket_match = re.match(r"^(\w+)\[(\d+)\]$", segment)
+        bracket_match = _BRACKET_PATTERN.match(segment)
         if bracket_match:
             key = bracket_match.group(1)
             index = int(bracket_match.group(2))
@@ -83,12 +83,3 @@ def _navigate(obj: Any, path: str) -> Any:
             return None
 
     return current
-
-
-def _split_path(path: str) -> list[str]:
-    """Split a dotted path, respecting brackets.
-
-    ``"enrich.output"`` → ``["enrich", "output"]``
-    ``"score[0].output"`` → ``["score[0]", "output"]``
-    """
-    return path.split(".")

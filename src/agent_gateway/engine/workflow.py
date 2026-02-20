@@ -22,6 +22,8 @@ from agent_gateway.workspace.skill import SkillDefinition, SkillStep
 
 logger = logging.getLogger(__name__)
 
+MAX_PARALLEL_TOOLS = 10
+
 # Type alias matching ExecutionEngine's tool executor
 ToolExecutorFn = Callable[
     [ResolvedTool, dict[str, Any], ToolContext],
@@ -141,6 +143,11 @@ class WorkflowExecutor:
         """Execute a parallel fan-out step — run multiple tools concurrently."""
         assert step.tools is not None
 
+        if len(step.tools) > MAX_PARALLEL_TOOLS:
+            return [
+                {"error": f"Parallel step '{step.name}' exceeds max tools ({MAX_PARALLEL_TOOLS})"}
+            ]
+
         async def _run_one(tool_step_idx: int) -> Any:
             try:
                 ts = step.tools[tool_step_idx]  # type: ignore[index]
@@ -156,7 +163,7 @@ class WorkflowExecutor:
                     step.name,
                     e,
                 )
-                return {"error": f"Parallel tool failed: {e}"}
+                return {"error": "Parallel tool execution failed"}
 
         if len(step.tools) == 1:
             return [await _run_one(0)]
@@ -194,7 +201,7 @@ class WorkflowExecutor:
             return response.text or ""
         except Exception as e:
             logger.error("Prompt step '%s' failed: %s", step.name, e)
-            return {"error": f"LLM call failed: {e}"}
+            return {"error": "LLM call failed"}
 
     async def _run_tool(
         self,
@@ -207,4 +214,4 @@ class WorkflowExecutor:
             return await self._tool_executor(tool, arguments, tool_context)
         except Exception as e:
             logger.error("Tool '%s' failed in workflow: %s", tool.name, e)
-            return {"error": f"Tool '{tool.name}' failed: {e}"}
+            return {"error": f"Tool '{tool.name}' failed"}
