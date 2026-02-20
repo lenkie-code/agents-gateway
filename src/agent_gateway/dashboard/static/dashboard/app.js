@@ -43,6 +43,12 @@ document.addEventListener('htmx:configRequest', (event) => {
       event.detail.headers['X-CSRF-Token'] = csrfMeta.content;
     }
   }
+
+  // Optimistic user message bubble for chat (works for both Enter and button click)
+  if (event.detail.elt && event.detail.elt.id === 'chat-form') {
+    const msg = (event.detail.parameters && event.detail.parameters.message || '').trim();
+    if (msg) appendUserMessage(msg);
+  }
 });
 
 // --- HTMX: auto-scroll chat messages area after swap ---
@@ -97,13 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const form = textarea.closest('form');
       if (form && textarea.value.trim()) {
-        // Add user message to DOM immediately for responsiveness
-        const userMsg = textarea.value.trim();
-        appendUserMessage(userMsg);
-        textarea.value = '';
-        textarea.style.height = 'auto';
-        // Trigger HTMX submit
+        // Trigger HTMX submit FIRST so it captures the current textarea value.
+        // The hx-on::before-request handler on the form will clear it afterward.
         htmx.trigger(form, 'submit');
+        textarea.style.height = 'auto';
       }
     }
   });
