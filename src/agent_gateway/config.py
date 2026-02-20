@@ -176,6 +176,16 @@ class ContextRetrievalConfig(BaseModel):
     max_context_file_chars: int = 100_000
 
 
+class MemoryConfig(BaseModel):
+    """Global memory defaults (overridable per-agent in AGENT.md)."""
+
+    enabled: bool = False
+    max_injected_chars: int = 4000
+    extraction_model: str | None = None
+    auto_extract: bool = False
+    max_memory_md_lines: int = 200
+
+
 class GatewayConfig(BaseSettings):
     """Root configuration for the Agent Gateway.
 
@@ -196,6 +206,7 @@ class GatewayConfig(BaseSettings):
     queue: QueueConfig = QueueConfig()
     scheduler: SchedulerConfig = SchedulerConfig()
     context_retrieval: ContextRetrievalConfig = ContextRetrievalConfig()
+    memory: MemoryConfig = MemoryConfig()
     context: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod

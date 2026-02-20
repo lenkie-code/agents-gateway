@@ -68,3 +68,7 @@ class AuthError(AgentGatewayError):
     def __init__(self, message: str, code: str = "auth_error") -> None:
         self.code = code
         super().__init__(message)
+
+
+class AgentMemoryError(AgentGatewayError):
+    """Base for memory-related errors."""
