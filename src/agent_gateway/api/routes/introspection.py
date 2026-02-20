@@ -22,12 +22,27 @@ from agent_gateway.auth.scopes import RequireScope
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
     from agent_gateway.workspace.agent import AgentDefinition
+    from agent_gateway.workspace.loader import WorkspaceState
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
 _ID_PATTERN = r"^[a-zA-Z0-9_.-]+$"
+
+
+def _resolve_agent_tools(agent: AgentDefinition, ws: WorkspaceState) -> list[str]:
+    """Compute the list of tool names an agent has access to via its skills."""
+    tool_names: list[str] = []
+    seen: set[str] = set()
+    for skill_name in agent.skills:
+        skill = ws.skills.get(skill_name)
+        if skill:
+            for t in skill.tools:
+                if t not in seen:
+                    seen.add(t)
+                    tool_names.append(t)
+    return tool_names
 
 
 def _build_notification_config(agent: AgentDefinition) -> NotificationConfigInfo | None:
@@ -65,7 +80,7 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             id=agent.id,
             description=agent.agent_prompt[:200] if agent.agent_prompt else "",
             skills=agent.skills,
-            tools=agent.tools,
+            tools=_resolve_agent_tools(agent, ws),
             model=agent.model.name,
             schedules=[s.name for s in agent.schedules],
             execution_mode=agent.execution_mode,
@@ -99,7 +114,7 @@ async def get_agent(
         id=agent.id,
         description=agent.agent_prompt[:200] if agent.agent_prompt else "",
         skills=agent.skills,
-        tools=agent.tools,
+        tools=_resolve_agent_tools(agent, ws),
         model=agent.model.name,
         schedules=[s.name for s in agent.schedules],
         execution_mode=agent.execution_mode,

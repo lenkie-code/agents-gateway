@@ -159,40 +159,37 @@ class TestToolRegistry:
 
 
 class TestResolveForAgent:
-    def test_resolve_direct_tools(self) -> None:
+    def test_resolve_tools_from_skills(self) -> None:
         registry = ToolRegistry()
         registry.register_file_tool(_make_file_tool(name="echo"))
         registry.register_code_tool(_make_code_tool(name="add"))
 
         resolved = registry.resolve_for_agent(
             agent_id="assistant",
-            skill_tool_names=[],
-            direct_tool_names=["echo", "add"],
+            tool_names=["echo", "add"],
         )
         names = [t.name for t in resolved]
         assert "echo" in names
         assert "add" in names
 
-    def test_resolve_skill_tools(self) -> None:
+    def test_resolve_single_tool(self) -> None:
         registry = ToolRegistry()
         registry.register_file_tool(_make_file_tool(name="echo"))
 
         resolved = registry.resolve_for_agent(
             agent_id="assistant",
-            skill_tool_names=["echo"],
-            direct_tool_names=[],
+            tool_names=["echo"],
         )
         assert len(resolved) == 1
         assert resolved[0].name == "echo"
 
-    def test_deduplicates_skill_and_direct(self) -> None:
+    def test_deduplicates_tool_names(self) -> None:
         registry = ToolRegistry()
         registry.register_file_tool(_make_file_tool(name="echo"))
 
         resolved = registry.resolve_for_agent(
             agent_id="assistant",
-            skill_tool_names=["echo"],
-            direct_tool_names=["echo"],
+            tool_names=["echo", "echo"],
         )
         assert len(resolved) == 1
 
@@ -202,8 +199,7 @@ class TestResolveForAgent:
 
         resolved = registry.resolve_for_agent(
             agent_id="assistant",
-            skill_tool_names=[],
-            direct_tool_names=["secret"],
+            tool_names=["secret"],
         )
         assert len(resolved) == 0
 
@@ -213,8 +209,7 @@ class TestResolveForAgent:
 
         resolved = registry.resolve_for_agent(
             agent_id="admin-agent",
-            skill_tool_names=[],
-            direct_tool_names=["secret"],
+            tool_names=["secret"],
         )
         assert len(resolved) == 1
 
@@ -222,8 +217,7 @@ class TestResolveForAgent:
         registry = ToolRegistry()
         resolved = registry.resolve_for_agent(
             agent_id="assistant",
-            skill_tool_names=[],
-            direct_tool_names=["nonexistent"],
+            tool_names=["nonexistent"],
         )
         assert len(resolved) == 0
 
@@ -251,8 +245,7 @@ class TestLlmDeclarations:
 
         tools = registry.resolve_for_agent(
             agent_id="assistant",
-            skill_tool_names=[],
-            direct_tool_names=["echo", "add"],
+            tool_names=["echo", "add"],
         )
         declarations = registry.to_llm_declarations(tools)
         assert len(declarations) == 2

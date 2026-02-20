@@ -107,9 +107,7 @@ async def stream_chat_execution(
         engine = snapshot.engine
         workspace = snapshot.workspace
         skill_tool_names = engine._resolve_skill_tools(agent, workspace)
-        resolved_tools = engine._registry.resolve_for_agent(
-            agent.id, skill_tool_names, agent.tools
-        )
+        resolved_tools = engine._registry.resolve_for_agent(agent.id, skill_tool_names)
         tool_declarations = engine._registry.to_llm_declarations(resolved_tools)
         tool_map = {t.name: t for t in resolved_tools}
 

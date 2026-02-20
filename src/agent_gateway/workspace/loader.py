@@ -174,6 +174,3 @@ def _validate_cross_references(state: WorkspaceState) -> None:
                 state.warnings.append(
                     f"Agent '{agent.id}' references unknown skill '{skill_name}'"
                 )
-        for tool_name in agent.tools:
-            if tool_name not in state.tools:
-                state.warnings.append(f"Agent '{agent.id}' references unknown tool '{tool_name}'")

@@ -13,6 +13,7 @@ from tests.test_engine.conftest import (
     make_agent,
     make_engine,
     make_llm_response,
+    make_skill,
     make_tool_call,
     make_workspace,
 )
@@ -53,8 +54,9 @@ class TestExecuteToolIntegration:
             tools=[tool],
         )
 
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(
             agent=agent,
@@ -110,8 +112,9 @@ class TestExecuteToolIntegration:
             tools=[echo_tool, add_tool],
         )
 
-        agent = make_agent(tools=["echo", "add"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo", "add"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(
             agent=agent,

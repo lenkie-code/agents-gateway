@@ -15,6 +15,7 @@ from tests.test_engine.conftest import (
     make_engine,
     make_llm_response,
     make_resolved_tool,
+    make_skill,
     make_tool_call,
     make_workspace,
 )
@@ -39,8 +40,9 @@ class TestOverallTimeout:
         # Replace completion with slow version
         mock_llm.completion = slow_completion  # type: ignore[assignment]
 
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(agent, "slow", workspace)
 
@@ -72,8 +74,9 @@ class TestPerToolTimeout:
             config=config,
         )
 
-        agent = make_agent(tools=["slow-tool"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["slow-tool"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         # The overall timeout will catch the slow tool, resulting in TIMEOUT
         result = await engine.execute(agent, "test", workspace, tool_executor=slow_executor)

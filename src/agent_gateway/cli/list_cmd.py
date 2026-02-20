@@ -39,7 +39,9 @@ def agents(
 
     for agent_id, agent in sorted(state.agents.items()):
         model = agent.model.name or "(default)"
-        typer.echo(f"{agent_id:<25} {len(agent.skills):<8} {len(agent.tools):<8} {model:<25}")
+        # Tools are resolved from skills
+        tool_count = sum(len(state.skills[s].tools) for s in agent.skills if s in state.skills)
+        typer.echo(f"{agent_id:<25} {len(agent.skills):<8} {tool_count:<8} {model:<25}")
 
 
 def skills(

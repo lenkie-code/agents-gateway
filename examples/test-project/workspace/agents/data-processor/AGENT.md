@@ -1,7 +1,7 @@
 ---
 execution_mode: async
-tools:
-  - process-data
+skills:
+  - data-processing
 notifications:
   on_complete:
     - channel: slack

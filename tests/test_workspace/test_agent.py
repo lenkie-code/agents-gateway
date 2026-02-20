@@ -20,7 +20,6 @@ class TestAgentDefinition:
         assert "You are helpful" in agent.agent_prompt
         assert agent.behavior_prompt == ""
         assert agent.skills == []
-        assert agent.tools == []
         assert agent.schedules == []
 
     def test_load_full_agent(self, tmp_path: Path) -> None:
@@ -30,7 +29,6 @@ class TestAgentDefinition:
         (agent_dir / "AGENT.md").write_text(
             "---\n"
             "skills:\n  - math-workflow\n"
-            "tools:\n  - echo\n  - add-numbers\n"
             "model:\n  name: gpt-4o\n  temperature: 0.5\n"
             "---\n"
             "# Full Agent\n\nDoes everything."
@@ -43,7 +41,6 @@ class TestAgentDefinition:
         assert "Does everything" in agent.agent_prompt
         assert "Friendly and helpful" in agent.behavior_prompt
         assert agent.skills == ["math-workflow"]
-        assert agent.tools == ["echo", "add-numbers"]
         assert agent.model.name == "gpt-4o"
         assert agent.model.temperature == 0.5
 
@@ -120,8 +117,10 @@ class TestAgentDefinition:
         assert agent.model.max_tokens == 8192
         assert agent.model.fallback == "gpt-4o"
 
-    def test_frontmatter_tools_in_agent_md(self, tmp_path: Path) -> None:
-        """Tools defined in AGENT.md frontmatter are loaded."""
+    def test_tools_in_agent_md_warns(self, tmp_path: Path, caplog: object) -> None:
+        """Tools in AGENT.md frontmatter trigger a deprecation warning."""
+        import logging
+
         agent_dir = tmp_path / "fm-agent"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text(
@@ -132,10 +131,13 @@ class TestAgentDefinition:
             "# Agent\n\nPlans trips."
         )
 
-        agent = AgentDefinition.load(agent_dir)
+        with caplog.at_level(logging.WARNING):  # type: ignore[union-attr]
+            agent = AgentDefinition.load(agent_dir)
+
         assert agent is not None
-        assert agent.tools == ["weather", "flights"]
         assert agent.skills == ["planner"]
+        assert not hasattr(agent, "tools") or "tools" not in agent.__dataclass_fields__
+        assert "tools should be declared in SKILL.md" in caplog.text  # type: ignore[union-attr]
 
     def test_frontmatter_schedules_in_agent_md(self, tmp_path: Path) -> None:
         """Schedules defined in AGENT.md frontmatter are loaded."""

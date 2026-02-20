@@ -14,6 +14,7 @@ from tests.test_engine.conftest import (
     make_engine,
     make_llm_response,
     make_resolved_tool,
+    make_skill,
     make_tool_call,
     make_workspace,
 )
@@ -37,8 +38,9 @@ class TestParallelToolExecution:
             ],
             tools=[echo_tool],
         )
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         execution_order: list[str] = []
 
@@ -84,8 +86,9 @@ class TestParallelToolExecution:
             ],
             tools=[echo_tool, fail_tool],
         )
-        agent = make_agent(tools=["echo", "fail"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo", "fail"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(agent, "test", workspace, tool_executor=mixed_executor)
 

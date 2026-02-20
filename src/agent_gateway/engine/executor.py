@@ -141,9 +141,9 @@ class ExecutionEngine:
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)
 
-        # Build tool declarations
+        # Build tool declarations — agents gain tools exclusively through skills
         skill_tool_names = self._resolve_skill_tools(agent, workspace)
-        resolved_tools = self._registry.resolve_for_agent(agent.id, skill_tool_names, agent.tools)
+        resolved_tools = self._registry.resolve_for_agent(agent.id, skill_tool_names)
         tool_declarations = self._registry.to_llm_declarations(resolved_tools)
         tool_map = {t.name: t for t in resolved_tools}
 
