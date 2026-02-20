@@ -43,7 +43,6 @@ def _build_templates(dash_config: DashboardConfig) -> Jinja2Templates:
     env = Environment(
         loader=PackageLoader("agent_gateway.dashboard"),
         autoescape=select_autoescape(["html"]),
-        enable_async=True,
     )
     # Global helpers available in all templates
     env.globals["format_cost"] = format_cost
