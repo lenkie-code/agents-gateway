@@ -3,8 +3,12 @@ schedules:
   - name: daily-report
     cron: "0 9 * * 1-5"
     message: "Generate a daily status report"
-    enabled: false
+    enabled: true
     timezone: "Europe/London"
+  - name: heartbeat
+    cron: "0 * * * *"
+    message: "Generate a one-sentence system heartbeat status"
+    enabled: true
 ---
 
 # Scheduled Reporter

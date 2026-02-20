@@ -11,9 +11,12 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from fastapi import APIRouter, FastAPI
+
+if TYPE_CHECKING:
+    from agent_gateway.scheduler.engine import SchedulerEngine
 
 from agent_gateway.auth.protocols import AuthProvider
 from agent_gateway.chat.session import ChatSession, SessionStore
@@ -33,8 +36,16 @@ from agent_gateway.notifications.models import (
 )
 from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
-from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
-from agent_gateway.persistence.protocols import AuditRepository, ExecutionRepository
+from agent_gateway.persistence.null import (
+    NullAuditRepository,
+    NullExecutionRepository,
+    NullScheduleRepository,
+)
+from agent_gateway.persistence.protocols import (
+    AuditRepository,
+    ExecutionRepository,
+    ScheduleRepository,
+)
 from agent_gateway.queue.null import NullQueue
 from agent_gateway.queue.protocol import ExecutionQueue
 from agent_gateway.tools.runner import execute_tool
@@ -100,6 +111,8 @@ class Gateway(FastAPI):
         self._notification_queue: Any | None = None  # notification queue backend
         self._notification_queue_backend: Any | None = None  # fluent API override
         self._notification_worker: Any | None = None  # NotificationWorker
+        self._scheduler: SchedulerEngine | None = None
+        self._schedule_repo: ScheduleRepository = NullScheduleRepository()
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -271,6 +284,7 @@ class Gateway(FastAPI):
                 self._persistence_backend = backend
                 self._execution_repo = backend.execution_repo
                 self._audit_repo = backend.audit_repo
+                self._schedule_repo = backend.schedule_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -347,6 +361,34 @@ class Gateway(FastAPI):
             self._session_cleanup_loop(), name="session-cleanup"
         )
 
+        # 9.5: Init scheduler (cron-based agent invocations)
+        if self._config.scheduler.enabled and workspace.schedules:
+            try:
+                from agent_gateway.scheduler.engine import SchedulerEngine
+
+                def _track_task(t: asyncio.Task[None]) -> None:
+                    self._background_tasks.add(t)
+                    t.add_done_callback(self._background_tasks.discard)
+
+                self._scheduler = SchedulerEngine(
+                    config=self._config.scheduler,
+                    schedule_repo=self._schedule_repo,
+                    execution_repo=self._execution_repo,
+                    queue=self._queue,
+                    invoke_fn=self.invoke,
+                    track_task=_track_task,
+                    timezone=self._config.timezone,
+                )
+                await self._scheduler.start(
+                    schedules=workspace.schedules,
+                    agents=workspace.agents,
+                )
+            except ImportError:
+                raise
+            except Exception:
+                logger.warning("Failed to init scheduler", exc_info=True)
+                self._scheduler = None
+
         # 10. Start worker pool for queue-based async execution
         if not isinstance(self._queue, NullQueue):
             from agent_gateway.queue.worker import WorkerPool
@@ -415,6 +457,11 @@ class Gateway(FastAPI):
     async def _shutdown(self) -> None:
         """Clean up resources on shutdown."""
         await self._hooks.fire("gateway.shutdown")
+
+        # Stop scheduler (prevents new cron fires; in-flight jobs finish via worker pool)
+        if self._scheduler is not None:
+            await self._scheduler.stop()
+            self._scheduler = None
 
         # Drain worker pool (waits for in-flight jobs up to drain_timeout_s)
         if self._worker_pool is not None:
@@ -971,6 +1018,7 @@ class Gateway(FastAPI):
         from agent_gateway.api.routes.health import router as health_router
         from agent_gateway.api.routes.introspection import router as introspection_router
         from agent_gateway.api.routes.invoke import router as invoke_router
+        from agent_gateway.api.routes.schedules import router as schedules_router
 
         v1 = APIRouter(prefix="/v1", route_class=GatewayAPIRoute)
         v1.include_router(health_router)
@@ -978,6 +1026,7 @@ class Gateway(FastAPI):
         v1.include_router(chat_router)
         v1.include_router(executions_router)
         v1.include_router(introspection_router)
+        v1.include_router(schedules_router)
 
         self.include_router(v1)
 
@@ -1245,6 +1294,45 @@ class Gateway(FastAPI):
         if self._session_store is None:
             return []
         return self._session_store.list_sessions(agent_id=agent_id, limit=limit)
+
+    # --- Programmatic schedule management ---
+
+    @property
+    def scheduler(self) -> SchedulerEngine | None:
+        """The scheduler engine, if active."""
+        return self._scheduler
+
+    async def list_schedules(self) -> list[dict[str, Any]]:
+        """List all registered schedules."""
+        if self._scheduler is None:
+            return []
+        return await self._scheduler.get_schedules()
+
+    async def get_schedule(self, schedule_id: str) -> dict[str, Any] | None:
+        """Get details of a specific schedule."""
+        if self._scheduler is None:
+            return None
+        return await self._scheduler.get_schedule(schedule_id)
+
+    async def pause_schedule(self, schedule_id: str) -> bool:
+        """Pause a schedule. Returns True if found and paused."""
+        if self._scheduler is None:
+            return False
+        return await self._scheduler.pause(schedule_id)
+
+    async def resume_schedule(self, schedule_id: str) -> bool:
+        """Resume a paused schedule. Returns True if found and resumed."""
+        if self._scheduler is None:
+            return False
+        return await self._scheduler.resume(schedule_id)
+
+    async def trigger_schedule(self, schedule_id: str) -> str | None:
+        """Manually trigger a schedule. Returns execution_id or None."""
+        if self._scheduler is None:
+            return None
+        return await self._scheduler.trigger(schedule_id)
+
+    # --- Execution management ---
 
     async def cancel_execution(self, execution_id: str) -> bool:
         """Cancel a running execution. Returns True if cancelled.
