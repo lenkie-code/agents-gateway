@@ -56,13 +56,16 @@ def skills(
         typer.echo("No skills found.")
         return
 
-    typer.echo(f"{'ID':<25} {'Tools':<30} {'Description':<40}")
-    typer.echo("-" * 95)
+    typer.echo(f"{'ID':<25} {'Tools':<25} {'Steps':<8} {'Description':<35}")
+    typer.echo("-" * 93)
 
     for skill_id, skill in sorted(state.skills.items()):
         tools_str = ", ".join(skill.tools) if skill.tools else "(none)"
-        desc = skill.description[:40] if skill.description else ""
-        typer.echo(f"{skill_id:<25} {tools_str:<30} {desc:<40}")
+        if len(tools_str) > 24:
+            tools_str = tools_str[:21] + "..."
+        step_count = str(len(skill.steps)) if skill.steps else "-"
+        desc = skill.description[:35] if skill.description else ""
+        typer.echo(f"{skill_id:<25} {tools_str:<25} {step_count:<8} {desc:<35}")
 
 
 def schedules(
