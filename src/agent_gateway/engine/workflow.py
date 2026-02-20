@@ -145,7 +145,9 @@ class WorkflowExecutor:
             except Exception as e:
                 logger.error(
                     "Parallel tool %d in step '%s' failed: %s",
-                    tool_step_idx, step.name, e,
+                    tool_step_idx,
+                    step.name,
+                    e,
                 )
                 return {"error": f"Parallel tool failed: {e}"}
 

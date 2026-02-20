@@ -146,13 +146,7 @@ class TestSkillStepParsing:
         skill_dir = tmp_path / "bad-step"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
-            "---\n"
-            "name: bad\n"
-            "description: Bad step\n"
-            "steps:\n"
-            "  - name: empty-step\n"
-            "---\n"
-            "# Bad"
+            "---\nname: bad\ndescription: Bad step\nsteps:\n  - name: empty-step\n---\n# Bad"
         )
 
         skill = SkillDefinition.load(skill_dir)

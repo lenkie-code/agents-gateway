@@ -58,14 +58,19 @@ def _make_skill(steps: list[SkillStep], tools: list[str] | None = None) -> Skill
 
 def _make_llm_response(text: str = "ok") -> LLMResponse:
     return LLMResponse(
-        text=text, tool_calls=[], model="test",
-        input_tokens=10, output_tokens=5, cost=0.001,
+        text=text,
+        tool_calls=[],
+        model="test",
+        input_tokens=10,
+        output_tokens=5,
+        cost=0.001,
     )
 
 
 def _noop_llm() -> Any:
     async def mock_llm(**kwargs: Any) -> LLMResponse:
         raise RuntimeError("LLM should not be called")
+
     return mock_llm
 
 
@@ -108,7 +113,9 @@ class TestWorkflowExecutorSequential:
         for name, fn in [("enrich", enrich), ("score", score)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -158,7 +165,9 @@ class TestWorkflowExecutorSequential:
         skill = _make_skill(steps=[])
 
         result = await executor.execute(
-            skill=skill, input_data={"x": 1}, tool_context=_make_context(),
+            skill=skill,
+            input_data={"x": 1},
+            tool_context=_make_context(),
         )
 
         assert result["output"] is None
@@ -174,13 +183,17 @@ class TestWorkflowExecutorSequential:
 
         registry.register_code_tool(
             CodeTool(
-                name="bomb", description="explodes", fn=exploding,
+                name="bomb",
+                description="explodes",
+                fn=exploding,
                 parameters_schema={"type": "object", "properties": {}},
             )
         )
 
         async def raising_executor(
-            tool: Any, arguments: dict[str, Any], context: ToolContext,
+            tool: Any,
+            arguments: dict[str, Any],
+            context: ToolContext,
         ) -> Any:
             return await tool.code_tool.fn(**arguments)
 
@@ -188,7 +201,9 @@ class TestWorkflowExecutorSequential:
         skill = _make_skill(steps=[SkillStep(name="boom", tool="bomb")])
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert "error" in result["output"]
@@ -206,7 +221,9 @@ class TestWorkflowExecutorSequential:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert result["output"]["tool"] == "ping"
@@ -222,7 +239,9 @@ class TestWorkflowExecutorSequential:
 
         registry.register_code_tool(
             CodeTool(
-                name="echo", description="echo", fn=echo,
+                name="echo",
+                description="echo",
+                fn=echo,
                 parameters_schema={"type": "object", "properties": {}},
             )
         )
@@ -236,7 +255,9 @@ class TestWorkflowExecutorSequential:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert result["output"]["x"] is None
@@ -262,7 +283,9 @@ class TestWorkflowExecutorSequential:
         for name, fn in [("ta", step_a), ("tb", step_b), ("tc", step_c)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -273,7 +296,8 @@ class TestWorkflowExecutorSequential:
                 SkillStep(name="a", tool="ta"),
                 SkillStep(name="b", tool="tb", input={"prev": "$.steps.a.output"}),
                 SkillStep(
-                    name="c", tool="tc",
+                    name="c",
+                    tool="tc",
                     input={
                         "from_a": "$.steps.a.output",
                         "from_b": "$.steps.b.output",
@@ -284,7 +308,9 @@ class TestWorkflowExecutorSequential:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert result["steps"]["a"]["output"]["val"] == "a"
@@ -303,7 +329,9 @@ class TestWorkflowExecutorSequential:
 
         registry.register_code_tool(
             CodeTool(
-                name="echo", description="echo", fn=echo,
+                name="echo",
+                description="echo",
+                fn=echo,
                 parameters_schema={"type": "object", "properties": {}},
             )
         )
@@ -313,7 +341,8 @@ class TestWorkflowExecutorSequential:
             steps=[
                 SkillStep(name="bad", tool="nonexistent"),
                 SkillStep(
-                    name="check", tool="echo",
+                    name="check",
+                    tool="echo",
                     input={"prev": "$.steps.bad.output"},
                 ),
             ],
@@ -321,7 +350,9 @@ class TestWorkflowExecutorSequential:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         # Step 2 receives the error dict from step 1
@@ -380,7 +411,9 @@ class TestWorkflowExecutorParallel:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         outputs = result["steps"]["gather"]["output"]
@@ -415,7 +448,9 @@ class TestWorkflowExecutorParallel:
         for name, fn in [("slow-a", slow_a), ("slow-b", slow_b)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -432,9 +467,12 @@ class TestWorkflowExecutorParallel:
         )
 
         import time
+
         start = time.monotonic()
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
         duration = time.monotonic() - start
 
@@ -465,7 +503,9 @@ class TestWorkflowExecutorParallel:
         for name, fn in [("slow", slow_first), ("fast", fast_second)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -476,8 +516,8 @@ class TestWorkflowExecutorParallel:
                 SkillStep(
                     name="par",
                     tools=[
-                        ToolStep(tool="slow"),   # index 0, finishes last
-                        ToolStep(tool="fast"),   # index 1, finishes first
+                        ToolStep(tool="slow"),  # index 0, finishes last
+                        ToolStep(tool="fast"),  # index 1, finishes first
                     ],
                 ),
             ],
@@ -485,11 +525,13 @@ class TestWorkflowExecutorParallel:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         outputs = result["steps"]["par"]["output"]
-        assert outputs[0]["tool"] == "first"   # slow tool at index 0
+        assert outputs[0]["tool"] == "first"  # slow tool at index 0
         assert outputs[1]["tool"] == "second"  # fast tool at index 1
 
     @pytest.mark.asyncio
@@ -509,7 +551,9 @@ class TestWorkflowExecutorParallel:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={"v": "val"}, tool_context=_make_context(),
+            skill=skill,
+            input_data={"v": "val"},
+            tool_context=_make_context(),
         )
 
         outputs = result["steps"]["single"]["output"]
@@ -532,7 +576,9 @@ class TestWorkflowExecutorParallel:
         for name, fn in [("good", good), ("bad", bad)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -549,7 +595,9 @@ class TestWorkflowExecutorParallel:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         outputs = result["steps"]["par"]["output"]
@@ -578,7 +626,9 @@ class TestWorkflowExecutorParallel:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         outputs = result["steps"]["gather"]["output"]
@@ -604,7 +654,9 @@ class TestWorkflowExecutorParallel:
         for name, fn in [("gen-a", gen_a), ("gen-b", gen_b), ("combine", combine)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -617,7 +669,8 @@ class TestWorkflowExecutorParallel:
                     tools=[ToolStep(tool="gen-a"), ToolStep(tool="gen-b")],
                 ),
                 SkillStep(
-                    name="combine", tool="combine",
+                    name="combine",
+                    tool="combine",
                     input={
                         "a_result": "$.steps.gather.output[0]",
                         "b_result": "$.steps.gather.output[1]",
@@ -628,7 +681,9 @@ class TestWorkflowExecutorParallel:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert result["output"]["sum"] == 30
@@ -678,7 +733,9 @@ class TestWorkflowExecutorPrompt:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert "error" in result["output"]
@@ -698,7 +755,9 @@ class TestWorkflowExecutorPrompt:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert result["output"] == "response"
@@ -752,7 +811,9 @@ class TestWorkflowExecutorPrompt:
         skill = _make_skill(steps=[SkillStep(name="s", prompt="Do it.")])
 
         await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         messages = captured_messages[0]
@@ -762,17 +823,24 @@ class TestWorkflowExecutorPrompt:
     @pytest.mark.asyncio
     async def test_prompt_null_text_returns_empty_string(self) -> None:
         """LLM returning None text is coerced to empty string."""
+
         async def mock_llm(**kwargs: Any) -> LLMResponse:
             return LLMResponse(
-                text=None, tool_calls=[], model="test",
-                input_tokens=0, output_tokens=0, cost=0,
+                text=None,
+                tool_calls=[],
+                model="test",
+                input_tokens=0,
+                output_tokens=0,
+                cost=0,
             )
 
         executor = WorkflowExecutor(ToolRegistry(), _simple_executor, mock_llm)
         skill = _make_skill(steps=[SkillStep(name="s", prompt="Do it.")])
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert result["output"] == ""
@@ -790,7 +858,9 @@ class TestWorkflowExecutorTimeout:
 
         registry.register_code_tool(
             CodeTool(
-                name="slow", description="Slow tool", fn=slow_handler,
+                name="slow",
+                description="Slow tool",
+                fn=slow_handler,
                 parameters_schema={"type": "object", "properties": {}},
             )
         )
@@ -803,7 +873,9 @@ class TestWorkflowExecutorTimeout:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
             timeout_s=0.1,
         )
 
@@ -826,7 +898,9 @@ class TestWorkflowExecutorTimeout:
         for name, fn in [("fast", fast), ("slow", slow)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -841,7 +915,9 @@ class TestWorkflowExecutorTimeout:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
             timeout_s=0.2,
         )
 
@@ -867,7 +943,9 @@ class TestWorkflowExecutorTimeout:
         for name, fn in [("slow-a", slow_a), ("slow-b", slow_b)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -884,7 +962,9 @@ class TestWorkflowExecutorTimeout:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
             timeout_s=0.1,
         )
 
@@ -912,7 +992,9 @@ class TestWorkflowExecutorMixed:
         for name, fn in [("fetch", fetch), ("analyze-a", analyze_a), ("analyze-b", analyze_b)]:
             registry.register_code_tool(
                 CodeTool(
-                    name=name, description=name, fn=fn,
+                    name=name,
+                    description=name,
+                    fn=fn,
                     parameters_schema={"type": "object", "properties": {}},
                 )
             )
@@ -929,7 +1011,8 @@ class TestWorkflowExecutorMixed:
             steps=[
                 # Step 1: Single tool fetch
                 SkillStep(
-                    name="fetch", tool="fetch",
+                    name="fetch",
+                    tool="fetch",
                     input={"name": "$.input.company"},
                 ),
                 # Step 2: Parallel analysis
@@ -993,7 +1076,9 @@ class TestWorkflowExecutorMixed:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         first = result["steps"]["first"]["output"]
@@ -1013,7 +1098,9 @@ class TestWorkflowExecutorMixed:
 
         registry.register_code_tool(
             CodeTool(
-                name="echo", description="echo", fn=echo,
+                name="echo",
+                description="echo",
+                fn=echo,
                 parameters_schema={"type": "object", "properties": {}},
             )
         )
@@ -1026,7 +1113,8 @@ class TestWorkflowExecutorMixed:
             steps=[
                 SkillStep(name="generate", prompt="Generate a search query."),
                 SkillStep(
-                    name="search", tool="echo",
+                    name="search",
+                    tool="echo",
                     input={"query": "$.steps.generate.output"},
                 ),
             ],
@@ -1034,7 +1122,9 @@ class TestWorkflowExecutorMixed:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         # The tool step received the LLM's text output as input
@@ -1051,7 +1141,9 @@ class TestWorkflowExecutorMixed:
         )
 
         result = await executor.execute(
-            skill=skill, input_data={}, tool_context=_make_context(),
+            skill=skill,
+            input_data={},
+            tool_context=_make_context(),
         )
 
         assert "error" in result["steps"]["empty"]["output"]

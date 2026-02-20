@@ -125,8 +125,7 @@ def _parse_steps(raw_steps: list[Any], skill_dir: Path) -> list[SkillStep]:
         set_count = sum(1 for v in (tool, tools_raw, prompt) if v is not None)
         if set_count != 1:
             logger.warning(
-                "Step '%s' in skill %s must have exactly one of "
-                "tool, tools, or prompt; skipping",
+                "Step '%s' in skill %s must have exactly one of tool, tools, or prompt; skipping",
                 step_name,
                 skill_dir.name,
             )
@@ -151,9 +150,7 @@ def _parse_steps(raw_steps: list[Any], skill_dir: Path) -> list[SkillStep]:
     return steps
 
 
-def _parse_tool_steps(
-    raw_tools: Any, step_name: str, skill_dir: Path
-) -> list[ToolStep] | None:
+def _parse_tool_steps(raw_tools: Any, step_name: str, skill_dir: Path) -> list[ToolStep] | None:
     """Parse parallel tool steps for a fan-out step."""
     if not isinstance(raw_tools, list) or not raw_tools:
         logger.warning(
