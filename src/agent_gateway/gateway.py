@@ -86,6 +86,7 @@ class Gateway(FastAPI):
         self._auth_setting = auth
         self._reload_enabled = reload
         self._pending_tools: list[CodeTool] = []
+        self._pending_input_schemas: dict[str, dict[str, Any] | type] = {}
         self._hooks = HookRegistry()
 
         # Initialized during lifespan startup
@@ -347,6 +348,9 @@ class Gateway(FastAPI):
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
+
+        # 7.5. Apply code-registered input schemas (overrides frontmatter)
+        self._apply_pending_input_schemas(workspace)
 
         # 8. Atomic snapshot
         self._snapshot = WorkspaceSnapshot(
@@ -992,6 +996,24 @@ class Gateway(FastAPI):
 
         return None
 
+    def _apply_pending_input_schemas(self, workspace: WorkspaceState) -> None:
+        """Apply code-registered input schemas to workspace agents."""
+        if not self._pending_input_schemas:
+            return
+
+        from agent_gateway.engine.input import resolve_input_schema
+
+        for agent_id, schema in self._pending_input_schemas.items():
+            agent = workspace.agents.get(agent_id)
+            if agent is None:
+                logger.warning(
+                    "set_input_schema: agent '%s' not found in workspace, skipping",
+                    agent_id,
+                )
+                continue
+            json_schema, _ = resolve_input_schema(schema)
+            agent.input_schema = json_schema
+
     def _backend_from_config(self, config: PersistenceConfig) -> PersistenceBackend | None:
         """Create a backend from YAML/env configuration (backward compat)."""
         if config.backend == "sqlite":
@@ -1050,6 +1072,9 @@ class Gateway(FastAPI):
                     hooks=self._hooks,
                 )
 
+            # Re-apply code-registered input schemas
+            self._apply_pending_input_schemas(new_workspace)
+
             # Single atomic reference swap
             self._snapshot = WorkspaceSnapshot(
                 workspace=new_workspace,
@@ -1075,7 +1100,7 @@ class Gateway(FastAPI):
         error: str | None = None,
         usage: dict[str, Any] | None = None,
         duration_ms: int = 0,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
     ) -> None:
         """Fire notifications via queue (if available) or as a background task.
 
@@ -1097,7 +1122,7 @@ class Gateway(FastAPI):
                 error=error,
                 usage=usage,
                 duration_ms=duration_ms,
-                context=context,
+                input=input,
             )
             task = asyncio.create_task(self._notification_queue.enqueue(job))
             self._background_tasks.add(task)
@@ -1113,7 +1138,7 @@ class Gateway(FastAPI):
                 error=error,
                 usage=usage,
                 duration_ms=duration_ms,
-                context=context,
+                input=input,
             )
             task = asyncio.create_task(self._notification_engine.notify(event, config))
             self._background_tasks.add(task)
@@ -1123,7 +1148,7 @@ class Gateway(FastAPI):
         self,
         agent_id: str,
         message: str,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
     ) -> ExecutionResult:
         """Invoke an agent programmatically (bypasses HTTP).
@@ -1131,7 +1156,7 @@ class Gateway(FastAPI):
         Args:
             agent_id: The agent to invoke.
             message: The user message.
-            context: Optional context dict.
+            input: Optional input dict.
             options: Optional execution options.
 
         Returns:
@@ -1151,6 +1176,18 @@ class Gateway(FastAPI):
         if snapshot.engine is None:
             raise ValueError("Execution engine not initialized")
 
+        # Validate input against agent's input_schema
+        if agent.input_schema:
+            from agent_gateway.engine.input import validate_input
+            from agent_gateway.exceptions import InputValidationError
+
+            errors = validate_input(input, agent.input_schema)
+            if errors:
+                raise InputValidationError(
+                    f"Input validation failed for agent '{agent_id}': {'; '.join(errors)}",
+                    errors=errors,
+                )
+
         execution_id = str(uuid.uuid4())
         handle = ExecutionHandle(execution_id=execution_id)
         self._execution_handles[execution_id] = handle
@@ -1160,7 +1197,7 @@ class Gateway(FastAPI):
                 agent=agent,
                 message=message,
                 workspace=snapshot.workspace,
-                context=context,
+                input=input,
                 options=options,
                 handle=handle,
                 tool_executor=execute_tool,
@@ -1175,7 +1212,7 @@ class Gateway(FastAPI):
                 config=agent.notifications,
                 result=result.to_dict() if result.raw_text else None,
                 usage=result.usage.to_dict() if result.usage else None,
-                context=context,
+                input=input,
             )
 
             return result
@@ -1187,7 +1224,7 @@ class Gateway(FastAPI):
         agent_id: str,
         message: str,
         session_id: str | None = None,
-        context: dict[str, Any] | None = None,
+        input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
     ) -> tuple[str, ExecutionResult]:
         """Send a chat message programmatically (bypasses HTTP).
@@ -1196,7 +1233,7 @@ class Gateway(FastAPI):
             agent_id: The agent to chat with.
             message: The user message.
             session_id: Optional existing session ID. Creates new session if None.
-            context: Optional context dict.
+            input: Optional input dict.
             options: Optional execution options.
 
         Returns:
@@ -1230,10 +1267,10 @@ class Gateway(FastAPI):
                     f"'{session.agent_id}', not '{agent_id}'"
                 )
         else:
-            session = self._session_store.create_session(agent_id, metadata=context)
+            session = self._session_store.create_session(agent_id, metadata=input)
 
-        if context:
-            session.merge_metadata(context)
+        if input:
+            session.merge_metadata(input)
 
         async with session.lock:
             session.append_user_message(message)
@@ -1255,7 +1292,7 @@ class Gateway(FastAPI):
                     agent=agent,
                     message=message,
                     workspace=snapshot.workspace,
-                    context=session.metadata,
+                    input=session.metadata,
                     options=options,
                     handle=handle,
                     tool_executor=execute_tool,
@@ -1408,6 +1445,29 @@ class Gateway(FastAPI):
         if fn is not None:
             return decorator(fn)
         return decorator
+
+    def set_input_schema(
+        self,
+        agent_id: str,
+        schema: dict[str, Any] | type,
+    ) -> None:
+        """Set the input schema for an agent.
+
+        Can be called with a JSON Schema dict or a Pydantic BaseModel class.
+        Call before ``startup()`` — the schema is applied when the workspace loads.
+        Code-registered schemas override AGENT.md frontmatter schemas.
+
+        Usage::
+
+            from pydantic import BaseModel
+
+            class DealInput(BaseModel):
+                deal_id: str
+                amount: float
+
+            gw.set_input_schema("underwriting", DealInput)
+        """
+        self._pending_input_schemas[agent_id] = schema
 
     def on(self, event: str) -> Callable[..., Any]:
         """Register a lifecycle hook callback.

@@ -114,6 +114,18 @@ async def invoke_agent(
     if snapshot.engine is None:
         return error_response(503, "engine_unavailable", "Execution engine not initialized")
 
+    # Validate input against agent's input_schema (before creating execution record)
+    if agent.input_schema:
+        from agent_gateway.engine.input import validate_input
+
+        errors = validate_input(body.input, agent.input_schema)
+        if errors:
+            return error_response(
+                422,
+                "input_validation_failed",
+                f"Input validation failed: {'; '.join(errors)}",
+            )
+
     # Generate execution ID
     execution_id = str(uuid.uuid4())
 
@@ -143,7 +155,7 @@ async def invoke_agent(
         agent_id=agent_id,
         status=initial_status,
         message=body.message,
-        context=body.context or None,
+        input=body.input or None,
         started_at=datetime.now(UTC),
     )
     await gw._execution_repo.create(record)
@@ -165,7 +177,7 @@ async def invoke_agent(
                 execution_id=execution_id,
                 agent_id=agent_id,
                 message=body.message,
-                context=body.context or None,
+                input=body.input or None,
                 timeout_ms=body.options.timeout_ms,
                 enqueued_at=datetime.now(UTC).isoformat(),
             )
@@ -193,7 +205,7 @@ async def invoke_agent(
             agent=agent,
             message=body.message,
             workspace=snapshot.workspace,
-            context=body.context,
+            input=body.input,
             options=exec_options,
             handle=handle,
             tool_executor=execute_tool,
@@ -232,7 +244,7 @@ async def invoke_agent(
         result=result.to_dict() if result.raw_text else None,
         usage=result.usage.to_dict() if result.usage else None,
         duration_ms=duration_ms,
-        context=body.context or None,
+        input=body.input or None,
     )
 
     return _build_response(execution_id, agent_id, result, duration_ms)
@@ -261,7 +273,7 @@ async def _run_background_execution(
                 agent=agent,
                 message=body.message,
                 workspace=snapshot.workspace,
-                context=body.context,
+                input=body.input,
                 options=options,
                 handle=handle,
                 tool_executor=execute_tool,
@@ -288,7 +300,7 @@ async def _run_background_execution(
                 result=result.to_dict() if result.raw_text else None,
                 usage=result.usage.to_dict() if result.usage else None,
                 duration_ms=bg_duration_ms,
-                context=body.context or None,
+                input=body.input or None,
             )
         except Exception as e:
             logger.error("Background execution %s failed: %s", execution_id, e)
