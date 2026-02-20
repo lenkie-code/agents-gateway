@@ -133,6 +133,7 @@ async def invoke_agent(
         async_execution=should_queue,
         timeout_ms=body.options.timeout_ms,
         stream=body.options.stream,
+        output_schema=body.options.output_schema,
     )
 
     # Create execution record
@@ -221,6 +222,19 @@ async def invoke_agent(
         usage=result.usage.to_dict(),
     )
 
+    # Fire notifications
+    gw.fire_notifications(
+        execution_id=execution_id,
+        agent_id=agent_id,
+        status=result.stop_reason.value,
+        message=body.message,
+        config=agent.notifications,
+        result=result.to_dict() if result.raw_text else None,
+        usage=result.usage.to_dict() if result.usage else None,
+        duration_ms=duration_ms,
+        context=body.context or None,
+    )
+
     return _build_response(execution_id, agent_id, result, duration_ms)
 
 
@@ -242,6 +256,7 @@ async def _run_background_execution(
 
             await gw._execution_repo.update_status(execution_id, ExecutionStatus.RUNNING)
 
+            start = time.monotonic()
             result = await snapshot.engine.execute(
                 agent=agent,
                 message=body.message,
@@ -251,6 +266,7 @@ async def _run_background_execution(
                 handle=handle,
                 tool_executor=execute_tool,
             )
+            bg_duration_ms = int((time.monotonic() - start) * 1000)
 
             status = stop_reason_to_status(result.stop_reason)
             await gw._execution_repo.update_status(
@@ -260,6 +276,19 @@ async def _run_background_execution(
                 execution_id,
                 result=result.to_dict(),
                 usage=result.usage.to_dict(),
+            )
+
+            # Fire notifications
+            gw.fire_notifications(
+                execution_id=execution_id,
+                agent_id=agent.id,
+                status=result.stop_reason.value,
+                message=body.message,
+                config=agent.notifications,
+                result=result.to_dict() if result.raw_text else None,
+                usage=result.usage.to_dict() if result.usage else None,
+                duration_ms=bg_duration_ms,
+                context=body.context or None,
             )
         except Exception as e:
             logger.error("Background execution %s failed: %s", execution_id, e)

@@ -5,12 +5,14 @@ import os
 
 import httpx
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 from agent_gateway import Gateway
+from agent_gateway.engine.models import ExecutionOptions
 
 load_dotenv()
 
-gw = Gateway(workspace="./workspace", title="Test Project")
+gw = Gateway(workspace="./workspace", title="Test Project",)
 
 # --- Pluggable backends (fluent API) ---
 
@@ -35,6 +37,23 @@ gw.use_api_keys(
         }
     ]
 )
+
+# --- Notifications (optional — configure via env vars) ---
+
+slack_token = os.environ.get("SLACK_BOT_TOKEN")
+if slack_token:
+    gw.use_slack_notifications(
+        bot_token=slack_token,
+        default_channel=os.environ.get("SLACK_DEFAULT_CHANNEL", "#agent-alerts"),
+    )
+
+webhook_url = os.environ.get("WEBHOOK_URL")
+if webhook_url:
+    gw.use_webhook_notifications(
+        url=webhook_url,
+        name="default",
+        secret=os.environ.get("WEBHOOK_SECRET", ""),
+    )
 
 # --- Code tools ---
 
@@ -129,6 +148,25 @@ async def search_flights(origin: str, destination: str, date: str) -> dict:
     }
 
 
+# --- Pydantic output schemas ---
+# Define structured output models and use them with ExecutionOptions.
+# The gateway converts the model to JSON Schema for the LLM prompt and
+# returns a validated Pydantic instance in result.output.
+
+
+class TravelPlan(BaseModel):
+    destination: str
+    summary: str
+    flights: list[dict]
+    hotels: list[dict]
+    total_estimated_cost_usd: float
+
+
+class MathResult(BaseModel):
+    answer: float
+    explanation: str
+
+
 # --- Lifecycle hooks ---
 
 
@@ -156,6 +194,43 @@ async def log_tool_done(tool_name, duration_ms, success, **kw):
 @gw.get("/api/health")
 async def health():
     return {"status": "ok", "project": "test-project"}
+
+
+# --- Programmatic usage examples ---
+# These functions show how to use the gateway from Python code.
+# They're wired up as custom routes below.
+
+
+@gw.get("/api/demo/structured-output")
+async def demo_structured_output():
+    """Invoke the assistant with a Pydantic output schema."""
+    result = await gw.invoke(
+        "assistant",
+        "What is 12 * 15? Explain your reasoning.",
+        options=ExecutionOptions(output_schema=MathResult),
+    )
+    if isinstance(result.output, MathResult):
+        return {"answer": result.output.answer, "explanation": result.output.explanation}
+    return {"raw_text": result.raw_text, "validation_errors": result.validation_errors}
+
+
+@gw.get("/api/demo/travel-plan")
+async def demo_travel_plan():
+    """Invoke the travel planner with a Pydantic output schema."""
+    result = await gw.invoke(
+        "travel-planner",
+        "Plan a 3-day trip to Tokyo from San Francisco, departing 2025-04-01.",
+        options=ExecutionOptions(output_schema=TravelPlan),
+    )
+    if isinstance(result.output, TravelPlan):
+        return {
+            "destination": result.output.destination,
+            "summary": result.output.summary,
+            "flights": result.output.flights,
+            "hotels": result.output.hotels,
+            "total_estimated_cost_usd": result.output.total_estimated_cost_usd,
+        }
+    return {"raw_text": result.raw_text, "validation_errors": result.validation_errors}
 
 
 if __name__ == "__main__":

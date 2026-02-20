@@ -27,7 +27,9 @@ from agent_gateway.engine.models import (
 from agent_gateway.engine.output import (
     build_correction_message,
     build_schema_instruction,
+    resolve_schema,
     validate_output,
+    validate_output_pydantic,
 )
 from agent_gateway.hooks import HookRegistry
 from agent_gateway.telemetry import attributes as attr
@@ -128,10 +130,16 @@ class ExecutionEngine:
         max_iterations = guardrails.max_iterations
         max_tool_calls = guardrails.max_tool_calls
 
+        # Resolve output schema (Pydantic model → JSON Schema dict + model class)
+        json_schema: dict[str, Any] | None = None
+        model_cls = None
+        if options.output_schema:
+            json_schema, model_cls = resolve_schema(options.output_schema)
+
         # Build system prompt
         system_prompt = assemble_system_prompt(agent, workspace)
-        if options.output_schema:
-            system_prompt += build_schema_instruction(options.output_schema)
+        if json_schema:
+            system_prompt += build_schema_instruction(json_schema)
 
         # Build tool declarations
         skill_tool_names = self._resolve_skill_tools(agent, workspace)
@@ -185,6 +193,8 @@ class ExecutionEngine:
                     timeout_s=timeout_s,
                     max_iterations=max_iterations,
                     max_tool_calls=max_tool_calls,
+                    json_schema=json_schema,
+                    model_cls=model_cls,
                 )
                 set_span_ok(invoke_span)
                 invoke_span.set_attribute(attr.AGW_STOP_REASON, result.stop_reason.value)
@@ -223,6 +233,8 @@ class ExecutionEngine:
         timeout_s: float,
         max_iterations: int,
         max_tool_calls: int,
+        json_schema: dict[str, Any] | None = None,
+        model_cls: Any = None,
     ) -> ExecutionResult:
         """Inner execution loop, wrapped by OTel span and hooks in execute()."""
         total_tool_calls = 0
@@ -279,22 +291,19 @@ class ExecutionEngine:
                     # No tool calls → completion
                     if not llm_response.tool_calls:
                         result = self._build_completion_result(
-                            last_text, usage, options.output_schema
+                            last_text, usage, json_schema, model_cls
                         )
                         # If output schema validation failed, retry once
-                        if (
-                            options.output_schema
-                            and result.validation_errors
-                            and result.output is None
-                        ):
+                        if json_schema and result.validation_errors and result.output is None:
                             retry_result = await self._retry_structured_output(
                                 messages=messages,
-                                schema=options.output_schema,
+                                schema=json_schema,
                                 errors=result.validation_errors,
                                 model=model,
                                 temperature=temperature,
                                 max_tokens=max_tokens,
                                 usage=usage,
+                                model_cls=model_cls,
                             )
                             if retry_result is not None:
                                 return retry_result
@@ -632,6 +641,7 @@ class ExecutionEngine:
         temperature: float,
         max_tokens: int,
         usage: UsageAccumulator,
+        model_cls: Any = None,
     ) -> ExecutionResult | None:
         """Retry once to get valid structured output. Returns None if retry also fails."""
         correction = build_correction_message(errors, schema)
@@ -660,7 +670,10 @@ class ExecutionEngine:
         )
 
         raw = llm_response.text or ""
-        output, validation_errors = validate_output(raw, schema)
+        if model_cls is not None:
+            output, validation_errors = validate_output_pydantic(raw, model_cls)
+        else:
+            output, validation_errors = validate_output(raw, schema)
 
         if validation_errors:
             # Retry also failed
@@ -682,17 +695,21 @@ class ExecutionEngine:
         self,
         text: str,
         usage: UsageAccumulator,
-        output_schema: dict[str, Any] | None,
+        json_schema: dict[str, Any] | None = None,
+        model_cls: Any = None,
     ) -> ExecutionResult:
         """Build a completion result, optionally validating against output schema."""
-        if not output_schema:
+        if not json_schema:
             return ExecutionResult(
                 raw_text=text,
                 stop_reason=StopReason.COMPLETED,
                 usage=usage,
             )
 
-        output, validation_errors = validate_output(text, output_schema)
+        if model_cls is not None:
+            output, validation_errors = validate_output_pydantic(text, model_cls)
+        else:
+            output, validation_errors = validate_output(text, json_schema)
         return ExecutionResult(
             output=output,
             raw_text=text,

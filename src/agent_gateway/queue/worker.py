@@ -7,7 +7,7 @@ import contextlib
 import logging
 import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agent_gateway.engine.models import (
     ExecutionHandle,
@@ -138,11 +138,12 @@ class WorkerPool:
             await self._queue.nack(job.execution_id)
             return
 
+        notify_args: dict[str, Any] | None = None
         start = time.monotonic()
         with queue_process_span(job.execution_id, job.agent_id, worker_id) as span:
             try:
                 async with semaphore:
-                    await self._run_execution(worker_id, job)
+                    notify_args = await self._run_execution(worker_id, job)
                 await self._queue.ack(job.execution_id)
 
                 duration_ms = int((time.monotonic() - start) * 1000)
@@ -161,8 +162,16 @@ class WorkerPool:
                 set_span_error(span, exc)
                 await self._queue.nack(job.execution_id)
 
-    async def _run_execution(self, worker_id: int, job: ExecutionJob) -> None:
-        """Run the agent execution for a job."""
+        # Fire notifications via the consolidated gateway helper
+        if notify_args is not None:
+            gw.fire_notifications(**notify_args)
+
+    async def _run_execution(self, worker_id: int, job: ExecutionJob) -> dict[str, Any] | None:
+        """Run the agent execution for a job.
+
+        Returns notification keyword arguments to be fired *after* the
+        semaphore is released, or ``None`` if no notification is needed.
+        """
         gw = self._gateway
         snapshot = gw._snapshot
         if snapshot is None or snapshot.engine is None:
@@ -175,7 +184,7 @@ class WorkerPool:
                 ExecutionStatus.FAILED,
                 error=f"Agent '{job.agent_id}' not found",
             )
-            return
+            return None
 
         # Update status to running
         await gw._execution_repo.update_status(job.execution_id, ExecutionStatus.RUNNING)
@@ -233,6 +242,18 @@ class WorkerPool:
                 status,
                 duration_ms,
             )
+
+            return {
+                "execution_id": job.execution_id,
+                "agent_id": agent.id,
+                "status": status.value,
+                "message": job.message,
+                "config": agent.notifications,
+                "result": result.to_dict() if result.raw_text else None,
+                "usage": result.usage.to_dict() if result.usage else None,
+                "context": job.context,
+                "duration_ms": duration_ms,
+            }
         except Exception as e:
             logger.error(
                 "Worker %d: job %s execution failed: %s",
@@ -243,6 +264,16 @@ class WorkerPool:
             await gw._execution_repo.update_status(
                 job.execution_id, ExecutionStatus.FAILED, error=str(e)
             )
+
+            return {
+                "execution_id": job.execution_id,
+                "agent_id": agent.id,
+                "status": "failed",
+                "message": job.message,
+                "config": agent.notifications,
+                "error": str(e),
+                "context": job.context,
+            }
         finally:
             gw._execution_handles.pop(job.execution_id, None)
 

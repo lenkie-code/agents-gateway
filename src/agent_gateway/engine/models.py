@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 class StopReason(StrEnum):
@@ -98,7 +101,7 @@ class ExecutionOptions:
 
     async_execution: bool = False
     timeout_ms: int | None = None
-    output_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | type[BaseModel] | None = None
     stream: bool = False
 
 
@@ -116,8 +119,11 @@ class ExecutionResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for API responses."""
+        from pydantic import BaseModel as _BM
+
+        output = self.output.model_dump() if isinstance(self.output, _BM) else self.output
         result: dict[str, Any] = {
-            "output": self.output,
+            "output": output,
             "raw_text": self.raw_text,
             "stop_reason": self.stop_reason.value,
             "usage": self.usage.to_dict(),

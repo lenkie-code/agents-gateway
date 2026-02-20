@@ -9,18 +9,43 @@ from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
 
 from agent_gateway.api.errors import error_response, not_found
-from agent_gateway.api.models import AgentInfo, SkillInfo, ToolInfo
+from agent_gateway.api.models import (
+    AgentInfo,
+    NotificationConfigInfo,
+    NotificationTargetInfo,
+    SkillInfo,
+    ToolInfo,
+)
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
 if TYPE_CHECKING:
     from agent_gateway.gateway import Gateway
+    from agent_gateway.workspace.agent import AgentDefinition
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=GatewayAPIRoute)
 
 _ID_PATTERN = r"^[a-zA-Z0-9_.-]+$"
+
+
+def _build_notification_config(agent: AgentDefinition) -> NotificationConfigInfo | None:
+    """Build notification config info for introspection, or None if unconfigured."""
+    cfg = agent.notifications
+    if not cfg.on_complete and not cfg.on_error and not cfg.on_timeout:
+        return None
+    return NotificationConfigInfo(
+        on_complete=[
+            NotificationTargetInfo(channel=t.channel, target=t.target) for t in cfg.on_complete
+        ],
+        on_error=[
+            NotificationTargetInfo(channel=t.channel, target=t.target) for t in cfg.on_error
+        ],
+        on_timeout=[
+            NotificationTargetInfo(channel=t.channel, target=t.target) for t in cfg.on_timeout
+        ],
+    )
 
 
 @router.get(
@@ -43,6 +68,8 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             tools=agent.tools,
             model=agent.model.name,
             schedules=[s.name for s in agent.schedules],
+            execution_mode=agent.execution_mode,
+            notifications=_build_notification_config(agent),
         )
         for agent in ws.agents.values()
     ]
@@ -74,6 +101,8 @@ async def get_agent(
         tools=agent.tools,
         model=agent.model.name,
         schedules=[s.name for s in agent.schedules],
+        execution_mode=agent.execution_mode,
+        notifications=_build_notification_config(agent),
     )
 
 
