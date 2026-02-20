@@ -1295,44 +1295,44 @@ This means an agent can send webhooks to any URL without the gateway operator ne
 
 ### Functional Requirements
 
-- [ ] `gw.use_slack_notifications(token, channel)` configures Slack backend
-- [ ] `gw.use_webhook_notifications(url, name, secret)` configures webhook backend
-- [ ] `gw.use_notifications(None)` disables all notifications
-- [ ] `gw.use_notifications(CustomBackend())` works for any Protocol-compliant backend
-- [ ] Agent CONFIG.md `notifications.on_complete` fires on successful execution
-- [ ] Agent CONFIG.md `notifications.on_error` fires on failed execution
-- [ ] Agent CONFIG.md `notifications.on_timeout` fires on timeout
-- [ ] Slack messages use professional Block Kit formatting
-- [ ] Custom Slack templates render from workspace files
-- [ ] Webhooks include HMAC-SHA256 signature headers
-- [ ] Webhook custom payload templates render via Jinja2
-- [ ] Webhook event filtering (`events` list) works
-- [ ] Retry with exponential backoff (3 attempts: 1s, 2s, 4s)
-- [ ] Notification failure never affects execution status
-- [ ] gateway.yaml config works as fallback when no fluent API is used
-- [ ] Missing optional dependency gives clear `ImportError` with install instructions
+- [x] `gw.use_slack_notifications(token, channel)` configures Slack backend
+- [x] `gw.use_webhook_notifications(url, name, secret)` configures webhook backend
+- [x] `gw.use_notifications(None)` disables all notifications
+- [x] `gw.use_notifications(CustomBackend())` works for any Protocol-compliant backend
+- [x] Agent CONFIG.md `notifications.on_complete` fires on successful execution
+- [x] Agent CONFIG.md `notifications.on_error` fires on failed execution
+- [x] Agent CONFIG.md `notifications.on_timeout` fires on timeout
+- [x] Slack messages use professional Block Kit formatting
+- [x] Custom Slack templates render from workspace files
+- [x] Webhooks include HMAC-SHA256 signature headers
+- [x] Webhook custom payload templates render via Jinja2
+- [x] Webhook event filtering (`events` list) works
+- [x] Retry with exponential backoff (3 attempts: 1s, 2s, 4s)
+- [x] Notification failure never affects execution status
+- [x] gateway.yaml config works as fallback when no fluent API is used
+- [x] Missing optional dependency gives clear `ImportError` with install instructions
 
 ### Non-Functional Requirements
 
-- [ ] `notifications/models.py` has zero optional-dependency imports
-- [ ] `notifications/protocols.py` has zero optional-dependency imports
-- [ ] `notifications/engine.py` has zero optional-dependency imports
-- [ ] `slack-bolt` / `slack-sdk` only imported inside `backends/slack.py`
-- [ ] `jinja2` only imported inside `template.py` and webhook backend
-- [ ] `pip install agent-gateway` (no extras) never imports slack or jinja2
-- [ ] `pip install agent-gateway[slack]` pulls in `slack-bolt` and `slack-sdk`
-- [ ] `pip install agent-gateway[webhooks]` pulls in `jinja2`
+- [x] `notifications/models.py` has zero optional-dependency imports
+- [x] `notifications/protocols.py` has zero optional-dependency imports
+- [x] `notifications/engine.py` has zero optional-dependency imports
+- [x] `slack-bolt` / `slack-sdk` only imported inside `backends/slack.py`
+- [x] `jinja2` only imported inside `template.py` and webhook backend
+- [x] `pip install agent-gateway` (no extras) never imports slack or jinja2
+- [x] `pip install agent-gateway[slack]` pulls in `slack-bolt` and `slack-sdk`
+- [x] `pip install agent-gateway[webhooks]` pulls in `jinja2`
 
 ### Quality Gates
 
-- [ ] All existing tests pass (no regressions)
-- [ ] New unit tests for `NotificationEngine` (dispatch, retry, error isolation)
-- [ ] New unit tests for `SlackBackend` (Block Kit output, template rendering)
-- [ ] New unit tests for `WebhookBackend` (HMAC signing, custom payloads, event filtering)
-- [ ] New unit tests for agent CONFIG.md notification parsing
-- [ ] Integration test: sync invoke → Slack notification
-- [ ] Integration test: async worker → webhook notification
-- [ ] mypy passes with `--strict`
+- [x] All existing tests pass (no regressions)
+- [x] New unit tests for `NotificationEngine` (dispatch, retry, error isolation)
+- [x] New unit tests for `SlackBackend` (Block Kit output, template rendering)
+- [x] New unit tests for `WebhookBackend` (HMAC signing, custom payloads, event filtering)
+- [x] New unit tests for agent CONFIG.md notification parsing
+- [x] Integration test: sync invoke → Slack notification
+- [x] Integration test: async worker → webhook notification
+- [x] mypy passes with `--strict`
 
 ## References
 
