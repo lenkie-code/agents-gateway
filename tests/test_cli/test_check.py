@@ -38,8 +38,9 @@ def test_check_reports_warnings(tmp_path: Path) -> None:
     # Create workspace with agent referencing unknown skill
     agents_dir = tmp_path / "agents" / "my-agent"
     agents_dir.mkdir(parents=True)
-    (agents_dir / "AGENT.md").write_text("# Test Agent\n\nA test agent.\n")
-    (agents_dir / "CONFIG.md").write_text("---\nskills:\n  - nonexistent-skill\n---\n")
+    (agents_dir / "AGENT.md").write_text(
+        "---\nskills:\n  - nonexistent-skill\n---\n# Test Agent\n\nA test agent.\n"
+    )
 
     result = runner.invoke(app, ["check", "--workspace", str(tmp_path)])
     assert result.exit_code == 0  # warnings don't cause failure

@@ -11,7 +11,7 @@ workspace/
 ├── agents/
 │   └── underwriting/
 │       ├── AGENT.md
-│       └── SOUL.md
+│       └── BEHAVIOR.md
 ├── skills/
 │   └── credit-assessment/
 │       └── SKILL.md
@@ -233,7 +233,7 @@ A **skill** is a higher-level workflow that bundles a prompt with a set of tools
 
 An **agent** is a persona with a system prompt, personality, and a set of skills and tools it can use.
 
-- Defined as a directory with `AGENT.md` + `SOUL.md`
+- Defined as a directory with `AGENT.md` + optional `BEHAVIOR.md`
 - Has access to skills (which bring their own tools) and direct tools
 - Exposed as an API endpoint: `POST /v1/agents/{id}/invoke`
 - Examples: `underwriting`, `sales`, `compliance`
@@ -297,7 +297,7 @@ reasoning, and suggested next action.
 And the agent references the skill:
 
 ```markdown
-# workspace/agents/sales/CONFIG.md
+# workspace/agents/sales/AGENT.md
 ---
 skills:
   - lead-qualification
@@ -305,6 +305,9 @@ tools:
   - send-email
   - create-crm-note
 ---
+# Sales Agent
+
+You are a sales assistant. Qualify leads and manage CRM interactions.
 ```
 
 The sales agent can now:
@@ -315,9 +318,9 @@ The sales agent can now:
 
 When an agent is invoked:
 
-1. Load the agent's skills (from CONFIG.md `skills` list)
+1. Load the agent's skills (from AGENT.md frontmatter `skills` list)
 2. For each skill, load its tools (from SKILL.md `tools` list)
-3. Load the agent's direct tools (from CONFIG.md `tools` list)
+3. Load the agent's direct tools (from AGENT.md frontmatter `tools` list)
 4. Merge all tools into the LLM's function declarations (deduplicated)
 5. Inject skill descriptions into the system prompt so the LLM understands the workflows
 
@@ -343,7 +346,7 @@ my-project/
 │   ├── agents/
 │   │   └── assistant/
 │   │       ├── AGENT.md
-│   │       └── SOUL.md
+│   │       └── BEHAVIOR.md
 │   ├── skills/
 │   │   └── hello/
 │   │       └── SKILL.md
@@ -401,9 +404,9 @@ and providing decision-support recommendations.
 Use the `companies-house-check` skill when you need company data.
 ```
 
-Write `workspace/agents/underwriting/SOUL.md`:
+Write `workspace/agents/underwriting/BEHAVIOR.md`:
 ```markdown
-# SOUL
+# BEHAVIOR
 
 Thorough, analytical, and risk-aware.
 
@@ -495,11 +498,13 @@ tools:
 3. Combine findings into a QUALIFIED / NEEDS REVIEW / REJECTED recommendation
 ```
 
-Then reference the skill in the agent's CONFIG.md:
+Then reference the skill in the agent's AGENT.md frontmatter:
 
 ```yaml
+---
 skills:
   - lead-qualification
+---
 ```
 
 The agent now has the lead qualification workflow and both tools available.
@@ -516,17 +521,15 @@ workspace/
 │
 ├── agents/                            # Agent definitions
 │   ├── AGENTS.md                      # Root system prompt (shared by all agents)
-│   ├── SOUL.md                        # Root personality (shared by all agents)
+│   ├── BEHAVIOR.md                    # Root behavior/guardrails (shared by all agents)
 │   │
 │   ├── underwriting/                  # Agent: underwriting
-│   │   ├── AGENT.md                   # Agent-specific system prompt (required)
-│   │   ├── SOUL.md                    # Agent-specific personality (optional)
-│   │   └── CONFIG.md                  # Agent-specific settings (optional)
+│   │   ├── AGENT.md                   # Agent prompt + frontmatter config (required)
+│   │   └── BEHAVIOR.md               # Agent-specific behavior/guardrails (optional)
 │   │
 │   ├── sales/                         # Agent: sales
 │   │   ├── AGENT.md
-│   │   ├── SOUL.md
-│   │   └── CONFIG.md
+│   │   └── BEHAVIOR.md
 │   │
 │   └── compliance/                    # Agent: compliance
 │       └── AGENT.md                   # Minimal — just AGENT.md is enough
@@ -557,7 +560,7 @@ On startup, the gateway scans the workspace:
 1. **Agents**: Every subdirectory of `workspace/agents/` containing an `AGENT.md` is an agent. Directory name = agent ID.
 2. **Skills**: Every subdirectory of `workspace/skills/` containing a `SKILL.md` is a skill. Directory name = skill ID.
 3. **Tools**: Every subdirectory of `workspace/tools/` containing a `TOOL.md` is a tool. Directory name = tool ID.
-4. **Root prompts**: `workspace/agents/AGENTS.md` and `workspace/agents/SOUL.md` are prepended to every agent's system prompt.
+4. **Root prompts**: `workspace/agents/AGENTS.md` and `workspace/agents/BEHAVIOR.md` are prepended to every agent's system prompt.
 5. **Code tools**: Tools registered via `@gw.tool` are merged into the registry alongside file-based tools.
 
 ### 5.3 Hot-Reload
@@ -565,7 +568,7 @@ On startup, the gateway scans the workspace:
 The gateway watches the workspace directory for changes. When a file is created, modified, or deleted:
 
 - New agent directory with AGENT.md → agent registered, endpoint available
-- Modified AGENT.md/SOUL.md → agent prompt updated (next invocation uses new prompt)
+- Modified AGENT.md/BEHAVIOR.md → agent prompt updated (next invocation uses new prompt)
 - Deleted AGENT.md → agent deregistered, endpoint returns 404
 - Same for skills and tools
 
@@ -621,12 +624,12 @@ decision-support recommendations.
 
 No special syntax. No frontmatter required. Just write what you want the agent to do.
 
-### 6.2 SOUL.md — Personality & Guardrails
+### 6.2 BEHAVIOR.md — Guardrails & Behavior
 
 Optional. Controls tone, boundaries, and behaviour. Injected after AGENT.md in the system prompt.
 
 ```markdown
-# SOUL
+# BEHAVIOR
 
 Thorough, analytical, and risk-aware.
 
@@ -643,11 +646,11 @@ Thorough, analytical, and risk-aware.
 - Ask for clarification when data is ambiguous
 ```
 
-### 6.3 CONFIG.md — Agent Settings
+### 6.3 AGENT.md Frontmatter — Agent Settings
 
-Optional. YAML frontmatter for machine-readable config. Markdown body for documentation.
+AGENT.md supports optional YAML frontmatter for machine-readable config.
 
-**Each agent can use a different LLM.** This is configured in CONFIG.md via the `model` block. If omitted, the agent inherits the default from `gateway.yaml`.
+**Each agent can use a different LLM.** This is configured in AGENT.md frontmatter via the `model` block. If omitted, the agent inherits the default from `gateway.yaml`.
 
 ```markdown
 ---
@@ -698,17 +701,10 @@ notifications:
       target: "#engineering-alerts"
 ---
 
-# Underwriting Agent Configuration
+# Underwriting Agent
 
-Uses Gemini Flash for cost efficiency with Claude Sonnet fallback.
-
-**Skills**: `credit-assessment` (brings risk-score, credit-bureau tools),
-`document-verification` (brings pdf-extract, ocr tools).
-
-**Direct tools**: `companies-house-check`, `send-email`, `create-crm-note`
-available without going through a skill workflow.
-
-Output is structured as a credit recommendation.
+You assist the credit team by verifying documents, analysing financials,
+and providing decision-support recommendations.
 ```
 
 #### Why Per-Agent Models?
@@ -725,14 +721,14 @@ Different agents have different needs:
 #### Model Resolution Order
 
 ```
-Agent CONFIG.md → gateway.yaml default → framework default (gpt-4o-mini)
+Agent AGENT.md frontmatter → gateway.yaml default → framework default (gpt-4o-mini)
 ```
 
 Specifically:
 
 ```
-1. agent's CONFIG.md model.name         → used if present
-2. gateway.yaml model.default           → fallback for agents without CONFIG.md
+1. agent's AGENT.md model.name          → used if present
+2. gateway.yaml model.default           → fallback for agents without model config
 3. framework built-in default           → gpt-4o-mini (works out of the box)
 ```
 
@@ -743,33 +739,28 @@ Temperature, max_tokens, and fallback follow the same cascade.
 ```
 workspace/agents/
 ├── triage/
-│   ├── AGENT.md
-│   └── CONFIG.md          # model.name: google/gemini-2.5-flash
+│   └── AGENT.md           # model.name: google/gemini-2.5-flash
 ├── underwriting/
-│   ├── AGENT.md
-│   ├── SOUL.md
-│   └── CONFIG.md          # model.name: anthropic/claude-sonnet-4-5-20250929
+│   ├── AGENT.md           # model.name: anthropic/claude-sonnet-4-5-20250929
+│   └── BEHAVIOR.md
 └── compliance/
-    ├── AGENT.md
-    └── CONFIG.md          # model.name: anthropic/claude-opus-4-6
+    └── AGENT.md           # model.name: anthropic/claude-opus-4-6
 ```
 
-```python
-# gateway.yaml sets the default — agents without CONFIG.md get this
+```yaml
+# gateway.yaml sets the default — agents without a model block get this
 model:
   default: "google/gemini-2.5-flash"
 
-# But each agent overrides it in their own CONFIG.md:
-
-# triage/CONFIG.md → gemini flash (fast, cheap routing)
-# underwriting/CONFIG.md → claude sonnet (strong reasoning)
-# compliance/CONFIG.md → claude opus (maximum accuracy)
+# But each agent overrides it in their AGENT.md frontmatter:
+# triage/AGENT.md → gemini flash (fast, cheap routing)
+# underwriting/AGENT.md → claude sonnet (strong reasoning)
+# compliance/AGENT.md → claude opus (maximum accuracy)
 ```
 
 All model identifiers use the **LiteLLM format** (`provider/model`), so any provider supported by LiteLLM works: OpenAI, Anthropic, Google, Azure, Bedrock, Ollama, etc.
-```
 
-**If CONFIG.md is absent**, the agent inherits defaults from `gateway.yaml`.
+**If no model block is present in AGENT.md**, the agent inherits defaults from `gateway.yaml`.
 
 ### 6.4 Prompt Assembly
 
@@ -777,10 +768,10 @@ When an agent is invoked, the framework assembles the system prompt by concatena
 
 ```
 1. workspace/agents/AGENTS.md           (root context, if exists)
-2. workspace/agents/SOUL.md             (root personality, if exists)
+2. workspace/agents/BEHAVIOR.md         (root behavior/guardrails, if exists)
 3. workspace/agents/{agent}/AGENT.md    (agent system prompt)
-4. workspace/agents/{agent}/SOUL.md     (agent personality, if exists)
-5. [auto-injected skill descriptions]   (from SKILL.md for each skill in CONFIG.md)
+4. workspace/agents/{agent}/BEHAVIOR.md (agent behavior/guardrails, if exists)
+5. [auto-injected skill descriptions]   (from SKILL.md for each skill in AGENT.md frontmatter)
 6. [auto-injected tool descriptions]    (from TOOL.md / @gw.tool for direct tools)
 7. [auto-injected config context]       (from gateway.yaml business config, if any)
 ```
@@ -1068,7 +1059,7 @@ server:
   port: 8000
   workers: 1                           # Uvicorn workers
 
-# Default model for agents that don't specify one in CONFIG.md
+# Default model for agents that don't specify one in AGENT.md frontmatter
 # Uses LiteLLM format: provider/model
 model:
   default: "google/gemini-2.5-flash"
@@ -1151,7 +1142,7 @@ Environment variables > gateway.yaml > defaults
 
 For agent-specific settings:
 ```
-CONFIG.md frontmatter > gateway.yaml > framework defaults
+AGENT.md frontmatter > gateway.yaml > framework defaults
 ```
 
 ---
@@ -1270,7 +1261,7 @@ POST /v1/hooks/{hook_id}                   # Inbound webhook → triggers agent
 
 ### 8.2 OpenAPI Docs
 
-Auto-generated at `/docs` (Swagger UI) and `/v1/openapi.json`. Agent-specific parameters and output schemas are included when defined in CONFIG.md.
+Auto-generated at `/docs` (Swagger UI) and `/v1/openapi.json`. Agent-specific parameters and output schemas are included when defined in AGENT.md frontmatter.
 
 ### 8.3 Batch Invocation
 
@@ -1301,8 +1292,8 @@ POST /v1/agents/{agent_id}/batch
 When `POST /v1/agents/{id}/invoke` is called:
 
 ```
-1. Load agent (AGENT.md + SOUL.md + CONFIG.md from filesystem)
-2. Resolve model (agent CONFIG.md → gateway.yaml → framework default)
+1. Load agent (AGENT.md + optional BEHAVIOR.md from filesystem)
+2. Resolve model (agent AGENT.md frontmatter → gateway.yaml → framework default)
 3. Resolve agent's skills → collect tools from each skill
 4. Resolve agent's direct tools
 5. Assemble system prompt (layered markdown + skill instructions)
@@ -1329,7 +1320,7 @@ When `POST /v1/agents/{id}/invoke` is called:
    │    Break — we have our answer                    │
    └──────────────────────────────────────────────────┘
 
-6. Parse structured output (if output_schema defined in CONFIG.md)
+6. Parse structured output (if output_schema defined in AGENT.md frontmatter)
 7. Save execution result
 8. Fire notifications (Slack, Teams, webhooks)
 9. Return response
@@ -1337,7 +1328,7 @@ When `POST /v1/agents/{id}/invoke` is called:
 
 ### 9.2 Guardrails
 
-Configured in CONFIG.md or gateway.yaml:
+Configured in AGENT.md frontmatter or gateway.yaml:
 
 | Guardrail | Default | Description |
 |---|---|---|
@@ -1363,17 +1354,17 @@ When a skill has `require_approval: true`:
 Each agent resolves its model at invocation time:
 
 ```
-Agent CONFIG.md model.name  →  gateway.yaml model.default  →  gpt-4o-mini
+Agent AGENT.md model.name  →  gateway.yaml model.default  →  gpt-4o-mini
 ```
 
 **Failover**: If the primary model returns an error (rate limit, timeout, 5xx), the framework automatically retries with the fallback model. The fallback follows the same cascade:
 
 ```
-Agent CONFIG.md model.fallback  →  gateway.yaml model.fallback  →  none
+Agent AGENT.md model.fallback  →  gateway.yaml model.fallback  →  none
 ```
 
 ```yaml
-# Agent-level (agents/underwriting/CONFIG.md)
+# Agent-level (agents/underwriting/AGENT.md frontmatter)
 ---
 model:
   name: anthropic/claude-sonnet-4-5-20250929
@@ -1507,7 +1498,7 @@ notifications:
     bot_token: "${SLACK_BOT_TOKEN}"
 ```
 
-Agent CONFIG.md:
+Agent AGENT.md frontmatter:
 ```yaml
 notifications:
   on_complete:
@@ -1555,7 +1546,7 @@ notifications:
 
 ### 11.3 Per-Agent Notifications
 
-In the agent's CONFIG.md:
+In the agent's AGENT.md frontmatter:
 
 ```yaml
 notifications:
@@ -1594,7 +1585,7 @@ async def notify_crm(execution):
 
 ### 12.1 Output Schema
 
-Define in the agent's CONFIG.md:
+Define in the agent's AGENT.md frontmatter:
 
 ```yaml
 output_schema:
@@ -2071,7 +2062,7 @@ $ agent-gateway check
 ✓ workspace/gateway.yaml — valid
 ✓ workspace/agents/underwriting/AGENT.md — valid
 ✓ workspace/agents/underwriting/SOUL.md — valid
-✓ workspace/agents/underwriting/CONFIG.md — valid (model: google/gemini-2.5-flash)
+✓ workspace/agents/underwriting/BEHAVIOR.md — valid
 ✓ workspace/agents/sales/AGENT.md — valid
 ✓ workspace/skills/companies-house-check/SKILL.md — valid (type: http)
 ✓ workspace/skills/risk-score/SKILL.md — valid (type: function)
@@ -2091,7 +2082,7 @@ The database stores **runtime state only**. Agent and skill definitions live on 
 
 | What | Where |
 |---|---|
-| Agent definitions | Filesystem (AGENT.md, SOUL.md, CONFIG.md) |
+| Agent definitions | Filesystem (AGENT.md, BEHAVIOR.md) |
 | Skill definitions | Filesystem (SKILL.md, handler.py) |
 | Configuration | Filesystem (gateway.yaml, .env) |
 | Execution history | Database |
@@ -2354,7 +2345,7 @@ agent-gateway/                         # The pip package
 │       ├── workspace/                 # Workspace scanning and parsing
 │       │   ├── __init__.py
 │       │   ├── loader.py              # Scan dirs, discover agents/skills
-│       │   ├── agent.py               # Agent model (from AGENT.md + SOUL.md + CONFIG.md)
+│       │   ├── agent.py               # Agent model (from AGENT.md + BEHAVIOR.md)
 │       │   ├── skill.py               # Skill model (from SKILL.md)
 │       │   ├── prompt.py              # Prompt assembly (layered markdown)
 │       │   ├── watcher.py             # File watcher for hot-reload
@@ -2447,7 +2438,7 @@ agent-gateway/                         # The pip package
 | Task | Effort |
 |---|---|
 | Package scaffolding (pyproject.toml, src layout) | 1 day |
-| Workspace loader (scan dirs, parse AGENT.md/SOUL.md/CONFIG.md/SKILL.md) | 3 days |
+| Workspace loader (scan dirs, parse AGENT.md/BEHAVIOR.md/SKILL.md) | 3 days |
 | Prompt assembly (layered markdown merge) | 1 day |
 | LLM client (LiteLLM wrapper with failover) | 2 days |
 | Execution engine (function-calling loop) | 3 days |

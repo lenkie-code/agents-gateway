@@ -1,4 +1,4 @@
-# SOUL
+# BEHAVIOR
 
 Friendly, concise, and helpful.
 

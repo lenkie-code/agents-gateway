@@ -52,8 +52,7 @@ def test_schedules_with_schedule_data(tmp_path: Path) -> None:
     """schedules command shows schedule details."""
     agents_dir = tmp_path / "agents" / "cron-agent"
     agents_dir.mkdir(parents=True)
-    (agents_dir / "AGENT.md").write_text("# Cron Agent\n\nRuns on schedule.\n")
-    (agents_dir / "CONFIG.md").write_text(
+    (agents_dir / "AGENT.md").write_text(
         "---\n"
         "schedules:\n"
         "  - name: daily-check\n"
@@ -61,6 +60,7 @@ def test_schedules_with_schedule_data(tmp_path: Path) -> None:
         "    message: Run daily check\n"
         "    enabled: true\n"
         "---\n"
+        "# Cron Agent\n\nRuns on schedule.\n"
     )
 
     result = runner.invoke(app, ["schedules", "--workspace", str(tmp_path)])

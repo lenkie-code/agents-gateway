@@ -14,7 +14,7 @@ workspace/
 │   ├── AGENTS.md                   # Shared system prompt for all agents
 │   ├── assistant/                  # General-purpose assistant agent (sync)
 │   │   ├── AGENT.md                # Agent prompt + tool/skill bindings
-│   │   └── SOUL.md                 # Personality traits
+│   │   └── BEHAVIOR.md              # Behavioral guardrails
 │   ├── data-processor/             # Long-running data processor (async + notifications)
 │   │   └── AGENT.md                # execution_mode: async, notifications on all events
 │   ├── scheduled-reporter/         # Agent with a cron schedule (disabled)

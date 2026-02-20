@@ -45,7 +45,7 @@ examples/test-project/  # Example app (run with `make dev`)
 - **Python 3.11+**, ruff for linting (line length 99), mypy strict mode
 - **Exceptions**: always subclass `AgentGatewayError` from `exceptions.py`
 - **Pending registration pattern**: store items in `_pending_*` dicts/lists, apply after workspace loads
-- **Agents**: defined in `workspace/agents/<name>/` with `AGENT.md` + optional `SOUL.md`/`CONFIG.md`. CONFIG.md overrides AGENT.md scalars; lists are merged
+- **Agents**: defined in `workspace/agents/<name>/` with `AGENT.md` + optional `BEHAVIOR.md`
 - **Tests**: use `pytest-asyncio` (auto mode). Mark e2e tests with `@pytest.mark.e2e`, postgres tests with `@pytest.mark.postgres`, etc.
 
 ## Example Project

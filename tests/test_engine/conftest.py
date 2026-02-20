@@ -43,7 +43,7 @@ def make_workspace(
         tools={},
         schedules=[],
         root_system_prompt="",
-        root_soul_prompt="",
+        root_behavior_prompt="",
         warnings=[],
         errors=[],
     )

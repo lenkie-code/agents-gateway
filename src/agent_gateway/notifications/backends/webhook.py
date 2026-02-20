@@ -90,7 +90,7 @@ class WebhookBackend:
 
     Supports two modes:
     - Global endpoints registered via fluent API or gateway.yaml (referenced by name)
-    - Inline URLs defined per-agent in CONFIG.md (no global registration needed)
+    - Inline URLs defined per-agent in AGENT.md frontmatter (no global registration needed)
     """
 
     def __init__(

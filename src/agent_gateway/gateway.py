@@ -263,7 +263,7 @@ class Gateway(FastAPI):
                 tools={},
                 schedules=[],
                 root_system_prompt="",
-                root_soul_prompt="",
+                root_behavior_prompt="",
                 warnings=[],
                 errors=["Workspace failed to load"],
             )
@@ -806,11 +806,11 @@ class Gateway(FastAPI):
         """Add a webhook notification endpoint.
 
         Can be called multiple times to register multiple endpoints.
-        Agents reference endpoints by name in CONFIG.md.
+        Agents reference endpoints by name in AGENT.md frontmatter.
 
         Args:
             url: Webhook URL to POST to.
-            name: Endpoint name (referenced in agent CONFIG.md).
+            name: Endpoint name (referenced in agent AGENT.md frontmatter).
             secret: HMAC-SHA256 signing secret.
             events: Event types to filter (empty = all events).
             payload_template: Jinja2 template for custom payloads.

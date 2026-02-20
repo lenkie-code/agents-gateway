@@ -1,4 +1,4 @@
-"""Agent model — loaded from AGENT.md (+ optional SOUL.md / CONFIG.md)."""
+"""Agent model — loaded from AGENT.md (+ optional BEHAVIOR.md)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class ScheduleConfig:
 
 @dataclass
 class AgentModelConfig:
-    """Per-agent model configuration from CONFIG.md."""
+    """Per-agent model configuration from AGENT.md frontmatter."""
 
     name: str | None = None
     temperature: float | None = None
@@ -42,9 +42,9 @@ class AgentDefinition:
     id: str  # Directory name (e.g., "underwriting")
     path: Path  # Directory path
     agent_prompt: str  # Content of AGENT.md
-    soul_prompt: str = ""  # Content of SOUL.md (optional)
+    behavior_prompt: str = ""  # Content of BEHAVIOR.md (optional)
 
-    # Parsed from AGENT.md frontmatter (with CONFIG.md override/merge)
+    # Parsed from AGENT.md frontmatter
     skills: list[str] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
@@ -72,26 +72,17 @@ class AgentDefinition:
             return None
         agent_meta = agent_parsed.metadata
 
-        # Parse SOUL.md (optional)
-        soul_md = agent_dir / "SOUL.md"
-        soul_prompt = ""
-        if soul_md.exists():
-            soul_parsed = parse_markdown_file(soul_md)
-            soul_prompt = soul_parsed.content
+        # Parse BEHAVIOR.md (optional)
+        behavior_md = agent_dir / "BEHAVIOR.md"
+        behavior_prompt = ""
+        if behavior_md.exists():
+            behavior_parsed = parse_markdown_file(behavior_md)
+            behavior_prompt = behavior_parsed.content
 
-        # Parse CONFIG.md (optional — overrides/merges with AGENT.md frontmatter)
-        config_md = agent_dir / "CONFIG.md"
-        config_meta: dict[str, Any] = {}
-        if config_md.exists():
-            config_parsed = parse_markdown_file(config_md)
-            config_meta = config_parsed.metadata
+        skills = agent_meta.get("skills", [])
+        tools = agent_meta.get("tools", [])
 
-        # Merge lists: AGENT.md first, CONFIG.md appended, deduplicated
-        skills = list(dict.fromkeys(agent_meta.get("skills", []) + config_meta.get("skills", [])))
-        tools = list(dict.fromkeys(agent_meta.get("tools", []) + config_meta.get("tools", [])))
-
-        # Scalars: CONFIG.md wins over AGENT.md
-        model_data = config_meta.get("model") or agent_meta.get("model", {})
+        model_data = agent_meta.get("model", {})
         if not isinstance(model_data, dict):
             model_data = {}
         model_config = AgentModelConfig(
@@ -101,26 +92,18 @@ class AgentDefinition:
             fallback=model_data.get("fallback"),
         )
 
-        # Execution mode: CONFIG.md wins over AGENT.md (scalar precedence)
-        execution_mode_raw = config_meta.get("execution_mode") or agent_meta.get(
-            "execution_mode", "sync"
-        )
+        execution_mode_raw = agent_meta.get("execution_mode", "sync")
         execution_mode = (
             str(execution_mode_raw) if execution_mode_raw in ("sync", "async") else "sync"
         )
 
-        schedules_data = config_meta.get("schedules") or agent_meta.get("schedules", [])
+        schedules_data = agent_meta.get("schedules", [])
         schedules = _parse_schedules(schedules_data, agent_dir)
 
-        # Notifications: CONFIG.md wins (scalar precedence, same as model/execution_mode)
-        raw_notif = config_meta.get("notifications") or agent_meta.get("notifications", {})
+        raw_notif = agent_meta.get("notifications", {})
         notifications = _parse_notification_config(raw_notif, agent_dir)
 
-        # Input schema: CONFIG.md wins (scalar precedence)
-        input_schema = _parse_input_schema(
-            config_meta.get("input_schema") or agent_meta.get("input_schema"),
-            agent_dir,
-        )
+        input_schema = _parse_input_schema(agent_meta.get("input_schema"), agent_dir)
 
         # Validate schedule contexts against input_schema at load time
         if input_schema:
@@ -130,7 +113,7 @@ class AgentDefinition:
             id=agent_id,
             path=agent_dir,
             agent_prompt=agent_parsed.content,
-            soul_prompt=soul_prompt,
+            behavior_prompt=behavior_prompt,
             skills=skills,
             tools=tools,
             model=model_config,

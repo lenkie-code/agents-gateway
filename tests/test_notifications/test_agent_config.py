@@ -1,4 +1,4 @@
-"""Tests for agent CONFIG.md notification parsing."""
+"""Tests for agent notification parsing from AGENT.md frontmatter."""
 
 from __future__ import annotations
 
@@ -11,14 +11,14 @@ class TestAgentNotificationParsing:
     def test_agent_with_slack_notifications(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "notifications:\n"
             "  on_complete:\n"
             "    - channel: slack\n"
             "      target: '#agent-alerts'\n"
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -30,8 +30,7 @@ class TestAgentNotificationParsing:
     def test_agent_with_webhook_inline(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "notifications:\n"
             "  on_complete:\n"
@@ -41,6 +40,7 @@ class TestAgentNotificationParsing:
             "    - channel: webhook\n"
             "      url: https://pagerduty.example.com/alert\n"
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -53,14 +53,14 @@ class TestAgentNotificationParsing:
     def test_agent_with_webhook_global_reference(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "notifications:\n"
             "  on_complete:\n"
             "    - channel: webhook\n"
             "      target: crm-integration\n"
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -70,8 +70,7 @@ class TestAgentNotificationParsing:
     def test_agent_with_multiple_targets(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "notifications:\n"
             "  on_complete:\n"
@@ -86,6 +85,7 @@ class TestAgentNotificationParsing:
             "    - channel: webhook\n"
             "      url: https://pagerduty.example.com/alert\n"
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -98,8 +98,9 @@ class TestAgentNotificationParsing:
         """Agent with no notification config gets empty AgentNotificationConfig."""
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text("---\nmodel:\n  name: gpt-4o\n---\n")
+        (agent_dir / "AGENT.md").write_text(
+            "---\nmodel:\n  name: gpt-4o\n---\n# Agent\n\nHello."
+        )
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
@@ -110,8 +111,7 @@ class TestAgentNotificationParsing:
     def test_agent_with_custom_template(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "notifications:\n"
             "  on_complete:\n"
@@ -119,6 +119,7 @@ class TestAgentNotificationParsing:
             "      target: '#alerts'\n"
             "      template: sales-completed\n"
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -128,8 +129,7 @@ class TestAgentNotificationParsing:
     def test_agent_with_payload_template(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "notifications:\n"
             "  on_complete:\n"
@@ -137,6 +137,7 @@ class TestAgentNotificationParsing:
             "      url: https://example.com/hook\n"
             '      payload_template: \'{"agent": "{{ event.agent_id }}"}\'\n'
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -145,7 +146,7 @@ class TestAgentNotificationParsing:
         assert "event.agent_id" in agent.notifications.on_complete[0].payload_template
 
     def test_notifications_in_agent_md_frontmatter(self, tmp_path: Path) -> None:
-        """Notifications can also be defined in AGENT.md frontmatter."""
+        """Notifications defined in AGENT.md frontmatter."""
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text(
@@ -167,9 +168,8 @@ class TestAgentNotificationParsing:
         """Malformed notification config doesn't crash agent loading."""
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
-            "---\nnotifications:\n  on_complete: not-a-list\n---\n"
+        (agent_dir / "AGENT.md").write_text(
+            "---\nnotifications:\n  on_complete: not-a-list\n---\n# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)

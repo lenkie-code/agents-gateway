@@ -42,37 +42,6 @@ class TestInputSchemaParsing:
         assert "deal_id" in agent.input_schema["properties"]
         assert agent.input_schema["required"] == ["deal_id"]
 
-    def test_input_schema_in_config_md_overrides(self, tmp_path: Path) -> None:
-        """CONFIG.md input_schema overrides AGENT.md (scalar precedence)."""
-        agent_dir = tmp_path / "agent"
-        agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text(
-            "---\n"
-            "input_schema:\n"
-            "  type: object\n"
-            "  properties:\n"
-            "    old_field:\n"
-            "      type: string\n"
-            "---\n"
-            "# Agent\n\nOld schema."
-        )
-        (agent_dir / "CONFIG.md").write_text(
-            "---\n"
-            "input_schema:\n"
-            "  type: object\n"
-            "  properties:\n"
-            "    new_field:\n"
-            "      type: integer\n"
-            "---\n"
-        )
-
-        agent = AgentDefinition.load(agent_dir)
-        assert agent is not None
-        assert agent.input_schema is not None
-        # CONFIG.md should win entirely
-        assert "new_field" in agent.input_schema["properties"]
-        assert "old_field" not in agent.input_schema["properties"]
-
     def test_invalid_schema_produces_none(self, tmp_path: Path) -> None:
         """Invalid JSON Schema in frontmatter is ignored with warning."""
         agent_dir = tmp_path / "agent"

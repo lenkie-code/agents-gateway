@@ -27,7 +27,7 @@ class WorkspaceState:
     tools: dict[str, ToolDefinition] = field(default_factory=dict)
     schedules: list[ScheduleConfig] = field(default_factory=list)
     root_system_prompt: str = ""  # From agents/AGENTS.md
-    root_soul_prompt: str = ""  # From agents/SOUL.md
+    root_behavior_prompt: str = ""  # From agents/BEHAVIOR.md
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -103,10 +103,10 @@ def _load_root_prompts(resolved_root: Path, workspace: Path, state: WorkspaceSta
         parsed = parse_markdown_file(agents_md)
         state.root_system_prompt = parsed.content
 
-    soul_md = workspace / "agents" / "SOUL.md"
-    if soul_md.exists():
-        parsed = parse_markdown_file(soul_md)
-        state.root_soul_prompt = parsed.content
+    behavior_md = workspace / "agents" / "BEHAVIOR.md"
+    if behavior_md.exists():
+        parsed = parse_markdown_file(behavior_md)
+        state.root_behavior_prompt = parsed.content
 
 
 def _load_agents(agents_dir: Path, resolved_root: Path, state: WorkspaceState) -> None:

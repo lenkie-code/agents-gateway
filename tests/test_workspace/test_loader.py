@@ -43,9 +43,9 @@ class TestLoadWorkspace:
         agents_dir = tmp_path / "agents"
         agent_dir = agents_dir / "my-agent"
         agent_dir.mkdir(parents=True)
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\nskills:\n  - nonexistent-skill\ntools:\n  - nonexistent-tool\n---\n"
+            "# Agent\n\nHello."
         )
 
         state = load_workspace(tmp_path)
@@ -71,22 +71,22 @@ class TestLoadWorkspace:
         state = load_workspace(tmp_path)
         assert "You are an AI" in state.root_system_prompt
 
-    def test_root_soul_prompt(self, tmp_path: Path) -> None:
+    def test_root_behavior_prompt(self, tmp_path: Path) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
-        (agents_dir / "SOUL.md").write_text("# Soul\n\nBe kind.")
+        (agents_dir / "BEHAVIOR.md").write_text("# Behavior\n\nBe kind.")
 
         state = load_workspace(tmp_path)
-        assert "Be kind" in state.root_soul_prompt
+        assert "Be kind" in state.root_behavior_prompt
 
     def test_schedules_collected(self, tmp_path: Path) -> None:
         agents_dir = tmp_path / "agents" / "cron-agent"
         agents_dir.mkdir(parents=True)
-        (agents_dir / "AGENT.md").write_text("# Cron Agent\n\nRuns on schedule.")
-        (agents_dir / "CONFIG.md").write_text(
+        (agents_dir / "AGENT.md").write_text(
             "---\nschedules:\n"
             "  - name: daily\n    cron: '0 9 * * *'\n    message: 'Do thing'\n"
             "---\n"
+            "# Cron Agent\n\nRuns on schedule."
         )
 
         state = load_workspace(tmp_path)

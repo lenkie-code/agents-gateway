@@ -24,7 +24,7 @@ class TestAssembleSystemPrompt:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "AGENTS.md").write_text("# System\n\nShared context.")
-        (agents_dir / "SOUL.md").write_text("# Soul\n\nBe professional.")
+        (agents_dir / "BEHAVIOR.md").write_text("# Behavior\n\nBe professional.")
 
         agent_dir = agents_dir / "my-agent"
         agent_dir.mkdir()
@@ -40,11 +40,11 @@ class TestAssembleSystemPrompt:
         # Check order: root system before agent
         assert prompt.index("Shared context") < prompt.index("Specific instructions")
 
-    def test_agent_soul_included(self, tmp_path: Path) -> None:
+    def test_agent_behavior_included(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
         (agent_dir / "AGENT.md").write_text("# Agent\n\nInstructions.")
-        (agent_dir / "SOUL.md").write_text("# Soul\n\nFriendly.")
+        (agent_dir / "BEHAVIOR.md").write_text("# Behavior\n\nFriendly.")
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]
@@ -55,8 +55,9 @@ class TestAssembleSystemPrompt:
         # Create agent with skill reference
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nUses skills.")
-        (agent_dir / "CONFIG.md").write_text("---\nskills:\n  - math-workflow\n---\n")
+        (agent_dir / "AGENT.md").write_text(
+            "---\nskills:\n  - math-workflow\n---\n# Agent\n\nUses skills."
+        )
 
         # Create skill
         skill_dir = tmp_path / "skills" / "math-workflow"
@@ -75,8 +76,9 @@ class TestAssembleSystemPrompt:
     def test_missing_skill_skipped(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "agents" / "my-agent"
         agent_dir.mkdir(parents=True)
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text("---\nskills:\n  - nonexistent\n---\n")
+        (agent_dir / "AGENT.md").write_text(
+            "---\nskills:\n  - nonexistent\n---\n# Agent\n\nHello."
+        )
 
         state = load_workspace(tmp_path)
         agent = state.agents["my-agent"]

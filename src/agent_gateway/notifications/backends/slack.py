@@ -85,7 +85,7 @@ class SlackBackend:
         """Build Slack Block Kit blocks.
 
         Resolution order:
-        1. Custom template from CONFIG.md `template` field
+        1. Custom template from AGENT.md `template` field
         2. Event-type default template from workspace
         3. Built-in hardcoded Block Kit layout
         """
