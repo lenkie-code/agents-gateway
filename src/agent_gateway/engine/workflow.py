@@ -14,7 +14,7 @@ import logging
 import time
 from typing import Any
 
-from agent_gateway.engine.models import ToolContext, ToolResult
+from agent_gateway.engine.models import ToolContext
 from agent_gateway.engine.resolver import resolve_input
 from agent_gateway.workspace.registry import ResolvedTool, ToolRegistry
 from agent_gateway.workspace.skill import SkillDefinition, SkillStep
@@ -135,12 +135,19 @@ class WorkflowExecutor:
         assert step.tools is not None
 
         async def _run_one(tool_step_idx: int) -> Any:
-            ts = step.tools[tool_step_idx]  # type: ignore[index]
-            resolved = self._registry.get(ts.tool)
-            if resolved is None:
-                return {"error": f"Tool '{ts.tool}' not found"}
-            arguments = resolve_input(ts.input, context)
-            return await self._run_tool(resolved, arguments, tool_context)
+            try:
+                ts = step.tools[tool_step_idx]  # type: ignore[index]
+                resolved = self._registry.get(ts.tool)
+                if resolved is None:
+                    return {"error": f"Tool '{ts.tool}' not found"}
+                arguments = resolve_input(ts.input, context)
+                return await self._run_tool(resolved, arguments, tool_context)
+            except Exception as e:
+                logger.error(
+                    "Parallel tool %d in step '%s' failed: %s",
+                    tool_step_idx, step.name, e,
+                )
+                return {"error": f"Parallel tool failed: {e}"}
 
         if len(step.tools) == 1:
             return [await _run_one(0)]
