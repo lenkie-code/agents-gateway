@@ -262,76 +262,26 @@ def register_dashboard(app: FastAPI, dash_config: DashboardConfig) -> None:
         session_id: str = Form(""),
         current_user: DashboardUser = Depends(get_dashboard_user),
     ) -> HTMLResponse:
-        from agent_gateway.chat.session import ChatSession
-        from agent_gateway.engine.models import ExecutionOptions
-
         gw = request.app
-        ws = gw.workspace
-        engine = gw.engine
-
-        agent = ws.agents.get(agent_id) if ws else None
-        if agent is None:
+        try:
+            new_session_id, result = await gw.chat(
+                agent_id=agent_id,
+                message=message,
+                session_id=session_id or None,
+            )
+            reply = result.raw_text or ""
+        except Exception as exc:
+            logger.error("Chat execution error: %s", exc)
             return templates.TemplateResponse(
                 request=request,
                 name="dashboard/_chat_message.html",
                 context={
                     "role": "error",
-                    "content": f"Agent '{agent_id}' not found.",
+                    "content": str(exc),
                     "session_id": session_id,
                     "agent_id": agent_id,
                 },
             )
-
-        # Get or create session
-        store = gw._session_store
-        chat_session: ChatSession | None = None
-        if session_id and store:
-            chat_session = store.get_session(session_id)
-
-        if chat_session is None and store:
-            chat_session = store.create_session(agent_id)
-
-        # Build message history
-        if chat_session:
-            chat_session.append_user_message(message)
-            history = chat_session.messages
-        else:
-            history = None
-
-        # Execute
-        try:
-            if engine is None or ws is None:
-                raise RuntimeError("Engine not ready")
-            from agent_gateway.workspace.prompt import assemble_system_prompt
-
-            system_prompt = await assemble_system_prompt(
-                agent,
-                ws,
-                query=message,
-                retriever_registry=gw._retriever_registry,
-                context_retrieval_config=gw._config.context_retrieval if gw._config else None,
-                memory_block="",
-            )
-            if history:
-                msgs = [{"role": "system", "content": system_prompt}] + [
-                    m for m in history if m["role"] != "system"
-                ]
-            else:
-                msgs = None
-
-            result = await engine.execute(
-                agent=agent,
-                message=message,
-                workspace=ws,
-                options=ExecutionOptions(),
-                message_history=msgs,
-            )
-            reply = result.raw_text or ""
-            if chat_session:
-                chat_session.append_assistant_message(reply)
-        except Exception as exc:
-            logger.error("Chat execution error: %s", exc)
-            reply = f"Error: {exc}"
 
         return templates.TemplateResponse(
             request=request,
@@ -340,7 +290,7 @@ def register_dashboard(app: FastAPI, dash_config: DashboardConfig) -> None:
                 "role": "assistant",
                 "content": reply,
                 "user_message": message,
-                "session_id": chat_session.session_id if chat_session else session_id,
+                "session_id": new_session_id,
                 "agent_id": agent_id,
             },
         )
