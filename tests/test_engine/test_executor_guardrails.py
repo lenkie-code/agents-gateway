@@ -11,6 +11,7 @@ from tests.test_engine.conftest import (
     make_engine,
     make_llm_response,
     make_resolved_tool,
+    make_skill,
     make_tool_call,
     make_workspace,
     simple_tool_executor,
@@ -41,8 +42,9 @@ class TestMaxIterations:
             tools=[echo_tool],
             config=config,
         )
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(
             agent, "loop forever", workspace, tool_executor=simple_tool_executor
@@ -76,8 +78,9 @@ class TestMaxToolCalls:
             tools=[echo_tool],
             config=config,
         )
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(
             agent, "call tools", workspace, tool_executor=simple_tool_executor

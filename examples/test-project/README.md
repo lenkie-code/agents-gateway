@@ -22,8 +22,14 @@ workspace/
 │   └── travel-planner/             # Travel planning agent (sync + notifications)
 │       └── AGENT.md                # Notifications on complete/error
 ├── skills/
-│   └── math-workflow/
-│       └── SKILL.md                # Multi-step arithmetic skill
+│   ├── math-workflow/
+│   │   └── SKILL.md                # Workflow skill with automated steps
+│   ├── general-tools/
+│   │   └── SKILL.md                # General-purpose tool skill
+│   ├── data-processing/
+│   │   └── SKILL.md                # Data processing tool skill
+│   └── travel-planning/
+│       └── SKILL.md                # Travel planning tool skill
 └── tools/
     ├── http-example/
     │   ├── TOOL.md                 # Tool definition with parameters

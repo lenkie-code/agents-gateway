@@ -13,12 +13,27 @@ from agent_gateway.hooks import HookRegistry
 from agent_gateway.workspace.agent import AgentDefinition, AgentModelConfig
 from agent_gateway.workspace.loader import WorkspaceState
 from agent_gateway.workspace.registry import CodeTool, ResolvedTool, ToolRegistry
+from agent_gateway.workspace.skill import SkillDefinition
+
+
+def make_skill(
+    skill_id: str = "test-skill",
+    tools: list[str] | None = None,
+) -> SkillDefinition:
+    """Create a minimal skill definition for testing."""
+    return SkillDefinition(
+        id=skill_id,
+        path=Path("/tmp/skills") / skill_id,
+        name=skill_id,
+        description=f"Test skill {skill_id}",
+        tools=tools or [],
+        instructions="",
+    )
 
 
 def make_agent(
     agent_id: str = "test-agent",
     skills: list[str] | None = None,
-    tools: list[str] | None = None,
     model: AgentModelConfig | None = None,
 ) -> AgentDefinition:
     """Create a minimal agent definition for testing."""
@@ -27,19 +42,19 @@ def make_agent(
         path=Path("/tmp/agents") / agent_id,
         agent_prompt="You are a test agent.",
         skills=skills or [],
-        tools=tools or [],
         model=model or AgentModelConfig(),
     )
 
 
 def make_workspace(
     agents: dict[str, AgentDefinition] | None = None,
+    skills: dict[str, SkillDefinition] | None = None,
 ) -> WorkspaceState:
     """Create a minimal workspace state for testing."""
     return WorkspaceState(
         path=Path("/tmp/workspace"),
         agents=agents or {},
-        skills={},
+        skills=skills or {},
         tools={},
         schedules=[],
         root_system_prompt="",

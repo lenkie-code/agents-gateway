@@ -46,7 +46,6 @@ class AgentDefinition:
 
     # Parsed from AGENT.md frontmatter
     skills: list[str] = field(default_factory=list)
-    tools: list[str] = field(default_factory=list)
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
     schedules: list[ScheduleConfig] = field(default_factory=list)
     execution_mode: str = "sync"  # "sync" | "async"
@@ -80,7 +79,13 @@ class AgentDefinition:
             behavior_prompt = behavior_parsed.content
 
         skills = agent_meta.get("skills", [])
-        tools = agent_meta.get("tools", [])
+
+        if "tools" in agent_meta:
+            logger.warning(
+                "Agent %s has 'tools' in AGENT.md frontmatter; "
+                "tools should be declared in SKILL.md instead",
+                agent_id,
+            )
 
         model_data = agent_meta.get("model", {})
         if not isinstance(model_data, dict):
@@ -115,7 +120,6 @@ class AgentDefinition:
             agent_prompt=agent_parsed.content,
             behavior_prompt=behavior_prompt,
             skills=skills,
-            tools=tools,
             model=model_config,
             schedules=schedules,
             execution_mode=execution_mode,

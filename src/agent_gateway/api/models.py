@@ -130,6 +130,8 @@ class SkillInfo(BaseModel):
     name: str
     description: str = ""
     tools: list[str] = Field(default_factory=list)
+    has_workflow: bool = False
+    step_count: int = 0
 
 
 class ToolInfo(BaseModel):

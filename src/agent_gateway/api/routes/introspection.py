@@ -65,7 +65,7 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             id=agent.id,
             description=agent.agent_prompt[:200] if agent.agent_prompt else "",
             skills=agent.skills,
-            tools=agent.tools,
+            tools=ws.resolve_agent_tools(agent),
             model=agent.model.name,
             schedules=[s.name for s in agent.schedules],
             execution_mode=agent.execution_mode,
@@ -99,7 +99,7 @@ async def get_agent(
         id=agent.id,
         description=agent.agent_prompt[:200] if agent.agent_prompt else "",
         skills=agent.skills,
-        tools=agent.tools,
+        tools=ws.resolve_agent_tools(agent),
         model=agent.model.name,
         schedules=[s.name for s in agent.schedules],
         execution_mode=agent.execution_mode,
@@ -126,6 +126,8 @@ async def list_skills(request: Request) -> list[SkillInfo]:
             name=skill.name,
             description=skill.description,
             tools=skill.tools,
+            has_workflow=skill.has_workflow,
+            step_count=len(skill.steps),
         )
         for skill in ws.skills.values()
     ]
@@ -155,6 +157,8 @@ async def get_skill(
         name=skill.name,
         description=skill.description,
         tools=skill.tools,
+        has_workflow=skill.has_workflow,
+        step_count=len(skill.steps),
     )
 
 

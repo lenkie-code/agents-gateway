@@ -1,9 +1,6 @@
 ---
-tools:
-  - get-weather
-  - search-flights
-  - search-hotels
-  - search-activities
+skills:
+  - travel-planning
 input_schema:
   type: object
   properties:

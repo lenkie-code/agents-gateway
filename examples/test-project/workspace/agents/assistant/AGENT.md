@@ -1,10 +1,7 @@
 ---
 skills:
   - math-workflow
-tools:
-  - echo
-  - add-numbers
-  - http-example
+  - general-tools
 ---
 
 # Assistant Agent

@@ -39,18 +39,16 @@ class TestLoadWorkspace:
         assert any("No agents/" in w for w in state.warnings)
 
     def test_cross_reference_warnings(self, tmp_path: Path) -> None:
-        """Agent referencing non-existent skill/tool produces warnings."""
+        """Agent referencing non-existent skill produces warnings."""
         agents_dir = tmp_path / "agents"
         agent_dir = agents_dir / "my-agent"
         agent_dir.mkdir(parents=True)
         (agent_dir / "AGENT.md").write_text(
-            "---\nskills:\n  - nonexistent-skill\ntools:\n  - nonexistent-tool\n---\n"
-            "# Agent\n\nHello."
+            "---\nskills:\n  - nonexistent-skill\n---\n# Agent\n\nHello."
         )
 
         state = load_workspace(tmp_path)
         assert any("nonexistent-skill" in w for w in state.warnings)
-        assert any("nonexistent-tool" in w for w in state.warnings)
 
     def test_skill_cross_reference_warnings(self, tmp_path: Path) -> None:
         """Skill referencing non-existent tool produces warning."""

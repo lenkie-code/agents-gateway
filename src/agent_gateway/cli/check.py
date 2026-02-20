@@ -29,7 +29,11 @@ def check(
     typer.echo(f"Agents ({agent_count}):")
     for agent_id, agent in sorted(state.agents.items()):
         skills_info = f", skills: {len(agent.skills)}" if agent.skills else ""
-        tools_info = f", tools: {len(agent.tools)}" if agent.tools else ""
+        # Tools are resolved from skills
+        agent_tool_count = sum(
+            len(state.skills[s].tools) for s in agent.skills if s in state.skills
+        )
+        tools_info = f", tools: {agent_tool_count}" if agent_tool_count else ""
         typer.echo(f"  [ok] {agent_id}{skills_info}{tools_info}")
 
     # Skills

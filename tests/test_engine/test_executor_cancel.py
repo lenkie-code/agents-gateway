@@ -10,6 +10,7 @@ from tests.test_engine.conftest import (
     make_engine,
     make_llm_response,
     make_resolved_tool,
+    make_skill,
     make_tool_call,
     make_workspace,
     simple_tool_executor,
@@ -63,8 +64,9 @@ class TestCancellation:
 
         mock_llm.completion = cancelling_completion  # type: ignore[assignment]
 
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(
             agent, "test", workspace, handle=handle, tool_executor=simple_tool_executor

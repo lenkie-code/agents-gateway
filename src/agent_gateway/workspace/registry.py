@@ -95,15 +95,15 @@ class ToolRegistry:
     def resolve_for_agent(
         self,
         agent_id: str,
-        skill_tool_names: list[str],
-        direct_tool_names: list[str],
+        tool_names: list[str],
     ) -> list[ResolvedTool]:
-        """Resolve all tools available to an agent (from skills + direct tools).
+        """Resolve all tools available to an agent (from skills).
 
+        Agents gain tools exclusively through their skills.
         Deduplicates by name. Checks allowed_agents permissions.
         """
         all_resolved = self._resolve_all()
-        needed_names = set(skill_tool_names) | set(direct_tool_names)
+        needed_names = set(tool_names)
         result: list[ResolvedTool] = []
         seen: set[str] = set()
 

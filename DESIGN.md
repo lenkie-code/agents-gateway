@@ -198,7 +198,7 @@ The framework has three core concepts with a clear hierarchy:
 
 ```
 Agent
-├── has skills (high-level workflows)
+├── has skills (capabilities and workflows)
 │   ├── Skill: lead-qualification
 │   │   ├── uses tool: companies-house-check
 │   │   ├── uses tool: credit-bureau
@@ -206,9 +206,7 @@ Agent
 │   └── Skill: document-verification
 │       ├── uses tool: pdf-extract
 │       └── uses tool: companies-house-check
-└── has direct tools (low-level capabilities)
-    ├── Tool: send-email
-    └── Tool: create-crm-note
+└── (agents gain all tools through their skills)
 ```
 
 ### Tool
@@ -231,10 +229,10 @@ A **skill** is a higher-level workflow that bundles a prompt with a set of tools
 
 ### Agent
 
-An **agent** is a persona with a system prompt, personality, and a set of skills and tools it can use.
+An **agent** is a persona with a system prompt, personality, and a set of skills it can use.
 
 - Defined as a directory with `AGENT.md` + optional `BEHAVIOR.md`
-- Has access to skills (which bring their own tools) and direct tools
+- Has access to skills, which bring their own tools — agents gain all tools through skills
 - Exposed as an API endpoint: `POST /v1/agents/{id}/invoke`
 - Examples: `underwriting`, `sales`, `compliance`
 
@@ -301,9 +299,7 @@ And the agent references the skill:
 ---
 skills:
   - lead-qualification
-tools:
-  - send-email
-  - create-crm-note
+  - communications
 ---
 # Sales Agent
 
@@ -312,7 +308,9 @@ You are a sales assistant. Qualify leads and manage CRM interactions.
 
 The sales agent can now:
 - Use the `lead-qualification` skill (which brings `companies-house-check`, `credit-bureau-check`, and `calculate-risk-score` tools)
-- Use `send-email` and `create-crm-note` tools directly
+- Use the `communications` skill (which might bring `send-email` and `create-crm-note` tools)
+
+Agents gain all tools through their skills — there are no "direct tools" on the agent.
 
 ### The Resolution Chain
 
@@ -320,11 +318,11 @@ When an agent is invoked:
 
 1. Load the agent's skills (from AGENT.md frontmatter `skills` list)
 2. For each skill, load its tools (from SKILL.md `tools` list)
-3. Load the agent's direct tools (from AGENT.md frontmatter `tools` list)
-4. Merge all tools into the LLM's function declarations (deduplicated)
-5. Inject skill descriptions into the system prompt so the LLM understands the workflows
+3. Merge all skill tools into the LLM's function declarations (deduplicated)
+4. Inject skill descriptions into the system prompt so the LLM understands the workflows
+5. If a skill has workflow `steps`, the WorkflowExecutor can run them as an automated pipeline
 
-The LLM sees all available tools as a flat list. The skill layer is a *prompt-level* concept — it structures how the LLM thinks about using the tools, not a runtime boundary.
+Agents gain all tools exclusively through skills. The LLM sees all available tools as a flat list. Skills with `steps` can also run as automated workflows (tool → parallel fan-out → LLM prompt chains).
 
 ---
 
@@ -661,16 +659,11 @@ model:
   max_tokens: 4096
   fallback: anthropic/claude-sonnet-4-5-20250929
 
-# Skills — high-level workflows (each brings its own tools)
+# Skills — capabilities and workflows (each brings its own tools)
 skills:
   - credit-assessment
   - document-verification
-
-# Tools — direct capabilities (available alongside skill tools)
-tools:
-  - companies-house-check
-  - send-email
-  - create-crm-note
+  - communications
 
 guardrails:
   max_tool_calls: 20
@@ -864,18 +857,90 @@ The `tools:` list in frontmatter declares which tools this skill needs. When an 
 
 A skill is pure prompt engineering. It doesn't execute anything itself — it tells the LLM *how* to use tools to accomplish a task.
 
-### 7.3 SKILL.md Frontmatter Reference
+### 7.3 Workflow Steps (Optional)
+
+Skills can optionally define `steps` — an automated pipeline that runs tool invocations, parallel fan-out/fan-in, and LLM prompt steps in order. When steps are present, the skill becomes a **workflow** that the `WorkflowExecutor` runs automatically.
+
+```markdown
+---
+name: lead-qualification-workflow
+description: Automated lead qualification pipeline
+tools:
+  - companies-house-check
+  - credit-bureau-check
+  - calculate-risk-score
+steps:
+  - name: verify
+    tool: companies-house-check
+    input:
+      company_number: "$.input.company_number"
+
+  - name: check-credit
+    tool: credit-bureau-check
+    input:
+      company_id: "$.steps.verify.output.company_id"
+
+  - name: parallel-scoring
+    tools:
+      - tool: calculate-risk-score
+        input:
+          revenue: "$.input.revenue"
+          trading_months: "$.steps.verify.output.trading_months"
+      - tool: credit-bureau-check
+        input:
+          company_id: "$.steps.verify.output.company_id"
+
+  - name: decide
+    prompt: "Based on the scoring results, provide a QUALIFIED / NEEDS REVIEW / REJECTED recommendation."
+    input:
+      scores: "$.steps.parallel-scoring.output"
+      company: "$.steps.verify.output"
+---
+
+# Lead Qualification Workflow
+
+This workflow automates the lead qualification process.
+```
+
+#### Step Types
+
+Each step must have exactly one of `tool`, `tools`, or `prompt`:
+
+| Type | Field | Description |
+|---|---|---|
+| **Single tool** | `tool: <name>` | Runs one tool with resolved `input` |
+| **Parallel fan-out** | `tools: [{tool, input}, ...]` | Runs multiple tools concurrently, returns ordered list |
+| **LLM prompt** | `prompt: <text>` | Sends prompt to LLM with resolved `input` as context |
+
+#### Input Resolution
+
+Step inputs support JSONPath-like references:
+
+| Pattern | Resolves To |
+|---|---|
+| `$.input.company_name` | Value from workflow input data |
+| `$.steps.enrich.output` | Output of a previous step named "enrich" |
+| `$.steps.parallel.output[0]` | First result from a parallel fan-out step |
+| `$.steps.score.output.value` | Nested key in a step's output |
+| `"literal string"` | Passed through as-is |
+
+#### Fan-In Behaviour
+
+Parallel steps return results as an ordered list — index 0 corresponds to the first tool in the `tools` list, regardless of which tool finishes first. If one tool fails, it returns an error dict at its index; other tools still complete.
+
+### 7.4 SKILL.md Frontmatter Reference
 
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `name` | yes | — | Skill identifier |
 | `description` | yes | — | One-line description |
 | `tools` | no | `[]` | Tools this skill uses (by name) |
+| `steps` | no | `[]` | Workflow steps (automated pipeline) |
 | `version` | no | `1.0.0` | Skill version |
 
-The markdown body is the skill's instructions — injected into the system prompt when this skill is active.
+The markdown body is the skill's instructions — injected into the system prompt when this skill is active. If `steps` are defined, the skill can also run as an automated workflow.
 
-### 7.4 Skill Without Tools
+### 7.5 Skill Without Tools
 
 A skill can have no tools. It's just structured instructions for the LLM:
 
@@ -1294,11 +1359,10 @@ When `POST /v1/agents/{id}/invoke` is called:
 ```
 1. Load agent (AGENT.md + optional BEHAVIOR.md from filesystem)
 2. Resolve model (agent AGENT.md frontmatter → gateway.yaml → framework default)
-3. Resolve agent's skills → collect tools from each skill
-4. Resolve agent's direct tools
-5. Assemble system prompt (layered markdown + skill instructions)
-6. Build LLM tool declarations from all resolved tools (deduplicated)
-7. Create execution record in database
+3. Resolve agent's skills → collect tools from each skill (agents have no direct tools)
+4. Assemble system prompt (layered markdown + skill instructions)
+5. Build LLM tool declarations from all resolved tools (deduplicated)
+6. Create execution record in database
 
 8. LLM function-calling loop (using agent's resolved model):
    ┌──────────────────────────────────────────────────┐

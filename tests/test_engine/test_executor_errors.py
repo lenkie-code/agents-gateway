@@ -13,6 +13,7 @@ from tests.test_engine.conftest import (
     make_engine,
     make_llm_response,
     make_resolved_tool,
+    make_skill,
     make_tool_call,
     make_workspace,
     simple_tool_executor,
@@ -58,8 +59,9 @@ class TestToolPermissionDenied:
         )
         # The tool is registered but agent doesn't have access via resolve_for_agent
         # In practice, resolve_for_agent filters it out, so it appears as unknown
-        agent = make_agent(tools=["restricted"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["restricted"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(
             agent, "call restricted", workspace, tool_executor=simple_tool_executor
@@ -88,8 +90,9 @@ class TestToolException:
             ],
             tools=[echo_tool],
         )
-        agent = make_agent(tools=["failing-tool"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["failing-tool"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(agent, "test", workspace, tool_executor=failing_executor)
 
@@ -119,8 +122,9 @@ class TestOversizedResult:
             ],
             tools=[echo_tool],
         )
-        agent = make_agent(tools=["big-tool"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["big-tool"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(agent, "test", workspace, tool_executor=big_executor)
 
@@ -170,8 +174,9 @@ class TestInvalidToolArguments:
             ],
             tools=[strict_tool],
         )
-        agent = make_agent(tools=["strict-tool"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["strict-tool"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(agent, "test", workspace, tool_executor=simple_tool_executor)
 
@@ -202,8 +207,9 @@ class TestSanitizedErrorMessages:
             ],
             tools=[echo_tool],
         )
-        agent = make_agent(tools=["leaky-tool"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["leaky-tool"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         result = await engine.execute(agent, "test", workspace, tool_executor=leaky_executor)
 
@@ -227,8 +233,9 @@ class TestNoToolExecutor:
             ],
             tools=[echo_tool],
         )
-        agent = make_agent(tools=["echo"])
-        workspace = make_workspace()
+        skill = make_skill(tools=["echo"])
+        agent = make_agent(skills=["test-skill"])
+        workspace = make_workspace(agents={"test-agent": agent}, skills={"test-skill": skill})
 
         # No tool_executor passed
         result = await engine.execute(agent, "test", workspace)

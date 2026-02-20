@@ -1,6 +1,6 @@
 ---
-tools:
-  - echo
+skills:
+  - test-skill
 ---
 
 # Test Agent
