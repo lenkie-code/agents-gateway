@@ -1,0 +1,74 @@
+"""Dashboard authentication — session-cookie-based, independent of API auth."""
+
+from __future__ import annotations
+
+import hashlib
+import secrets
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from fastapi import Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
+
+if TYPE_CHECKING:
+    from agent_gateway.config import DashboardAuthConfig
+
+
+@dataclass
+class DashboardUser:
+    username: str
+
+
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+class DashboardAuthError(Exception):
+    """Raised when dashboard authentication fails."""
+
+    def __init__(self, redirect_url: str = "/dashboard/login") -> None:
+        self.redirect_url = redirect_url
+
+
+def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
+    """Factory: returns a FastAPI dependency configured with the given auth config."""
+
+    async def get_dashboard_user(request: Request) -> DashboardUser:
+        if not auth_config.enabled:
+            return DashboardUser(username="anonymous")
+        user_id = request.session.get("dashboard_user")
+        if not user_id:
+            hx = request.headers.get("HX-Request")
+            if hx:
+                raise HTTPException(
+                    status_code=204,
+                    headers={"HX-Redirect": "/dashboard/login"},
+                )
+            raise DashboardAuthError()
+        return DashboardUser(username=str(user_id))
+
+    return get_dashboard_user
+
+
+def make_login_handler(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
+    """Factory: returns a login POST handler configured with the given auth config."""
+    expected_hash = _hash_password(auth_config.password) if auth_config.password else None
+
+    async def login_post(
+        request: Request,
+        username: str = Form(...),
+        password: str = Form(...),
+    ) -> RedirectResponse | dict[str, str]:
+        ok = username == auth_config.username
+        if expected_hash is not None:
+            ok = ok and _hash_password(password) == expected_hash
+
+        if not ok:
+            return {"error": "Invalid username or password"}
+
+        request.session["dashboard_user"] = username
+        # Rotate CSRF token on login
+        request.session["csrf_token"] = secrets.token_hex(32)
+        return RedirectResponse(url="/dashboard/", status_code=303)
+
+    return login_post

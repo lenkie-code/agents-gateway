@@ -42,6 +42,11 @@ gw.use_api_keys(
     ]
 )
 gw.use_file_memory()
+gw.use_dashboard(
+    title="Agent Gateway — Test Project",
+    auth_username="admin",
+    auth_password=os.environ.get("DASHBOARD_PASSWORD", "admin"),
+)
 
 # --- Notifications (optional — configure via env vars) ---
 

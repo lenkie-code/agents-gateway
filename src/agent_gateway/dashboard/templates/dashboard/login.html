@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme-mode="{{ dashboard_theme_mode }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — {{ dashboard_title }}</title>
+  {% if dashboard_favicon_url %}
+  <link rel="icon" href="{{ dashboard_favicon_url }}" />
+  {% else %}
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+  {% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/dashboard/static/dashboard/tokens.css" />
+  <link rel="stylesheet" href="/dashboard/static/dashboard/app.css" />
+  <style>
+    :root {
+      --color-accent: {{ dashboard_accent }};
+      --color-accent-dark: {{ dashboard_accent_dark }};
+    }
+  </style>
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    {% if dashboard_logo_url %}
+      <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="login-logo" />
+    {% endif %}
+
+    <div class="login-title">{{ dashboard_title }}</div>
+    <div class="login-subtitle">Sign in to your dashboard</div>
+
+    {% if error %}
+    <div class="alert alert-danger" style="margin-bottom: var(--space-4);">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form action="/dashboard/login" method="post">
+      <div class="form-group">
+        <label for="username" class="form-label">Username</label>
+        <input type="text" id="username" name="username" class="input"
+               autocomplete="username" autofocus required
+               placeholder="admin" />
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Password</label>
+        <input type="password" id="password" name="password" class="input"
+               autocomplete="current-password"
+               placeholder="••••••••" />
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full" style="justify-content:center; margin-top: var(--space-2);">
+        Sign in
+      </button>
+    </form>
+  </div>
+</div>
+<script src="/dashboard/static/dashboard/app.js" defer></script>
+</body>
+</html>

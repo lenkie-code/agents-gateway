@@ -1,0 +1,112 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Chat — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Chat{% endblock %}
+
+{% block extra_head %}
+  <!-- marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+  <!-- Chat header with agent selector -->
+  <div class="chat-header">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: var(--color-accent); flex-shrink:0;">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
+            d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+    </svg>
+
+    {% if agents %}
+    <div style="display:flex; align-items:center; gap: var(--space-3); flex:1;">
+      <label for="agent-selector" class="text-sm" style="font-weight:500; white-space:nowrap;">Talk to</label>
+      <select id="agent-selector" class="input" style="max-width: 18rem;">
+        {% for agent in agents %}
+        <option value="{{ agent.id }}" {% if agent.id == selected_agent_id %}selected{% endif %}>
+          {{ agent.display_name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="text-muted text-sm">No agents available. Add agents to your workspace.</div>
+    {% endif %}
+  </div>
+
+  <!-- Messages area -->
+  <div id="messages" class="messages-area">
+    {% if not agents %}
+    <div class="message message-system">
+      <div class="message-bubble">No agents available — add AGENT.md files to your workspace.</div>
+    </div>
+    {% else %}
+    <div class="message message-system">
+      <div class="message-bubble">
+        Start a conversation with <strong>{{ agents[0].display_name if agents else '' }}</strong>.
+        Switch agents using the selector above.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Loading indicator -->
+  <div id="chat-loading" style="display:none; padding: var(--space-2) 0;">
+    <div class="message message-assistant">
+      <div class="message-avatar" style="font-size:0.75rem;">AI</div>
+      <div class="message-bubble">
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input form -->
+  {% if agents and selected_agent_id %}
+  <div class="chat-input-area">
+    <form id="chat-form"
+          hx-post="/dashboard/chat/send"
+          hx-target="#messages"
+          hx-swap="beforeend"
+          hx-disabled-elt="find button[type='submit']"
+          hx-on::before-request="document.getElementById('chat-message-input').value = ''">
+
+      <input type="hidden" name="agent_id" value="{{ selected_agent_id }}" />
+      <input type="hidden" name="session_id" id="session-id-field" value="{{ session_id or '' }}" />
+
+      <div class="chat-input-row">
+        <textarea id="chat-message-input"
+                  name="message"
+                  class="input chat-textarea"
+                  placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+                  rows="1"
+                  required></textarea>
+        <button type="submit" class="btn btn-primary" style="align-self:flex-end; padding: 0.5625rem var(--space-4);">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+          </svg>
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+// Update session-id after each response
+document.addEventListener('htmx:afterSwap', (e) => {
+  if (e.detail.target && e.detail.target.id === 'messages') {
+    // Find the most recently added message bubble with a data-session-id
+    const last = e.detail.target.querySelector('[data-session-id]:last-child') ||
+                 e.detail.target.querySelector('[data-session-id]');
+    if (last && last.dataset.sessionId) {
+      const field = document.getElementById('session-id-field');
+      if (field) field.value = last.dataset.sessionId;
+    }
+  }
+});
+</script>
+{% endblock %}

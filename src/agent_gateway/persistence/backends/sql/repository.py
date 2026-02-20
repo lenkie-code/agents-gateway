@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_gateway.persistence.domain import (
@@ -87,6 +87,140 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             session.add(step)
             await session.commit()
+
+    async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None:
+        """Fetch an execution by ID with all its steps eagerly loaded."""
+        async with self._session_factory() as session:
+            record = await session.get(ExecutionRecord, execution_id)
+            if record is None:
+                return None
+            # Load steps separately (imperative mapping without relationships)
+            stmt = (
+                select(ExecutionStep)
+                .where(ExecutionStep.execution_id == execution_id)  # type: ignore[arg-type]
+                .order_by(ExecutionStep.sequence)  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            record.steps = list(result.scalars().all())
+            return record
+
+    async def list_all(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> list[ExecutionRecord]:
+        """List executions across all agents, most recent first."""
+        async with self._session_factory() as session:
+            stmt = select(ExecutionRecord).order_by(
+                ExecutionRecord.created_at.desc()  # type: ignore[union-attr]
+            )
+            if agent_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]
+                )
+            if status is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.status == status  # type: ignore[arg-type]
+                )
+            if since is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
+                )
+            stmt = stmt.limit(limit).offset(offset)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def count_all(
+        self,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> int:
+        """Count executions with optional filters."""
+        async with self._session_factory() as session:
+            stmt = select(func.count()).select_from(ExecutionRecord)
+            if agent_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]
+                )
+            if status is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.status == status  # type: ignore[arg-type]
+                )
+            if since is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
+                )
+            result = await session.execute(stmt)
+            return result.scalar_one()
+
+    async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
+        """Daily cost aggregation for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        async with self._session_factory() as session:
+            # Use SQLite-compatible date extraction; works on Postgres too
+            stmt = text(
+                """
+                SELECT
+                    date(created_at) as day,
+                    COUNT(*) as execution_count,
+                    SUM(CAST(json_extract(usage, '$.cost_usd') AS REAL)) as total_cost_usd,
+                    SUM(CAST(json_extract(usage, '$.input_tokens') AS INTEGER)) as total_input_tokens,
+                    SUM(CAST(json_extract(usage, '$.output_tokens') AS INTEGER)) as total_output_tokens
+                FROM executions
+                WHERE created_at >= :since
+                  AND usage IS NOT NULL
+                GROUP BY date(created_at)
+                ORDER BY day ASC
+                """
+            )
+            result = await session.execute(stmt, {"since": since.isoformat()})
+            return [dict(row._mapping) for row in result]
+
+    async def cost_by_agent(self, days: int = 30) -> list[dict[str, Any]]:
+        """Per-agent cost aggregation for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        async with self._session_factory() as session:
+            stmt = text(
+                """
+                SELECT
+                    agent_id,
+                    COUNT(*) as execution_count,
+                    SUM(CAST(json_extract(usage, '$.cost_usd') AS REAL)) as total_cost_usd,
+                    SUM(CAST(json_extract(usage, '$.input_tokens') AS INTEGER)) as total_input_tokens,
+                    SUM(CAST(json_extract(usage, '$.output_tokens') AS INTEGER)) as total_output_tokens
+                FROM executions
+                WHERE created_at >= :since
+                  AND usage IS NOT NULL
+                GROUP BY agent_id
+                ORDER BY total_cost_usd DESC
+                """
+            )
+            result = await session.execute(stmt, {"since": since.isoformat()})
+            return [dict(row._mapping) for row in result]
+
+    async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
+        """Daily execution count by status for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        async with self._session_factory() as session:
+            stmt = text(
+                """
+                SELECT
+                    date(created_at) as day,
+                    COUNT(*) as count,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
+                FROM executions
+                WHERE created_at >= :since
+                GROUP BY date(created_at)
+                ORDER BY day ASC
+                """
+            )
+            result = await session.execute(stmt, {"since": since.isoformat()})
+            return [dict(row._mapping) for row in result]
 
 
 class ScheduleRepository:

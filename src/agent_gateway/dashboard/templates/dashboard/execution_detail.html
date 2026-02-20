@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Execution {{ detail.record.id[:8] }} — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Execution Trace{% endblock %}
+
+{% block extra_head %}
+  <!-- Prism.js for JSON syntax highlighting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
+{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 mb-6 text-sm text-muted">
+  <a href="/dashboard/executions" class="text-muted" style="text-decoration:none;">Executions</a>
+  <span style="color: var(--color-border);">/</span>
+  <span class="text-mono">{{ detail.record.id[:8] }}</span>
+</div>
+
+<!-- Header summary card -->
+<div class="card mb-6">
+  <div class="card-body">
+    <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-4);">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="text-mono" style="font-size: var(--text-xs); color: var(--color-text-secondary);">{{ detail.record.id }}</span>
+          <!-- Status badge -->
+          {% if detail.record.status == 'completed' %}
+            <span class="badge badge-green"><span class="status-dot"></span>Completed</span>
+          {% elif detail.record.status == 'running' %}
+            <span class="badge badge-blue badge-pulse"><span class="status-dot"></span>Running</span>
+          {% elif detail.record.status == 'failed' %}
+            <span class="badge badge-red"><span class="status-dot"></span>Failed</span>
+          {% elif detail.record.status == 'queued' %}
+            <span class="badge badge-amber"><span class="status-dot"></span>Queued</span>
+          {% else %}
+            <span class="badge badge-gray">{{ detail.record.status }}</span>
+          {% endif %}
+        </div>
+        <div class="mt-2" style="font-size: var(--text-base); font-weight: 600; color: var(--color-text);">
+          {{ detail.agent_display_name }}
+        </div>
+        <div class="mt-1 text-muted text-sm">{{ detail.record.message[:120] }}{% if detail.record.message and detail.record.message | length > 120 %}…{% endif %}</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="flex gap-6" style="flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:600; margin-bottom:4px;">Duration</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 700;">{{ format_duration(detail.duration_ms) }}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:600; margin-bottom:4px;">Cost</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 700;">{{ format_cost(detail.total_cost_usd) }}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:600; margin-bottom:4px;">Tokens</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 700;">
+            {% if detail.total_input_tokens is not none %}
+              {{ detail.total_input_tokens + (detail.total_output_tokens or 0) | int }}
+            {% else %}—{% endif %}
+          </div>
+        </div>
+        {% if detail.models_used %}
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:600; margin-bottom:4px;">Model</div>
+          <div class="text-mono text-xs" style="font-weight: 600;">{{ detail.models_used | join(', ') }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if detail.record.status == 'failed' and detail.record.error %}
+    <div class="alert alert-danger mt-4">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+      <div>
+        <strong>Execution failed</strong>
+        <div class="text-xs mt-1 text-mono">{{ detail.record.error }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Trace Timeline -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Trace</span>
+    <span class="badge badge-gray">{{ detail.steps | length }} step{{ 's' if detail.steps | length != 1 else '' }}</span>
+  </div>
+  <div class="card-body">
+
+    {% if is_running %}
+    <!-- Poll for new steps while running -->
+    <div id="trace-steps"
+         hx-get="/dashboard/executions/{{ detail.record.id }}"
+         hx-trigger="every 3s"
+         hx-swap="outerHTML"
+         hx-target="#trace-steps">
+      {% include "dashboard/_trace_steps.html" %}
+    </div>
+    {% else %}
+    <div id="trace-steps">
+      {% include "dashboard/_trace_steps.html" %}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js" defer></script>
+{% endblock %}

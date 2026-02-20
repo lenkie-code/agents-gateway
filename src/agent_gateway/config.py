@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -186,6 +186,28 @@ class MemoryConfig(BaseModel):
     max_memory_md_lines: int = 200
 
 
+class DashboardAuthConfig(BaseModel):
+    enabled: bool = True
+    username: str = "admin"
+    password: str = ""  # empty = no password (warned at startup)
+    session_secret: str = ""  # auto-generated if empty
+
+
+class DashboardThemeConfig(BaseModel):
+    mode: Literal["light", "dark", "auto"] = "auto"
+    accent_color: str = "#6366f1"  # indigo default
+    accent_color_dark: str = "#818cf8"  # indigo-400 for dark mode
+
+
+class DashboardConfig(BaseModel):
+    enabled: bool = False  # opt-in
+    title: str = "Agent Gateway"
+    logo_url: str | None = None
+    favicon_url: str | None = None
+    auth: DashboardAuthConfig = DashboardAuthConfig()
+    theme: DashboardThemeConfig = DashboardThemeConfig()
+
+
 class GatewayConfig(BaseSettings):
     """Root configuration for the Agent Gateway.
 
@@ -208,6 +230,7 @@ class GatewayConfig(BaseSettings):
     context_retrieval: ContextRetrievalConfig = ContextRetrievalConfig()
     memory: MemoryConfig = MemoryConfig()
     context: dict[str, Any] = Field(default_factory=dict)
+    dashboard: DashboardConfig = DashboardConfig()
 
     @classmethod
     def from_yaml(cls, path: Path) -> GatewayConfig:

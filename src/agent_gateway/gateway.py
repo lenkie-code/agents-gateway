@@ -129,6 +129,7 @@ class Gateway(FastAPI):
         self._schedule_repo: ScheduleRepository = NullScheduleRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
+        self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
         self._extraction_cooldowns: dict[str, float] = {}
         _EXTRACTION_DEBOUNCE_SECONDS = 30.0
         self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
@@ -380,6 +381,7 @@ class Gateway(FastAPI):
                 config=self._config,
                 hooks=self._hooks,
                 retriever_registry=retriever_registry,
+                execution_repo=self._execution_repo,
             )
         except Exception:
             logger.warning("Failed to init LLM client/engine", exc_info=True)
@@ -532,6 +534,9 @@ class Gateway(FastAPI):
                     provider=auth_provider,
                     public_paths=public,
                 )
+
+        # 12. Mount dashboard if enabled
+        self._maybe_init_dashboard()
 
         self._started = True
 
@@ -1021,6 +1026,51 @@ class Gateway(FastAPI):
         )
         return self
 
+    # --- Dashboard configuration (fluent API) ---
+
+    def use_dashboard(
+        self,
+        *,
+        title: str | None = None,
+        logo_url: str | None = None,
+        auth_username: str | None = None,
+        auth_password: str | None = None,
+        theme: str | None = None,
+        accent_color: str | None = None,
+    ) -> Gateway:
+        """Enable and configure the built-in web dashboard at /dashboard.
+
+        The dashboard provides a UI for monitoring agents, executions, costs,
+        and chatting with agents. It uses its own session-based authentication,
+        independent of the API auth.
+
+        Args:
+            title: Dashboard page title (default: "Agent Gateway").
+            logo_url: URL of a logo image to display in the sidebar.
+            auth_username: Dashboard login username (default: "admin").
+            auth_password: Dashboard login password. Empty = no password.
+            theme: Color scheme — "light", "dark", or "auto" (default).
+            accent_color: CSS hex color for the accent/primary color.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure dashboard after gateway has started")
+        self._pending_dashboard_overrides["enabled"] = True
+        if title is not None:
+            self._pending_dashboard_overrides["title"] = title
+        if logo_url is not None:
+            self._pending_dashboard_overrides["logo_url"] = logo_url
+        if auth_username is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["username"] = auth_username
+        if auth_password is not None:
+            self._pending_dashboard_overrides.setdefault("auth", {})["password"] = auth_password
+        if theme is not None:
+            self._pending_dashboard_overrides.setdefault("theme", {})["mode"] = theme
+        if accent_color is not None:
+            self._pending_dashboard_overrides.setdefault("theme", {})["accent_color"] = (
+                accent_color
+            )
+        return self
+
     def _init_notifications_from_config(self, config: NotificationsConfig) -> None:
         """Create notification backends from gateway.yaml config."""
         if config.slack.enabled and config.slack.bot_token:
@@ -1198,6 +1248,84 @@ class Gateway(FastAPI):
             )
         return None
 
+    def _maybe_init_dashboard(self) -> None:
+        """Enable the dashboard if configured (called during startup)."""
+        if self._config is None:
+            return
+
+        # Merge fluent API overrides into config
+        dash = self._config.dashboard
+        overrides = self._pending_dashboard_overrides
+        if overrides:
+            from agent_gateway.config import (
+                DashboardAuthConfig,
+                DashboardConfig,
+                DashboardThemeConfig,
+            )
+
+            auth_overrides = overrides.pop("auth", {})
+            theme_overrides = overrides.pop("theme", {})
+            auth = DashboardAuthConfig(**{**dash.auth.model_dump(), **auth_overrides})
+            theme = DashboardThemeConfig(**{**dash.theme.model_dump(), **theme_overrides})
+            dash = DashboardConfig(
+                **{**dash.model_dump(), **overrides, "auth": auth, "theme": theme}
+            )
+            self._config = self._config.model_copy(update={"dashboard": dash})
+
+        if not self._config.dashboard.enabled:
+            return
+
+        dash_config = self._config.dashboard
+
+        # Warn if no password set
+        if dash_config.auth.enabled and not dash_config.auth.password:
+            logger.warning(
+                "Dashboard is enabled with no password set. "
+                "Set dashboard.auth.password in gateway.yaml or use_dashboard(auth_password=...)."
+            )
+
+        # Generate session secret if not set
+        import secrets as _secrets
+
+        session_secret = dash_config.auth.session_secret or _secrets.token_hex(32)
+
+        # Add SessionMiddleware
+        try:
+            from starlette.middleware.sessions import SessionMiddleware
+
+            if self.middleware_stack is not None:
+                self.middleware_stack = SessionMiddleware(
+                    app=self.middleware_stack,
+                    secret_key=session_secret,
+                    session_cookie="agw_dashboard_session",
+                    max_age=86400,
+                    https_only=False,
+                    same_site="lax",
+                )
+            else:
+                self.add_middleware(
+                    SessionMiddleware,
+                    secret_key=session_secret,
+                    session_cookie="agw_dashboard_session",
+                    max_age=86400,
+                    https_only=False,
+                    same_site="lax",
+                )
+        except ImportError:
+            logger.error(
+                "SessionMiddleware requires 'itsdangerous'. Install with: pip install itsdangerous"
+            )
+            return
+
+        # Register dashboard routes
+        try:
+            from agent_gateway.dashboard.router import register_dashboard
+
+            register_dashboard(self, dash_config)
+            logger.info("Dashboard enabled at /dashboard (user: %s)", dash_config.auth.username)
+        except ImportError as e:
+            logger.error("Failed to load dashboard (missing dependencies?): %s", e)
+
     def _register_routes(self) -> None:
         """Mount all /v1/ API routes."""
         from agent_gateway.api.routes.base import GatewayAPIRoute
@@ -1238,6 +1366,7 @@ class Gateway(FastAPI):
                     config=self._config,
                     hooks=self._hooks,
                     retriever_registry=self._retriever_registry,
+                    execution_repo=self._execution_repo,
                 )
 
             # Re-register memory tools for agents that have memory enabled
