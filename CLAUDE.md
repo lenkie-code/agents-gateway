@@ -1,0 +1,59 @@
+# CLAUDE.md
+
+## Quick Reference
+
+```bash
+uv run pytest -m "not e2e"          # run tests (excludes e2e)
+uv run pytest -m e2e -v             # run e2e tests (needs GEMINI_API_KEY)
+uv run ruff check src/ tests/       # lint
+uv run mypy src/                    # typecheck
+make check                          # all of the above
+```
+
+Always use `uv run` — plain `python`/`pytest` won't resolve the package.
+
+## Project Overview
+
+Agent Gateway is a FastAPI extension for building API-first AI agent services. `Gateway` subclasses `FastAPI`. Agents, skills, and tools are defined as markdown files in a workspace directory.
+
+## Project Structure
+
+```
+src/agent_gateway/
+├── gateway.py          # Gateway class (extends FastAPI)
+├── config.py           # Settings via pydantic-settings
+├── exceptions.py       # Exception hierarchy (base: AgentGatewayError)
+├── hooks.py            # Lifecycle hooks
+├── api/                # Route handlers
+├── auth/               # Auth backends (OAuth2, etc.)
+├── chat/               # Chat/LLM integration
+├── cli/                # Typer CLI
+├── engine/             # Execution engine
+├── notifications/      # Notification backends (slack, webhooks, etc.)
+├── persistence/        # SQLAlchemy models & storage
+├── queue/              # Message queue integration
+├── scheduler/          # Cron scheduling (APScheduler)
+├── telemetry/          # OpenTelemetry instrumentation
+├── tools/              # Tool registration & execution
+└── workspace/          # Workspace/agent loading from markdown
+tests/                  # Mirrors src structure
+examples/test-project/  # Example app (run with `make dev`)
+```
+
+## Key Conventions
+
+- **Python 3.11+**, ruff for linting (line length 99), mypy strict mode
+- **Exceptions**: always subclass `AgentGatewayError` from `exceptions.py`
+- **Pending registration pattern**: store items in `_pending_*` dicts/lists, apply after workspace loads
+- **Agents**: defined in `workspace/agents/<name>/` with `AGENT.md` + optional `SOUL.md`/`CONFIG.md`. CONFIG.md overrides AGENT.md scalars; lists are merged
+- **Tests**: use `pytest-asyncio` (auto mode). Mark e2e tests with `@pytest.mark.e2e`, postgres tests with `@pytest.mark.postgres`, etc.
+
+## Example Project
+
+After every feature or fix, the example project in `examples/test-project/` MUST be updated to exercise the change. This is how we do real-life testing — run it with `make dev`. Do not consider a feature or fix complete until the example project demonstrates it.
+
+## Commit Messages
+
+- No Co-Authored-By lines
+- No mention of AI authorship
+- Use conventional commit style (e.g. `feat:`, `fix:`, `refactor:`)
