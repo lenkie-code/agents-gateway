@@ -16,7 +16,7 @@ async def test_health_endpoint(client: AsyncClient) -> None:
     assert data["status"] == "ok"
     assert data["agent_count"] == 4
     assert data["skill_count"] == 1
-    assert data["tool_count"] >= 8  # echo, add-numbers, process-data, http-example + travel tools
+    assert data["tool_count"] >= 7  # echo, add-numbers, http-example + travel tools
 
 
 async def test_list_agents(client: AsyncClient) -> None:

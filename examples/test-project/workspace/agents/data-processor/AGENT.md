@@ -2,6 +2,20 @@
 execution_mode: async
 tools:
   - process-data
+notifications:
+  on_complete:
+    - channel: slack
+      target: "#data-processing"
+    - channel: webhook
+      target: default
+  on_error:
+    - channel: slack
+      target: "#data-processing"
+    - channel: webhook
+      target: default
+  on_timeout:
+    - channel: slack
+      target: "#data-processing"
 ---
 
 # Data Processor

@@ -2,7 +2,8 @@
 
 A working example that demonstrates the core features of `agent-gateway`:
 API key authentication, PostgreSQL persistence, RabbitMQ queue for async
-execution, and multiple agent types (sync and async).
+execution, pluggable notification backends (Slack/Webhook), Pydantic
+structured output schemas, and multiple agent types (sync and async).
 
 ## What's Included
 
@@ -14,12 +15,12 @@ workspace/
 │   ├── assistant/                  # General-purpose assistant agent (sync)
 │   │   ├── AGENT.md                # Agent prompt + tool/skill bindings
 │   │   └── SOUL.md                 # Personality traits
-│   ├── data-processor/             # Long-running data processor (async)
-│   │   └── AGENT.md                # execution_mode: async
+│   ├── data-processor/             # Long-running data processor (async + notifications)
+│   │   └── AGENT.md                # execution_mode: async, notifications on all events
 │   ├── scheduled-reporter/         # Agent with a cron schedule (disabled)
 │   │   └── AGENT.md
-│   └── travel-planner/             # Travel planning agent (sync)
-│       └── AGENT.md
+│   └── travel-planner/             # Travel planning agent (sync + notifications)
+│       └── AGENT.md                # Notifications on complete/error
 ├── skills/
 │   └── math-workflow/
 │       └── SKILL.md                # Multi-step arithmetic skill
@@ -51,6 +52,10 @@ cp examples/test-project/.env.example examples/test-project/.env
 
 # Edit .env and add your Gemini API key:
 # GEMINI_API_KEY=your-key-here
+
+# Optional: add Slack/Webhook notification credentials:
+# SLACK_BOT_TOKEN=xoxb-...
+# WEBHOOK_URL=https://your-endpoint.example.com/webhook
 
 # Start infrastructure (PostgreSQL + RabbitMQ):
 docker compose -f examples/test-project/docker-compose.yml up -d
@@ -132,6 +137,72 @@ curl -X POST http://localhost:8000/v1/executions/abc-123/cancel \
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+### Structured Output (Pydantic Models)
+
+The gateway accepts Pydantic models as output schemas. The model is
+automatically converted to JSON Schema for the LLM prompt, and the
+response is parsed back into a validated model instance.
+
+```python
+from pydantic import BaseModel
+from agent_gateway.engine.models import ExecutionOptions
+
+class MathResult(BaseModel):
+    answer: float
+    explanation: str
+
+result = await gw.invoke(
+    "assistant", "What is 12 * 15?",
+    options=ExecutionOptions(output_schema=MathResult),
+)
+assert isinstance(result.output, MathResult)
+print(result.output.answer)  # 180.0
+```
+
+Two demo endpoints are included in `app.py`:
+
+```bash
+# Structured math output
+curl http://localhost:8000/api/demo/structured-output
+
+# Structured travel plan
+curl http://localhost:8000/api/demo/travel-plan
+```
+
+Raw `dict` schemas continue to work identically — passing a `dict` to
+`output_schema` behaves exactly as before.
+
+### Notifications
+
+Agents can send notifications on completion, error, or timeout. Configure
+backends in `app.py` via the fluent API:
+
+```python
+# Slack (requires SLACK_BOT_TOKEN env var)
+gw.use_slack_notifications(bot_token="xoxb-...", default_channel="#agent-alerts")
+
+# Webhooks (HMAC-signed POST requests)
+gw.use_webhook_notifications(url="https://...", name="default", secret="s3cret")
+```
+
+Then declare per-agent notification rules in `AGENT.md` frontmatter:
+
+```yaml
+---
+notifications:
+  on_complete:
+    - channel: slack
+      target: "#travel-plans"
+  on_error:
+    - channel: webhook
+      target: default
+---
+```
+
+In this project, `travel-planner` and `data-processor` have notification
+configs. Set `SLACK_BOT_TOKEN` and/or `WEBHOOK_URL` in `.env` to activate
+them.
+
 ## API Endpoints
 
 | Method | Endpoint | Auth | Description |
@@ -149,6 +220,8 @@ curl -X POST http://localhost:8000/v1/executions/abc-123/cancel \
 | GET | `/v1/sessions/{id}` | Yes | Get session details |
 | DELETE | `/v1/sessions/{id}` | Yes | Delete a session |
 | GET | `/api/health` | No | Custom route (defined in app.py) |
+| GET | `/api/demo/structured-output` | No | Pydantic output schema demo (math) |
+| GET | `/api/demo/travel-plan` | No | Pydantic output schema demo (travel) |
 
 ## Infrastructure
 

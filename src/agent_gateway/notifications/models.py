@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -47,6 +48,27 @@ class NotificationTarget:
     secret: str | None = None  # Inline webhook HMAC secret (per-agent)
     payload_template: str | None = None  # Inline webhook Jinja2 payload (per-agent)
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "channel": self.channel,
+            "target": self.target,
+            "template": self.template,
+            "url": self.url,
+            "secret": self.secret,
+            "payload_template": self.payload_template,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> NotificationTarget:
+        return cls(
+            channel=data["channel"],
+            target=data.get("target", ""),
+            template=data.get("template"),
+            url=data.get("url"),
+            secret=data.get("secret"),
+            payload_template=data.get("payload_template"),
+        )
+
 
 @dataclass
 class AgentNotificationConfig:
@@ -55,6 +77,112 @@ class AgentNotificationConfig:
     on_complete: list[NotificationTarget] = field(default_factory=list)
     on_error: list[NotificationTarget] = field(default_factory=list)
     on_timeout: list[NotificationTarget] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "on_complete": [t.to_dict() for t in self.on_complete],
+            "on_error": [t.to_dict() for t in self.on_error],
+            "on_timeout": [t.to_dict() for t in self.on_timeout],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AgentNotificationConfig:
+        return cls(
+            on_complete=[NotificationTarget.from_dict(t) for t in data.get("on_complete", [])],
+            on_error=[NotificationTarget.from_dict(t) for t in data.get("on_error", [])],
+            on_timeout=[NotificationTarget.from_dict(t) for t in data.get("on_timeout", [])],
+        )
+
+
+@dataclass(frozen=True)
+class NotificationJob:
+    """A serialisable job for the notification queue.
+
+    All fields are JSON-primitive types — no datetime objects, no nested
+    Protocol instances. This ensures round-trip serialisation without
+    custom encoders.
+    """
+
+    job_id: str
+    execution_id: str
+    agent_id: str
+    status: str
+    message: str
+    config: dict[str, Any]  # serialised AgentNotificationConfig
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    usage: dict[str, Any] | None = None
+    duration_ms: int = 0
+    context: dict[str, Any] | None = None
+    enqueued_at: str = ""  # ISO 8601 string
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "job_id": self.job_id,
+                "execution_id": self.execution_id,
+                "agent_id": self.agent_id,
+                "status": self.status,
+                "message": self.message,
+                "config": self.config,
+                "result": self.result,
+                "error": self.error,
+                "usage": self.usage,
+                "duration_ms": self.duration_ms,
+                "context": self.context,
+                "enqueued_at": self.enqueued_at,
+            }
+        )
+
+    @classmethod
+    def from_json(cls, data: str) -> NotificationJob:
+        parsed = json.loads(data)
+        return cls(
+            job_id=parsed["job_id"],
+            execution_id=parsed["execution_id"],
+            agent_id=parsed["agent_id"],
+            status=parsed["status"],
+            message=parsed["message"],
+            config=parsed["config"],
+            result=parsed.get("result"),
+            error=parsed.get("error"),
+            usage=parsed.get("usage"),
+            duration_ms=parsed.get("duration_ms", 0),
+            context=parsed.get("context"),
+            enqueued_at=parsed.get("enqueued_at", ""),
+        )
+
+
+def build_notification_job(
+    *,
+    job_id: str,
+    execution_id: str,
+    agent_id: str,
+    status: str,
+    message: str,
+    config: AgentNotificationConfig,
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+    usage: dict[str, Any] | None = None,
+    duration_ms: int = 0,
+    context: dict[str, Any] | None = None,
+    enqueued_at: str = "",
+) -> NotificationJob:
+    """Build a NotificationJob from execution result data."""
+    return NotificationJob(
+        job_id=job_id,
+        execution_id=execution_id,
+        agent_id=agent_id,
+        status=status,
+        message=message,
+        config=config.to_dict(),
+        result=result,
+        error=error,
+        usage=usage,
+        duration_ms=duration_ms,
+        context=context,
+        enqueued_at=enqueued_at,
+    )
 
 
 _EVENT_TYPE_MAP: dict[str, str] = {

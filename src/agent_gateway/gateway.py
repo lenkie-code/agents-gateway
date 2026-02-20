@@ -27,7 +27,11 @@ from agent_gateway.engine.models import (
 )
 from agent_gateway.hooks import HookRegistry
 from agent_gateway.notifications import NotificationEngine
-from agent_gateway.notifications.models import NotificationEvent, build_notification_event
+from agent_gateway.notifications.models import (
+    NotificationEvent,
+    build_notification_event,
+    build_notification_job,
+)
 from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
 from agent_gateway.persistence.null import NullAuditRepository, NullExecutionRepository
@@ -94,6 +98,9 @@ class Gateway(FastAPI):
         self._worker_pool: Any = None  # WorkerPool, set during startup
         self._notification_engine = NotificationEngine()
         self._notification_backends: list[NotificationBackend] = []  # pre-startup buffer
+        self._notification_queue: Any | None = None  # notification queue backend
+        self._notification_queue_backend: Any | None = None  # fluent API override
+        self._notification_worker: Any | None = None  # NotificationWorker
 
         # Extract user lifespan before we override it
         user_lifespan = fastapi_kwargs.pop("lifespan", None)
@@ -300,6 +307,21 @@ class Gateway(FastAPI):
         except Exception:
             logger.warning("Failed to initialize notification backends", exc_info=True)
 
+        # 6.6: Init notification queue (if an execution queue is configured)
+        notif_queue = self._notification_queue_backend
+        if notif_queue is not None:
+            try:
+                await notif_queue.initialize()
+                self._notification_queue = notif_queue
+            except ImportError:
+                raise
+            except Exception:
+                logger.warning(
+                    "Failed to init notification queue, using fire-and-forget fallback",
+                    exc_info=True,
+                )
+                self._notification_queue = None
+
         # 7. Build LLM client and execution engine
         engine: ExecutionEngine | None = None
         try:
@@ -336,6 +358,16 @@ class Gateway(FastAPI):
                 config=self._config.queue,
             )
             await self._worker_pool.start()
+
+        # 10.5: Start notification worker if notification queue is configured
+        if self._notification_queue is not None and self._notification_engine.has_backends:
+            from agent_gateway.notifications.worker import NotificationWorker
+
+            self._notification_worker = NotificationWorker(
+                queue=self._notification_queue,
+                engine=self._notification_engine,
+            )
+            await self._notification_worker.start()
 
         # 11. Wire auth middleware if enabled
         auth_provider = self._resolve_auth_provider()
@@ -390,6 +422,11 @@ class Gateway(FastAPI):
             await self._worker_pool.drain()
             self._worker_pool = None
 
+        # Drain notification worker
+        if self._notification_worker is not None:
+            await self._notification_worker.drain()
+            self._notification_worker = None
+
         # Cancel session cleanup task
         if self._session_cleanup_task is not None:
             self._session_cleanup_task.cancel()
@@ -418,6 +455,11 @@ class Gateway(FastAPI):
         if not isinstance(self._queue, NullQueue):
             await self._queue.dispose()
             self._queue = NullQueue()
+
+        # Dispose notification queue
+        if self._notification_queue is not None:
+            await self._notification_queue.dispose()
+            self._notification_queue = None
 
         if self._persistence_backend is not None:
             await self._persistence_backend.dispose()
@@ -503,6 +545,10 @@ class Gateway(FastAPI):
         from agent_gateway.queue.backends.memory import MemoryQueue
 
         self._queue_backend = MemoryQueue()
+
+        from agent_gateway.notifications.queue_backends import MemoryNotificationQueue
+
+        self._notification_queue_backend = MemoryNotificationQueue()
         return self
 
     def use_redis_queue(
@@ -527,6 +573,10 @@ class Gateway(FastAPI):
         self._queue_backend = RedisQueue(
             url=url, stream_key=stream_key, consumer_group=consumer_group
         )
+
+        from agent_gateway.notifications.queue_backends import RedisNotificationQueue
+
+        self._notification_queue_backend = RedisNotificationQueue(url=url)
         return self
 
     def use_rabbitmq_queue(
@@ -547,6 +597,10 @@ class Gateway(FastAPI):
         from agent_gateway.queue.backends.rabbitmq import RabbitMQQueue
 
         self._queue_backend = RabbitMQQueue(url=url, queue_name=queue_name)
+
+        from agent_gateway.notifications.queue_backends import RabbitMQNotificationQueue
+
+        self._notification_queue_backend = RabbitMQNotificationQueue(url=url)
         return self
 
     def use_queue(self, backend: ExecutionQueue | None) -> Gateway:
@@ -568,10 +622,16 @@ class Gateway(FastAPI):
         if backend == "memory":
             from agent_gateway.queue.backends.memory import MemoryQueue
 
+            from agent_gateway.notifications.queue_backends import MemoryNotificationQueue
+
+            self._notification_queue_backend = MemoryNotificationQueue()
             return MemoryQueue()
         elif backend == "redis":
             from agent_gateway.queue.backends.redis import RedisQueue
 
+            from agent_gateway.notifications.queue_backends import RedisNotificationQueue
+
+            self._notification_queue_backend = RedisNotificationQueue(url=config.redis_url)
             return RedisQueue(
                 url=config.redis_url,
                 stream_key=config.stream_key,
@@ -580,6 +640,11 @@ class Gateway(FastAPI):
         elif backend == "rabbitmq":
             from agent_gateway.queue.backends.rabbitmq import RabbitMQQueue
 
+            from agent_gateway.notifications.queue_backends import RabbitMQNotificationQueue
+
+            self._notification_queue_backend = RabbitMQNotificationQueue(
+                url=config.rabbitmq_url
+            )
             return RabbitMQQueue(url=config.rabbitmq_url, queue_name=config.queue_name)
         return None
 
@@ -1002,24 +1067,40 @@ class Gateway(FastAPI):
                 tool_executor=execute_tool,
             )
 
-            # Fire notifications in background (fire-and-forget)
+            # Fire notifications
             if self._notification_engine.has_backends and agent.notifications:
-                notification_event = build_notification_event(
-                    execution_id=execution_id,
-                    agent_id=agent_id,
-                    status=result.stop_reason.value,
-                    message=message,
-                    result=result.to_dict() if result.raw_text else None,
-                    usage=result.usage.to_dict() if result.usage else None,
-                    context=context,
-                )
-                task = asyncio.create_task(
-                    self._notification_engine.notify(
-                        notification_event, agent.notifications
+                if self._notification_queue is not None:
+                    # Enqueue for durable delivery via NotificationWorker
+                    job = build_notification_job(
+                        job_id=str(uuid.uuid4()),
+                        execution_id=execution_id,
+                        agent_id=agent_id,
+                        status=result.stop_reason.value,
+                        message=message,
+                        config=agent.notifications,
+                        result=result.to_dict() if result.raw_text else None,
+                        usage=result.usage.to_dict() if result.usage else None,
+                        context=context,
                     )
-                )
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
+                    await self._notification_queue.enqueue(job)
+                else:
+                    # Fire-and-forget fallback (no queue configured)
+                    notification_event = build_notification_event(
+                        execution_id=execution_id,
+                        agent_id=agent_id,
+                        status=result.stop_reason.value,
+                        message=message,
+                        result=result.to_dict() if result.raw_text else None,
+                        usage=result.usage.to_dict() if result.usage else None,
+                        context=context,
+                    )
+                    task = asyncio.create_task(
+                        self._notification_engine.notify(
+                            notification_event, agent.notifications
+                        )
+                    )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
             return result
         finally:

@@ -4,6 +4,13 @@ tools:
   - search-flights
   - search-hotels
   - search-activities
+notifications:
+  on_complete:
+    - channel: slack
+      target: "#travel-plans"
+  on_error:
+    - channel: webhook
+      target: default
 ---
 
 # Travel Planner
