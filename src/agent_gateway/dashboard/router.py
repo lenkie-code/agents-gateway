@@ -14,7 +14,6 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from agent_gateway.dashboard.auth import (
-    DashboardAuthError,
     DashboardUser,
     make_get_dashboard_user,
     make_login_handler,
@@ -353,11 +352,6 @@ def register_dashboard(app: FastAPI, dash_config: DashboardConfig) -> None:
                 "active_page": "analytics",
             },
         )
-
-    # Register exception handler for auth redirects
-    @app.exception_handler(DashboardAuthError)
-    async def _auth_redirect(request: Request, exc: DashboardAuthError) -> RedirectResponse:
-        return RedirectResponse(url=exc.redirect_url, status_code=302)
 
     app.include_router(public)
     app.include_router(protected)

@@ -23,12 +23,6 @@ def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-class DashboardAuthError(Exception):
-    """Raised when dashboard authentication fails."""
-
-    def __init__(self, redirect_url: str = "/dashboard/login") -> None:
-        self.redirect_url = redirect_url
-
 
 def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
     """Factory: returns a FastAPI dependency configured with the given auth config."""
@@ -44,7 +38,7 @@ def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[n
                     status_code=204,
                     headers={"HX-Redirect": "/dashboard/login"},
                 )
-            raise DashboardAuthError()
+            raise HTTPException(status_code=302, headers={"Location": "/dashboard/login"})
         return DashboardUser(username=str(user_id))
 
     return get_dashboard_user
