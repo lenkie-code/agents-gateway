@@ -6,6 +6,7 @@
 uv run pytest -m "not e2e"          # run tests (excludes e2e)
 uv run pytest -m e2e -v             # run e2e tests (needs GEMINI_API_KEY)
 uv run ruff check src/ tests/       # lint
+uv run ruff format --check src/ tests/  # format check
 uv run mypy src/                    # typecheck
 make check                          # all of the above
 ```
@@ -51,6 +52,21 @@ examples/test-project/  # Example app (run with `make dev`)
 ## Example Project
 
 After every feature or fix, the example project in `examples/test-project/` MUST be updated to exercise the change. This is how we do real-life testing — run it with `make dev`. Do not consider a feature or fix complete until the example project demonstrates it.
+
+## Pre-PR Checklist
+
+Before creating any PR, always run:
+
+```bash
+uv run ruff format src/ tests/      # auto-format code
+uv run ruff check src/ tests/       # lint
+uv run mypy src/                    # typecheck
+uv run pytest -m "not e2e" -x -q   # run tests
+```
+
+## Pre-Merge Workflow
+
+Before merging any PR, always run `/workflows:review` to perform a multi-agent code review. Address all P1 (critical) findings before merging. P2/P3 findings can be tracked as follow-up work.
 
 ## Commit Messages
 
