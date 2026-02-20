@@ -77,10 +77,7 @@ async def test_agent_prompt_not_exposed(tmp_path: Path) -> None:
     agent_dir.mkdir(parents=True)
     secret_prompt = "TOP_SECRET_PROMPT_CONTENT_12345"
     (agent_dir / "AGENT.md").write_text(
-        "---\n"
-        "description: A public description\n"
-        "---\n"
-        f"# Agent\n\n{secret_prompt}"
+        f"---\ndescription: A public description\n---\n# Agent\n\n{secret_prompt}"
     )
 
     gw = Gateway(workspace=str(tmp_path / "workspace"), auth=False)

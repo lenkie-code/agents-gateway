@@ -92,9 +92,7 @@ class AgentDefinition:
 
         display_name = agent_meta.get("display_name", None)
         if display_name is not None and not isinstance(display_name, str):
-            logger.warning(
-                "Agent '%s': 'display_name' must be a string, ignoring", agent_id
-            )
+            logger.warning("Agent '%s': 'display_name' must be a string, ignoring", agent_id)
             display_name = None
 
         tags = agent_meta.get("tags", [])

@@ -179,12 +179,7 @@ class TestAgentDefinition:
         agent_dir = tmp_path / "bad-meta"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text(
-            "---\n"
-            "description: 123\n"
-            "display_name: 456\n"
-            "tags: not-a-list\n"
-            "---\n"
-            "# Agent\n\nHello."
+            "---\ndescription: 123\ndisplay_name: 456\ntags: not-a-list\n---\n# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -198,9 +193,7 @@ class TestAgentDefinition:
         """Numeric version values are coerced to strings."""
         agent_dir = tmp_path / "num-ver"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text(
-            "---\nversion: 1.0\n---\n# Agent\n\nHello."
-        )
+        (agent_dir / "AGENT.md").write_text("---\nversion: 1.0\n---\n# Agent\n\nHello.")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
