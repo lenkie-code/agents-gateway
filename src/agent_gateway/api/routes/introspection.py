@@ -63,7 +63,10 @@ async def list_agents(request: Request) -> list[AgentInfo]:
     return [
         AgentInfo(
             id=agent.id,
-            description=agent.agent_prompt[:200] if agent.agent_prompt else "",
+            description=agent.description if agent.description else f"Agent: {agent.id}",
+            display_name=agent.display_name,
+            tags=agent.tags,
+            version=agent.version,
             skills=agent.skills,
             tools=ws.resolve_agent_tools(agent),
             model=agent.model.name,
@@ -97,7 +100,10 @@ async def get_agent(
 
     return AgentInfo(
         id=agent.id,
-        description=agent.agent_prompt[:200] if agent.agent_prompt else "",
+        description=agent.description if agent.description else f"Agent: {agent.id}",
+        display_name=agent.display_name,
+        tags=agent.tags,
+        version=agent.version,
         skills=agent.skills,
         tools=ws.resolve_agent_tools(agent),
         model=agent.model.name,
