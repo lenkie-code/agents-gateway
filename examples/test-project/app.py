@@ -6,13 +6,17 @@ import os
 import httpx
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from retrievers import EmailHistoryRetriever
 
 from agent_gateway import Gateway
 from agent_gateway.engine.models import ExecutionOptions
 
 load_dotenv()
 
-gw = Gateway(workspace="./workspace", title="Test Project",)
+gw = Gateway(
+    workspace="./workspace",
+    title="Test Project",
+)
 
 # --- Pluggable backends (fluent API) ---
 
@@ -54,6 +58,10 @@ if webhook_url:
         name="default",
         secret=os.environ.get("WEBHOOK_SECRET", ""),
     )
+
+# --- Context retrievers ---
+
+gw.use_retriever("email-history", EmailHistoryRetriever())
 
 # --- Code tools ---
 
@@ -231,6 +239,17 @@ async def demo_travel_plan():
             "total_estimated_cost_usd": result.output.total_estimated_cost_usd,
         }
     return {"raw_text": result.raw_text, "validation_errors": result.validation_errors}
+
+
+@gw.get("/api/demo/send-email")
+async def demo_send_email():
+    """Invoke the email drafter with RAG context (static + retriever)."""
+    result = await gw.invoke(
+        "email-drafter",
+        "Send a follow-up email to sarah@example.com about the onboarding project. "
+        "Remind her about the webhook SLA numbers we need by Friday.",
+    )
+    return {"output": result.raw_text, "stop_reason": result.stop_reason.value}
 
 
 if __name__ == "__main__":
