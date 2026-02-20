@@ -34,9 +34,9 @@ def init(
         "- Use available tools when relevant\n"
     )
 
-    # SOUL.md
-    (target / "workspace" / "agents" / "assistant" / "SOUL.md").write_text(
-        "# SOUL\n\nFriendly, concise, and helpful.\n"
+    # BEHAVIOR.md
+    (target / "workspace" / "agents" / "assistant" / "BEHAVIOR.md").write_text(
+        "# BEHAVIOR\n\nFriendly, concise, and helpful.\n"
     )
 
     # gateway.yaml

@@ -28,7 +28,7 @@ class NotificationEvent:
 
 @dataclass(frozen=True)
 class NotificationTarget:
-    """A single notification destination parsed from agent CONFIG.md.
+    """A single notification destination parsed from agent AGENT.md frontmatter.
 
     For Slack:
       - target: "#channel-name"
@@ -68,7 +68,7 @@ class NotificationTarget:
 
 @dataclass
 class AgentNotificationConfig:
-    """Per-agent notification rules, parsed from CONFIG.md frontmatter."""
+    """Per-agent notification rules, parsed from AGENT.md frontmatter."""
 
     on_complete: list[NotificationTarget] = field(default_factory=list)
     on_error: list[NotificationTarget] = field(default_factory=list)

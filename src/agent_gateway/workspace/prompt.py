@@ -17,9 +17,9 @@ def assemble_system_prompt(
 
     Layer order:
     1. Root AGENTS.md (shared system context)
-    2. Root SOUL.md (shared personality)
+    2. Root BEHAVIOR.md (shared behavior/guardrails)
     3. Agent AGENT.md (agent-specific instructions)
-    4. Agent SOUL.md (agent-specific personality)
+    4. Agent BEHAVIOR.md (agent-specific behavior/guardrails)
     5. Skill instructions (from each skill the agent uses)
 
     Note: Business context (gateway.yaml context block) is injected
@@ -35,16 +35,16 @@ def assemble_system_prompt(
     if workspace.root_system_prompt:
         parts.append(workspace.root_system_prompt)
 
-    # 2. Root soul
-    if workspace.root_soul_prompt:
-        parts.append(workspace.root_soul_prompt)
+    # 2. Root behavior
+    if workspace.root_behavior_prompt:
+        parts.append(workspace.root_behavior_prompt)
 
     # 3. Agent prompt
     parts.append(agent.agent_prompt)
 
-    # 4. Agent soul
-    if agent.soul_prompt:
-        parts.append(agent.soul_prompt)
+    # 4. Agent behavior
+    if agent.behavior_prompt:
+        parts.append(agent.behavior_prompt)
 
     # 5. Skill instructions
     resolved_skills = [

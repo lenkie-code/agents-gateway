@@ -27,7 +27,7 @@ def test_init_creates_project(tmp_path: object, monkeypatch) -> None:
     assert (project / ".gitignore").exists()
     assert (project / "workspace" / "gateway.yaml").exists()
     assert (project / "workspace" / "agents" / "assistant" / "AGENT.md").exists()
-    assert (project / "workspace" / "agents" / "assistant" / "SOUL.md").exists()
+    assert (project / "workspace" / "agents" / "assistant" / "BEHAVIOR.md").exists()
     assert (project / "workspace" / "skills").is_dir()
     assert (project / "workspace" / "tools").is_dir()
 

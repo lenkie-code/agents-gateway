@@ -18,31 +18,30 @@ class TestAgentDefinition:
         assert agent is not None
         assert agent.id == "my-agent"
         assert "You are helpful" in agent.agent_prompt
-        assert agent.soul_prompt == ""
+        assert agent.behavior_prompt == ""
         assert agent.skills == []
         assert agent.tools == []
         assert agent.schedules == []
 
     def test_load_full_agent(self, tmp_path: Path) -> None:
-        """Agent with AGENT.md + SOUL.md + CONFIG.md."""
+        """Agent with AGENT.md + BEHAVIOR.md."""
         agent_dir = tmp_path / "full-agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Full Agent\n\nDoes everything.")
-        (agent_dir / "SOUL.md").write_text("# Soul\n\nFriendly and helpful.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "skills:\n  - math-workflow\n"
             "tools:\n  - echo\n  - add-numbers\n"
             "model:\n  name: gpt-4o\n  temperature: 0.5\n"
             "---\n"
-            "# Config notes"
+            "# Full Agent\n\nDoes everything."
         )
+        (agent_dir / "BEHAVIOR.md").write_text("# Behavior\n\nFriendly and helpful.")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
         assert agent.id == "full-agent"
         assert "Does everything" in agent.agent_prompt
-        assert "Friendly and helpful" in agent.soul_prompt
+        assert "Friendly and helpful" in agent.behavior_prompt
         assert agent.skills == ["math-workflow"]
         assert agent.tools == ["echo", "add-numbers"]
         assert agent.model.name == "gpt-4o"
@@ -62,8 +61,7 @@ class TestAgentDefinition:
     def test_agent_with_schedules(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "scheduled"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Scheduled Agent\n\nRuns on cron.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "schedules:\n"
             "  - name: daily-report\n"
@@ -76,6 +74,7 @@ class TestAgentDefinition:
             "    message: 'Run weekly scan'\n"
             "    enabled: false\n"
             "---\n"
+            "# Scheduled Agent\n\nRuns on cron."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -92,8 +91,9 @@ class TestAgentDefinition:
         """Invalid schedule entries are skipped with warning."""
         agent_dir = tmp_path / "bad-schedule"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text("---\nschedules:\n  - name: missing-fields\n---\n")
+        (agent_dir / "AGENT.md").write_text(
+            "---\nschedules:\n  - name: missing-fields\n---\n# Agent\n\nHello."
+        )
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
@@ -102,8 +102,7 @@ class TestAgentDefinition:
     def test_agent_with_model_config(self, tmp_path: Path) -> None:
         agent_dir = tmp_path / "model-agent"
         agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
+        (agent_dir / "AGENT.md").write_text(
             "---\n"
             "model:\n"
             "  name: claude-3-opus\n"
@@ -111,6 +110,7 @@ class TestAgentDefinition:
             "  max_tokens: 8192\n"
             "  fallback: gpt-4o\n"
             "---\n"
+            "# Agent\n\nHello."
         )
 
         agent = AgentDefinition.load(agent_dir)
@@ -136,28 +136,6 @@ class TestAgentDefinition:
         assert agent is not None
         assert agent.tools == ["weather", "flights"]
         assert agent.skills == ["planner"]
-
-    def test_frontmatter_merge_agent_and_config(self, tmp_path: Path) -> None:
-        """AGENT.md and CONFIG.md lists are merged; CONFIG.md wins for scalars."""
-        agent_dir = tmp_path / "merge-agent"
-        agent_dir.mkdir()
-        (agent_dir / "AGENT.md").write_text(
-            "---\n"
-            "tools:\n  - weather\n  - flights\n"
-            "model:\n  name: gpt-4o-mini\n"
-            "---\n"
-            "# Agent\n\nMerge test."
-        )
-        (agent_dir / "CONFIG.md").write_text(
-            "---\ntools:\n  - flights\n  - hotels\nmodel:\n  name: gpt-4o\n---\n"
-        )
-
-        agent = AgentDefinition.load(agent_dir)
-        assert agent is not None
-        # Lists: union with order preserved, deduplicated
-        assert agent.tools == ["weather", "flights", "hotels"]
-        # Scalars: CONFIG.md wins
-        assert agent.model.name == "gpt-4o"
 
     def test_frontmatter_schedules_in_agent_md(self, tmp_path: Path) -> None:
         """Schedules defined in AGENT.md frontmatter are loaded."""

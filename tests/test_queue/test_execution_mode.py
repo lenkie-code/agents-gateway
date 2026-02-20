@@ -39,15 +39,6 @@ def test_execution_mode_sync_explicit(tmp_path: Path) -> None:
     assert agent.execution_mode == "sync"
 
 
-def test_execution_mode_config_md_overrides_agent_md(tmp_path: Path) -> None:
-    """CONFIG.md execution_mode overrides AGENT.md."""
-    agent_dir = _write_agent(tmp_path, "execution_mode: sync")
-    (agent_dir / "CONFIG.md").write_text("---\nexecution_mode: async\n---\n")
-    agent = AgentDefinition.load(agent_dir)
-    assert agent is not None
-    assert agent.execution_mode == "async"
-
-
 def test_execution_mode_invalid_falls_back_to_sync(tmp_path: Path) -> None:
     """Invalid execution_mode value falls back to sync."""
     agent_dir = _write_agent(tmp_path, "execution_mode: invalid_value")
