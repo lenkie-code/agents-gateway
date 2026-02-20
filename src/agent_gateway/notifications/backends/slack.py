@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -179,7 +179,7 @@ class SlackBackend:
             )
 
         # Footer with timestamp
-        completed = event.completed_at or datetime.now(timezone.utc)
+        completed = event.completed_at or datetime.now(UTC)
         ts = completed.strftime("%Y-%m-%d %H:%M:%S UTC")
         blocks.append(
             {
@@ -198,10 +198,7 @@ class SlackBackend:
 
 def _format_result(result: Any, max_len: int = 2000) -> str:
     """Format result as readable text, truncated to max_len."""
-    if isinstance(result, str):
-        text = result
-    else:
-        text = json.dumps(result, indent=2, default=str)
+    text = result if isinstance(result, str) else json.dumps(result, indent=2, default=str)
     if len(text) > max_len:
         text = text[:max_len] + "\n... (truncated)"
     return text

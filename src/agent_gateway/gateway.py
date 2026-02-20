@@ -28,7 +28,6 @@ from agent_gateway.engine.models import (
 from agent_gateway.hooks import HookRegistry
 from agent_gateway.notifications import NotificationEngine
 from agent_gateway.notifications.models import (
-    NotificationEvent,
     build_notification_event,
     build_notification_job,
 )
@@ -620,16 +619,14 @@ class Gateway(FastAPI):
             return None
         backend = config.backend
         if backend == "memory":
-            from agent_gateway.queue.backends.memory import MemoryQueue
-
             from agent_gateway.notifications.queue_backends import MemoryNotificationQueue
+            from agent_gateway.queue.backends.memory import MemoryQueue
 
             self._notification_queue_backend = MemoryNotificationQueue()
             return MemoryQueue()
         elif backend == "redis":
-            from agent_gateway.queue.backends.redis import RedisQueue
-
             from agent_gateway.notifications.queue_backends import RedisNotificationQueue
+            from agent_gateway.queue.backends.redis import RedisQueue
 
             self._notification_queue_backend = RedisNotificationQueue(url=config.redis_url)
             return RedisQueue(
@@ -638,9 +635,8 @@ class Gateway(FastAPI):
                 consumer_group=config.consumer_group,
             )
         elif backend == "rabbitmq":
-            from agent_gateway.queue.backends.rabbitmq import RabbitMQQueue
-
             from agent_gateway.notifications.queue_backends import RabbitMQNotificationQueue
+            from agent_gateway.queue.backends.rabbitmq import RabbitMQQueue
 
             self._notification_queue_backend = RabbitMQNotificationQueue(url=config.rabbitmq_url)
             return RabbitMQQueue(url=config.rabbitmq_url, queue_name=config.queue_name)
@@ -838,11 +834,11 @@ class Gateway(FastAPI):
                 )
                 for wh in config.webhooks
             ]
-            backend = WebhookBackend(
+            wh_backend = WebhookBackend(
                 endpoints=endpoints,
                 default_secret=config.webhook_secret,
             )
-            self._notification_engine.register(backend)
+            self._notification_engine.register(wh_backend)
 
     def _resolve_auth_provider(self) -> AuthProvider | None:
         """Resolve the auth provider from fluent API, constructor, or config.

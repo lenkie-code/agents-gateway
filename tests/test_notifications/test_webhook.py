@@ -8,8 +8,6 @@ import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
-_PATCH_VALIDATE = patch("agent_gateway.notifications.backends.webhook._validate_webhook_url")
-
 import httpx
 import pytest
 
@@ -21,6 +19,7 @@ from agent_gateway.notifications.backends.webhook import (
 from agent_gateway.notifications.models import NotificationEvent, NotificationTarget
 
 _DUMMY_REQUEST = httpx.Request("POST", "https://example.com")
+_PATCH_VALIDATE = patch("agent_gateway.notifications.backends.webhook._validate_webhook_url")
 
 
 def _make_event(**overrides: object) -> NotificationEvent:

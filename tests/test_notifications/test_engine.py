@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
-from agent_gateway.notifications.engine import BACKOFF_BASE_S, MAX_RETRIES, NotificationEngine
+from agent_gateway.notifications.engine import MAX_RETRIES, NotificationEngine
 from agent_gateway.notifications.models import (
     AgentNotificationConfig,
     NotificationEvent,

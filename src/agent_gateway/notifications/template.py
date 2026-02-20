@@ -57,4 +57,4 @@ def _compile_string(source: str) -> Any:
 def render_template_string(source: str, **context: Any) -> str:
     """Render an inline Jinja2 template string."""
     template = _compile_string(source)
-    return template.render(**context)
+    return str(template.render(**context))

@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock
 
-import pytest
-
 from agent_gateway.notifications.models import (
     AgentNotificationConfig,
     NotificationJob,

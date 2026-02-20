@@ -118,9 +118,11 @@ def _create_otlp_span_exporter(config: TelemetryConfig):  # type: ignore[no-unty
             return None
     else:
         try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter as GrpcSpanExporter,
+            )
 
-            return OTLPSpanExporter(endpoint=endpoint)
+            return GrpcSpanExporter(endpoint=endpoint)
         except ImportError:
             logger.warning(
                 "OTLP gRPC exporter not available. Install with: pip install agent-gateway[otlp]"
@@ -148,10 +150,10 @@ def _create_otlp_metric_exporter(config: TelemetryConfig):  # type: ignore[no-un
     else:
         try:
             from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-                OTLPMetricExporter,
+                OTLPMetricExporter as GrpcMetricExporter,
             )
 
-            return OTLPMetricExporter(endpoint=endpoint)
+            return GrpcMetricExporter(endpoint=endpoint)
         except ImportError:
             logger.warning(
                 "OTLP gRPC metric exporter not available. "

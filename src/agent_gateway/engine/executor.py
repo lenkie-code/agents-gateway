@@ -131,7 +131,7 @@ class ExecutionEngine:
         max_tool_calls = guardrails.max_tool_calls
 
         # Resolve output schema (Pydantic model → JSON Schema dict + model class)
-        json_schema: dict | None = None
+        json_schema: dict[str, Any] | None = None
         model_cls = None
         if options.output_schema:
             json_schema, model_cls = resolve_schema(options.output_schema)

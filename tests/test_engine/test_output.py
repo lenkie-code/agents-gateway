@@ -253,7 +253,10 @@ class TestValidateOutputPydantic:
         assert len(errors) >= 1
 
     def test_complex_model(self) -> None:
-        raw = '{"destination": "Tokyo", "flights": [{"from": "SFO", "to": "NRT"}], "total_cost": 1200.50}'
+        raw = (
+            '{"destination": "Tokyo", "flights": [{"from": "SFO",'
+            ' "to": "NRT"}], "total_cost": 1200.50}'
+        )
         result, errors = validate_output_pydantic(raw, TravelPlan)
         assert errors == []
         assert isinstance(result, TravelPlan)
