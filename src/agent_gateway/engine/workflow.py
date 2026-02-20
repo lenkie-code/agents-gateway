@@ -12,7 +12,8 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any
+from collections.abc import Callable, Coroutine
+from typing import Any, Protocol
 
 from agent_gateway.engine.models import ToolContext
 from agent_gateway.engine.resolver import resolve_input
@@ -22,10 +23,16 @@ from agent_gateway.workspace.skill import SkillDefinition, SkillStep
 logger = logging.getLogger(__name__)
 
 # Type alias matching ExecutionEngine's tool executor
-ToolExecutorFn = Any  # Callable[[ResolvedTool, dict, ToolContext], Coroutine[Any, Any, Any]]
+ToolExecutorFn = Callable[
+    [ResolvedTool, dict[str, Any], ToolContext],
+    Coroutine[Any, Any, Any],
+]
 
-# Type alias for the LLM completion function
-LLMCompletionFn = Any  # Callable that takes messages and returns LLMResponse
+
+class LLMCompletionFn(Protocol):
+    """Protocol for the LLM completion callable used by workflow prompt steps."""
+
+    async def __call__(self, *, messages: list[dict[str, Any]]) -> Any: ...
 
 
 class WorkflowExecutor:
