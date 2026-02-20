@@ -37,7 +37,6 @@ class TestAgentNotificationParsing:
             "  on_complete:\n"
             "    - channel: webhook\n"
             "      url: https://crm.example.com/hook\n"
-            "      secret: my-secret\n"
             "  on_error:\n"
             "    - channel: webhook\n"
             "      url: https://pagerduty.example.com/alert\n"
@@ -48,7 +47,6 @@ class TestAgentNotificationParsing:
         assert agent is not None
         assert len(agent.notifications.on_complete) == 1
         assert agent.notifications.on_complete[0].url == "https://crm.example.com/hook"
-        assert agent.notifications.on_complete[0].secret == "my-secret"
         assert len(agent.notifications.on_error) == 1
         assert agent.notifications.on_error[0].url == "https://pagerduty.example.com/alert"
 
@@ -101,11 +99,7 @@ class TestAgentNotificationParsing:
         agent_dir = tmp_path / "agent"
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
-        (agent_dir / "CONFIG.md").write_text(
-            "---\n"
-            "model:\n  name: gpt-4o\n"
-            "---\n"
-        )
+        (agent_dir / "CONFIG.md").write_text("---\nmodel:\n  name: gpt-4o\n---\n")
 
         agent = AgentDefinition.load(agent_dir)
         assert agent is not None
@@ -141,7 +135,7 @@ class TestAgentNotificationParsing:
             "  on_complete:\n"
             "    - channel: webhook\n"
             "      url: https://example.com/hook\n"
-            "      payload_template: '{\"agent\": \"{{ event.agent_id }}\"}'\n"
+            '      payload_template: \'{"agent": "{{ event.agent_id }}"}\'\n'
             "---\n"
         )
 
@@ -175,10 +169,7 @@ class TestAgentNotificationParsing:
         agent_dir.mkdir()
         (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
         (agent_dir / "CONFIG.md").write_text(
-            "---\n"
-            "notifications:\n"
-            "  on_complete: not-a-list\n"
-            "---\n"
+            "---\nnotifications:\n  on_complete: not-a-list\n---\n"
         )
 
         agent = AgentDefinition.load(agent_dir)

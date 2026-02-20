@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from agent_gateway.config import QueueConfig
     from agent_gateway.gateway import Gateway
     from agent_gateway.queue.protocol import ExecutionQueue
-    from agent_gateway.workspace.agent import AgentDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -163,21 +162,11 @@ class WorkerPool:
                 set_span_error(span, exc)
                 await self._queue.nack(job.execution_id)
 
-        # Fire notifications
+        # Fire notifications via the consolidated gateway helper
         if notify_args is not None:
-            notif_queue = self._gateway._notification_queue
-            if notif_queue is not None:
-                # Enqueue for durable delivery via NotificationWorker
-                await self._enqueue_notification(notify_args)
-            else:
-                # Fire-and-forget fallback (no queue configured)
-                task = asyncio.create_task(self._fire_notifications(**notify_args))
-                self._gateway._background_tasks.add(task)
-                task.add_done_callback(self._gateway._background_tasks.discard)
+            gw.fire_notifications(**notify_args)
 
-    async def _run_execution(
-        self, worker_id: int, job: ExecutionJob
-    ) -> dict[str, Any] | None:
+    async def _run_execution(self, worker_id: int, job: ExecutionJob) -> dict[str, Any] | None:
         """Run the agent execution for a job.
 
         Returns notification keyword arguments to be fired *after* the
@@ -255,10 +244,11 @@ class WorkerPool:
             )
 
             return {
-                "agent": agent,
                 "execution_id": job.execution_id,
+                "agent_id": agent.id,
                 "status": status.value,
                 "message": job.message,
+                "config": agent.notifications,
                 "result": result.to_dict() if result.raw_text else None,
                 "usage": result.usage.to_dict() if result.usage else None,
                 "context": job.context,
@@ -276,10 +266,11 @@ class WorkerPool:
             )
 
             return {
-                "agent": agent,
                 "execution_id": job.execution_id,
+                "agent_id": agent.id,
                 "status": "failed",
                 "message": job.message,
+                "config": agent.notifications,
                 "error": str(e),
                 "context": job.context,
             }
@@ -296,74 +287,3 @@ class WorkerPool:
                     break
         except asyncio.CancelledError:
             pass
-
-    async def _enqueue_notification(self, notify_args: dict[str, Any]) -> None:
-        """Enqueue a notification job for durable delivery."""
-        try:
-            agent: AgentDefinition = notify_args["agent"]
-            if not agent.notifications:
-                return
-
-            import uuid
-
-            from agent_gateway.notifications.models import build_notification_job
-
-            job = build_notification_job(
-                job_id=str(uuid.uuid4()),
-                execution_id=notify_args["execution_id"],
-                agent_id=agent.id,
-                status=notify_args["status"],
-                message=notify_args["message"],
-                config=agent.notifications,
-                result=notify_args.get("result"),
-                error=notify_args.get("error"),
-                usage=notify_args.get("usage"),
-                duration_ms=notify_args.get("duration_ms", 0),
-                context=notify_args.get("context"),
-            )
-            await self._gateway._notification_queue.enqueue(job)
-        except Exception:
-            logger.warning(
-                "Failed to enqueue notification for execution %s (non-fatal)",
-                notify_args.get("execution_id"),
-                exc_info=True,
-            )
-
-    async def _fire_notifications(
-        self,
-        agent: AgentDefinition,
-        execution_id: str,
-        status: str,
-        message: str,
-        result: dict[str, Any] | None = None,
-        error: str | None = None,
-        usage: dict[str, Any] | None = None,
-        context: dict[str, Any] | None = None,
-        duration_ms: int = 0,
-    ) -> None:
-        """Fire notifications for an execution. Never raises."""
-        try:
-            engine = self._gateway._notification_engine
-            if not engine.has_backends or not agent.notifications:
-                return
-
-            from agent_gateway.notifications.models import build_notification_event
-
-            event = build_notification_event(
-                execution_id=execution_id,
-                agent_id=agent.id,
-                status=status,
-                message=message,
-                result=result,
-                error=error,
-                usage=usage,
-                duration_ms=duration_ms,
-                context=context,
-            )
-            await engine.notify(event, agent.notifications)
-        except Exception:
-            logger.warning(
-                "Notification failed for execution %s (non-fatal)",
-                execution_id,
-                exc_info=True,
-            )

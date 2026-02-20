@@ -165,7 +165,6 @@ def _parse_notification_config(
                         target=item.get("target", ""),
                         template=item.get("template"),
                         url=item.get("url"),
-                        secret=item.get("secret"),
                         payload_template=item.get("payload_template"),
                     )
                 )

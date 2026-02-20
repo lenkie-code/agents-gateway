@@ -35,26 +35,23 @@ class NotificationTarget:
       - template: optional custom Block Kit template name
 
     For Webhook (two modes):
-      - target: "crm-integration"  → references a globally registered endpoint
-      - url: "https://..."         → inline endpoint, no global registration needed
-        secret: optional HMAC secret
-        payload_template: optional inline Jinja2 template
+      - target: "crm-integration"  -> references a globally registered endpoint
+      - url: "https://..."         -> inline endpoint, no global registration needed
     """
 
     channel: str  # "slack" | "webhook"
     target: str = ""  # Slack channel or global webhook name
     template: str | None = None  # Slack Block Kit template name
     url: str | None = None  # Inline webhook URL (per-agent)
-    secret: str | None = None  # Inline webhook HMAC secret (per-agent)
     payload_template: str | None = None  # Inline webhook Jinja2 payload (per-agent)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize for queue transport. Secrets are never serialized."""
         return {
             "channel": self.channel,
             "target": self.target,
             "template": self.template,
             "url": self.url,
-            "secret": self.secret,
             "payload_template": self.payload_template,
         }
 
@@ -65,7 +62,6 @@ class NotificationTarget:
             target=data.get("target", ""),
             template=data.get("template"),
             url=data.get("url"),
-            secret=data.get("secret"),
             payload_template=data.get("payload_template"),
         )
 

@@ -39,8 +39,7 @@ class SlackBackend:
             from slack_sdk.web.async_client import AsyncWebClient  # noqa: F401
         except ImportError:
             raise ImportError(
-                "Slack backend requires the slack extra: "
-                "pip install agent-gateway[slack]"
+                "Slack backend requires the slack extra: pip install agent-gateway[slack]"
             ) from None
 
         self._bot_token = bot_token

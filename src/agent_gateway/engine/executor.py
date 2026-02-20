@@ -294,11 +294,7 @@ class ExecutionEngine:
                             last_text, usage, json_schema, model_cls
                         )
                         # If output schema validation failed, retry once
-                        if (
-                            json_schema
-                            and result.validation_errors
-                            and result.output is None
-                        ):
+                        if json_schema and result.validation_errors and result.output is None:
                             retry_result = await self._retry_structured_output(
                                 messages=messages,
                                 schema=json_schema,

@@ -20,6 +20,7 @@ class InvokeOptions(BaseModel):
     async_: bool = Field(False, alias="async")
     stream: bool = False
     timeout_ms: int | None = Field(None, ge=1000, le=300_000)
+    output_schema: dict[str, Any] | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -93,6 +94,21 @@ class ExecutionResponse(BaseModel):
     created_at: datetime | None = None
 
 
+class NotificationTargetInfo(BaseModel):
+    """Notification target summary for introspection."""
+
+    channel: str
+    target: str = ""
+
+
+class NotificationConfigInfo(BaseModel):
+    """Agent notification configuration summary."""
+
+    on_complete: list[NotificationTargetInfo] = Field(default_factory=list)
+    on_error: list[NotificationTargetInfo] = Field(default_factory=list)
+    on_timeout: list[NotificationTargetInfo] = Field(default_factory=list)
+
+
 class AgentInfo(BaseModel):
     """Agent summary for introspection."""
 
@@ -102,6 +118,8 @@ class AgentInfo(BaseModel):
     tools: list[str] = Field(default_factory=list)
     model: str | None = None
     schedules: list[str] = Field(default_factory=list)
+    execution_mode: str = "sync"
+    notifications: NotificationConfigInfo | None = None
 
 
 class SkillInfo(BaseModel):

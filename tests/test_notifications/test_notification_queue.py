@@ -58,14 +58,16 @@ class TestNotificationJobSerialization:
         """Omitted optional fields default correctly."""
         import json
 
-        data = json.dumps({
-            "job_id": "j-3",
-            "execution_id": "e-3",
-            "agent_id": "a-3",
-            "status": "completed",
-            "message": "hi",
-            "config": {"on_complete": [], "on_error": [], "on_timeout": []},
-        })
+        data = json.dumps(
+            {
+                "job_id": "j-3",
+                "execution_id": "e-3",
+                "agent_id": "a-3",
+                "status": "completed",
+                "message": "hi",
+                "config": {"on_complete": [], "on_error": [], "on_timeout": []},
+            }
+        )
         job = NotificationJob.from_json(data)
         assert job.result is None
         assert job.error is None
@@ -98,7 +100,6 @@ class TestNotificationTargetSerialization:
             channel="webhook",
             target="crm",
             url="https://example.com/hook",
-            secret="s3cr3t",
             payload_template="{{ event.status }}",
         )
         restored = NotificationTarget.from_dict(target.to_dict())

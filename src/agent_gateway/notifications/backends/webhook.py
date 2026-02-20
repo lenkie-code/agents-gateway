@@ -1,4 +1,4 @@
-"""Outbound webhook notification backend with HMAC signing and custom payloads."""
+"""Outbound webhook notification backend with HMAC signing."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import socket
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -26,13 +27,18 @@ _BLOCKED_NETWORKS = [
     ipaddress.ip_network("169.254.0.0/16"),
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("fd00::/8"),
+    ipaddress.ip_network("fe80::/10"),
 ]
 
 _BLOCKED_HOSTNAMES = {"localhost", "metadata.google.internal"}
 
 
 def _validate_webhook_url(url: str) -> None:
-    """Reject URLs targeting private/internal networks (SSRF protection)."""
+    """Reject URLs targeting private/internal networks (SSRF protection).
+
+    Resolves DNS names to IP addresses to prevent DNS rebinding attacks
+    and checks for IPv4-mapped IPv6 addresses.
+    """
     parsed = urlparse(url)
     if parsed.scheme not in ("https", "http"):
         raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
@@ -41,14 +47,31 @@ def _validate_webhook_url(url: str) -> None:
         raise ValueError("Missing hostname in webhook URL")
     if hostname.lower() in _BLOCKED_HOSTNAMES:
         raise ValueError(f"Blocked hostname: {hostname}")
+
+    # Resolve hostname to IP addresses and check each one
     try:
         addr = ipaddress.ip_address(hostname)
-        if any(addr in net for net in _BLOCKED_NETWORKS):
-            raise ValueError(f"Webhook URL resolves to blocked network: {hostname}")
+        _check_blocked(addr, hostname)
     except ValueError as exc:
         if "blocked" in str(exc).lower() or "Unsupported" in str(exc):
             raise
-        # hostname is a DNS name, not an IP literal — allowed
+        # hostname is a DNS name — resolve it
+        try:
+            infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except socket.gaierror:
+            raise ValueError(f"Cannot resolve hostname: {hostname}") from None
+        for info in infos:
+            resolved_ip = ipaddress.ip_address(info[4][0])
+            _check_blocked(resolved_ip, hostname)
+
+
+def _check_blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address, hostname: str) -> None:
+    """Check an IP address against blocked networks, including IPv4-mapped IPv6."""
+    # Check IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    if any(addr in net for net in _BLOCKED_NETWORKS):
+        raise ValueError(f"Webhook URL resolves to blocked network: {hostname}")
 
 
 @dataclass
@@ -93,7 +116,7 @@ class WebhookBackend:
         return "webhook"
 
     async def initialize(self) -> None:
-        self._client = httpx.AsyncClient(timeout=self._timeout_s)
+        self._client = httpx.AsyncClient(timeout=self._timeout_s, follow_redirects=False)
 
     async def dispose(self) -> None:
         if self._client:
@@ -114,9 +137,9 @@ class WebhookBackend:
         payload_template: str | None
 
         if target.url:
-            # Inline mode: agent defines its own URL, secret, and template
+            # Inline mode: agent defines its own URL
             url = target.url
-            secret = target.secret or self._default_secret
+            secret = self._default_secret
             payload_template = target.payload_template
         elif target.target:
             # Global reference mode: look up pre-registered endpoint by name
@@ -162,7 +185,6 @@ class WebhookBackend:
             result: dict[str, Any] = json.loads(rendered)
             return result
 
-        # Default payload — just the event data, no internal metrics
         result = event.result or {}
         payload: dict[str, Any] = {
             "event": event.type,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 from agent_gateway.notifications.backends.slack import SlackBackend
 from agent_gateway.notifications.models import NotificationEvent, NotificationTarget
@@ -66,7 +66,9 @@ class TestSlackBackendBlockKit:
 
         assert "Failed" in blocks[0]["text"]["text"]
         # Error section should be present
-        error_blocks = [b for b in blocks if b.get("text", {}).get("text", "").startswith("*Error*")]
+        error_blocks = [
+            b for b in blocks if b.get("text", {}).get("text", "").startswith("*Error*")
+        ]
         assert len(error_blocks) == 1
         assert "LLM timeout" in error_blocks[0]["text"]["text"]
 
@@ -162,10 +164,14 @@ class TestSlackBackendTemplates:
         templates_dir = tmp_path / "templates"
         templates_dir.mkdir()
 
-        # Write a custom template
-        template_content = json.dumps([
-            {"type": "section", "text": {"type": "mrkdwn", "text": "Custom: {{ event.agent_id }}"}}
-        ])
+        template_content = json.dumps(
+            [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "Custom: {{ event.agent_id }}"},
+                }
+            ]
+        )
         (templates_dir / "custom-alert.json.j2").write_text(template_content)
 
         backend = SlackBackend(bot_token="xoxb-test", templates_dir=templates_dir)
@@ -181,9 +187,9 @@ class TestSlackBackendTemplates:
         templates_dir = tmp_path / "templates"
         templates_dir.mkdir()
 
-        template_content = json.dumps([
-            {"type": "section", "text": {"type": "mrkdwn", "text": "Default completed"}}
-        ])
+        template_content = json.dumps(
+            [{"type": "section", "text": {"type": "mrkdwn", "text": "Default completed"}}]
+        )
         (templates_dir / "default-completed.json.j2").write_text(template_content)
 
         backend = SlackBackend(bot_token="xoxb-test", templates_dir=templates_dir)
@@ -197,14 +203,12 @@ class TestSlackBackendTemplates:
         """Falls back to hardcoded blocks when no templates exist."""
         templates_dir = tmp_path / "templates"
         templates_dir.mkdir()
-        # Empty templates dir
 
         backend = SlackBackend(bot_token="xoxb-test", templates_dir=templates_dir)
         event = _make_event()
         target = NotificationTarget(channel="slack", target="#alerts")
 
         blocks = backend._build_blocks(event, target)
-        # Should be the hardcoded default
         assert blocks[0]["type"] == "header"
         assert "Completed" in blocks[0]["text"]["text"]
 
@@ -222,6 +226,5 @@ class TestSlackBackendTemplates:
         )
 
         blocks = backend._build_blocks(event, target)
-        # Should fall back to hardcoded default, not crash or read outside dir
         assert blocks[0]["type"] == "header"
         assert "Completed" in blocks[0]["text"]["text"]

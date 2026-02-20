@@ -296,8 +296,8 @@ class Gateway(FastAPI):
                 self._queue = NullQueue()
 
         # 6.5: Init notifications
-        for backend in self._notification_backends:
-            self._notification_engine.register(backend)
+        for nb in self._notification_backends:
+            self._notification_engine.register(nb)
         if not self._notification_engine.has_backends:
             self._init_notifications_from_config(self._config.notifications)
         try:
@@ -307,7 +307,7 @@ class Gateway(FastAPI):
         except Exception:
             logger.warning("Failed to initialize notification backends", exc_info=True)
 
-        # 6.6: Init notification queue (if an execution queue is configured)
+        # 6.6: Init notification queue (if configured)
         notif_queue = self._notification_queue_backend
         if notif_queue is not None:
             try:
@@ -642,9 +642,7 @@ class Gateway(FastAPI):
 
             from agent_gateway.notifications.queue_backends import RabbitMQNotificationQueue
 
-            self._notification_queue_backend = RabbitMQNotificationQueue(
-                url=config.rabbitmq_url
-            )
+            self._notification_queue_backend = RabbitMQNotificationQueue(url=config.rabbitmq_url)
             return RabbitMQQueue(url=config.rabbitmq_url, queue_name=config.queue_name)
         return None
 
@@ -1020,6 +1018,62 @@ class Gateway(FastAPI):
         """Alias for backward compatibility."""
         await self.reload()
 
+    def fire_notifications(
+        self,
+        *,
+        execution_id: str,
+        agent_id: str,
+        status: str,
+        message: str,
+        config: Any,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+        usage: dict[str, Any] | None = None,
+        duration_ms: int = 0,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Fire notifications via queue (if available) or as a background task.
+
+        Never raises — errors are logged and swallowed.
+        """
+        if not self._notification_engine.has_backends or not config:
+            return
+
+        if self._notification_queue is not None:
+            # Enqueue for durable delivery via NotificationWorker
+            job = build_notification_job(
+                job_id=str(uuid.uuid4()),
+                execution_id=execution_id,
+                agent_id=agent_id,
+                status=status,
+                message=message,
+                config=config,
+                result=result,
+                error=error,
+                usage=usage,
+                duration_ms=duration_ms,
+                context=context,
+            )
+            task = asyncio.create_task(self._notification_queue.enqueue(job))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+        else:
+            # Fire-and-forget fallback (no queue configured)
+            event = build_notification_event(
+                execution_id=execution_id,
+                agent_id=agent_id,
+                status=status,
+                message=message,
+                result=result,
+                error=error,
+                usage=usage,
+                duration_ms=duration_ms,
+                context=context,
+            )
+            task = asyncio.create_task(self._notification_engine.notify(event, config))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+
     async def invoke(
         self,
         agent_id: str,
@@ -1068,39 +1122,16 @@ class Gateway(FastAPI):
             )
 
             # Fire notifications
-            if self._notification_engine.has_backends and agent.notifications:
-                if self._notification_queue is not None:
-                    # Enqueue for durable delivery via NotificationWorker
-                    job = build_notification_job(
-                        job_id=str(uuid.uuid4()),
-                        execution_id=execution_id,
-                        agent_id=agent_id,
-                        status=result.stop_reason.value,
-                        message=message,
-                        config=agent.notifications,
-                        result=result.to_dict() if result.raw_text else None,
-                        usage=result.usage.to_dict() if result.usage else None,
-                        context=context,
-                    )
-                    await self._notification_queue.enqueue(job)
-                else:
-                    # Fire-and-forget fallback (no queue configured)
-                    notification_event = build_notification_event(
-                        execution_id=execution_id,
-                        agent_id=agent_id,
-                        status=result.stop_reason.value,
-                        message=message,
-                        result=result.to_dict() if result.raw_text else None,
-                        usage=result.usage.to_dict() if result.usage else None,
-                        context=context,
-                    )
-                    task = asyncio.create_task(
-                        self._notification_engine.notify(
-                            notification_event, agent.notifications
-                        )
-                    )
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._background_tasks.discard)
+            self.fire_notifications(
+                execution_id=execution_id,
+                agent_id=agent_id,
+                status=result.stop_reason.value,
+                message=message,
+                config=agent.notifications,
+                result=result.to_dict() if result.raw_text else None,
+                usage=result.usage.to_dict() if result.usage else None,
+                context=context,
+            )
 
             return result
         finally:

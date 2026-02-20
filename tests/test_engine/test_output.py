@@ -327,9 +327,7 @@ class TestPydanticOutputInExecution:
     @pytest.mark.asyncio
     async def test_dict_schema_still_works(self) -> None:
         """Existing dict schema path is unaffected."""
-        engine, _, _ = make_engine(
-            responses=[make_llm_response(text='{"answer": 42}')]
-        )
+        engine, _, _ = make_engine(responses=[make_llm_response(text='{"answer": 42}')])
         agent = make_agent()
         workspace = make_workspace()
         from agent_gateway.engine.models import ExecutionOptions

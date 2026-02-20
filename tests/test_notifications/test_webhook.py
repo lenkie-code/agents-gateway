@@ -8,6 +8,8 @@ import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
+_PATCH_VALIDATE = patch("agent_gateway.notifications.backends.webhook._validate_webhook_url")
+
 import httpx
 import pytest
 
@@ -46,7 +48,9 @@ class TestWebhookBackendInlineMode:
         target = NotificationTarget(channel="webhook", url="https://example.com/hook")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             mock_post.assert_awaited_once()
@@ -60,18 +64,19 @@ class TestWebhookBackendInlineMode:
         await backend.dispose()
 
     async def test_send_with_hmac_signing(self) -> None:
-        backend = WebhookBackend()
+        backend = WebhookBackend(default_secret="my-secret-key")
         await backend.initialize()
 
         event = _make_event()
         target = NotificationTarget(
             channel="webhook",
             url="https://example.com/hook",
-            secret="my-secret-key",
         )
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             headers = mock_post.call_args[1]["headers"]
@@ -100,7 +105,9 @@ class TestWebhookBackendInlineMode:
         target = NotificationTarget(channel="webhook", url="https://example.com/hook")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             headers = mock_post.call_args[1]["headers"]
@@ -122,7 +129,9 @@ class TestWebhookBackendInlineMode:
         )
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             payload = json.loads(mock_post.call_args[1]["content"])
@@ -143,7 +152,12 @@ class TestWebhookBackendGlobalMode:
         target = NotificationTarget(channel="webhook", target="crm")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with (
+            _PATCH_VALIDATE,
+            patch.object(
+                backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+            ) as mock_post,
+        ):
             await backend.send(event, target)
 
             assert mock_post.call_args[0][0] == "https://crm.example.com/webhook"
@@ -160,7 +174,9 @@ class TestWebhookBackendGlobalMode:
         target = NotificationTarget(channel="webhook", target="unknown-name")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
             mock_post.assert_not_awaited()
 
@@ -180,13 +196,20 @@ class TestWebhookBackendGlobalMode:
         target = NotificationTarget(channel="webhook", target="errors-only")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
             mock_post.assert_not_awaited()
 
         # Failed event should pass through
         error_event = _make_event(type="execution.failed", status="failed", error="Agent crashed")
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with (
+            _PATCH_VALIDATE,
+            patch.object(
+                backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+            ) as mock_post,
+        ):
             await backend.send(error_event, target)
             mock_post.assert_awaited_once()
 
@@ -201,7 +224,12 @@ class TestWebhookBackendGlobalMode:
         target = NotificationTarget(channel="webhook", target="no-secret")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with (
+            _PATCH_VALIDATE,
+            patch.object(
+                backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+            ) as mock_post,
+        ):
             await backend.send(event, target)
 
             headers = mock_post.call_args[1]["headers"]
@@ -227,7 +255,9 @@ class TestWebhookBackendEdgeCases:
         target = NotificationTarget(channel="webhook")  # no url, no target
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
             mock_post.assert_not_awaited()
 
@@ -246,7 +276,9 @@ class TestWebhookBackendEdgeCases:
         target = NotificationTarget(channel="webhook", url="https://example.com/hook")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             payload = json.loads(mock_post.call_args[1]["content"])
@@ -277,7 +309,9 @@ class TestWebhookBackendEdgeCases:
         target = NotificationTarget(channel="webhook", url="https://example.com/hook")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             payload = json.loads(mock_post.call_args[1]["content"])
@@ -294,7 +328,9 @@ class TestWebhookBackendEdgeCases:
         target = NotificationTarget(channel="webhook", url="https://example.com/hook")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with patch.object(
+            backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post:
             await backend.send(event, target)
 
             payload = json.loads(mock_post.call_args[1]["content"])
@@ -313,7 +349,12 @@ class TestWebhookBackendEdgeCases:
         target = NotificationTarget(channel="webhook", target="dynamic")
 
         mock_response = httpx.Response(200, request=_DUMMY_REQUEST)
-        with patch.object(backend._client, "post", new_callable=AsyncMock, return_value=mock_response) as mock_post:
+        with (
+            _PATCH_VALIDATE,
+            patch.object(
+                backend._client, "post", new_callable=AsyncMock, return_value=mock_response
+            ) as mock_post,
+        ):
             await backend.send(event, target)
             assert mock_post.call_args[0][0] == "https://dynamic.example.com/hook"
 
@@ -354,6 +395,20 @@ class TestSSRFProtection:
     def test_blocks_ipv6_loopback(self) -> None:
         with pytest.raises(ValueError, match="blocked network"):
             _validate_webhook_url("http://[::1]/hook")
+
+    def test_blocks_ipv4_mapped_ipv6(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://[::ffff:127.0.0.1]/hook")
+
+    def test_blocks_ipv6_link_local(self) -> None:
+        with pytest.raises(ValueError, match="blocked network"):
+            _validate_webhook_url("http://[fe80::1]/hook")
+
+    def test_blocks_dns_resolving_to_private(self) -> None:
+        """DNS names that resolve to private IPs are blocked."""
+        # localhost resolves to 127.0.0.1 on most systems
+        with pytest.raises(ValueError, match="(Blocked hostname|blocked network)"):
+            _validate_webhook_url("http://localhost/hook")
 
     def test_blocks_unsupported_scheme(self) -> None:
         with pytest.raises(ValueError, match="Unsupported URL scheme"):

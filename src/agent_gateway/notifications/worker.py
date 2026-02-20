@@ -35,9 +35,7 @@ class NotificationWorker:
         self._shutting_down = False
 
     async def start(self) -> None:
-        self._task = asyncio.create_task(
-            self._worker_loop(), name="notification-worker"
-        )
+        self._task = asyncio.create_task(self._worker_loop(), name="notification-worker")
         logger.info("Notification worker started")
 
     async def drain(self) -> None:

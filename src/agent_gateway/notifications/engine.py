@@ -51,9 +51,7 @@ class NotificationEngine:
             try:
                 await backend.dispose()
             except Exception:
-                logger.warning(
-                    "Failed to dispose %s backend", backend.channel, exc_info=True
-                )
+                logger.warning("Failed to dispose %s backend", backend.channel, exc_info=True)
 
     async def notify(
         self,
@@ -72,9 +70,7 @@ class NotificationEngine:
         if not targets:
             return
 
-        tasks = [
-            asyncio.create_task(self._send_with_retry(event, t)) for t in targets
-        ]
+        tasks = [asyncio.create_task(self._send_with_retry(event, t)) for t in targets]
         # Gather but swallow all exceptions
         await asyncio.gather(*tasks, return_exceptions=True)
 

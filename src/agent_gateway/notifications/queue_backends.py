@@ -15,11 +15,14 @@ from agent_gateway.notifications.models import NotificationJob
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_MAXSIZE = 1000
+
+
 class MemoryNotificationQueue:
     """In-process asyncio.Queue for notification jobs. Dev/testing only."""
 
-    def __init__(self) -> None:
-        self._queue: asyncio.Queue[NotificationJob] = asyncio.Queue()
+    def __init__(self, maxsize: int = _DEFAULT_MAXSIZE) -> None:
+        self._queue: asyncio.Queue[NotificationJob] = asyncio.Queue(maxsize=maxsize)
 
     async def initialize(self) -> None:
         pass
@@ -28,7 +31,14 @@ class MemoryNotificationQueue:
         pass
 
     async def enqueue(self, job: NotificationJob) -> None:
-        await self._queue.put(job)
+        try:
+            self._queue.put_nowait(job)
+        except asyncio.QueueFull:
+            logger.warning(
+                "Notification queue full (maxsize=%d), dropping job %s",
+                self._queue.maxsize,
+                job.job_id,
+            )
 
     async def dequeue(self, timeout: float = 0) -> NotificationJob | None:  # noqa: ASYNC109
         try:
@@ -175,9 +185,7 @@ class RabbitMQNotificationQueue:
         self._channel = await self._connection.channel()
         await self._channel.set_qos(prefetch_count=1)
 
-        self._queue = await self._channel.declare_queue(
-            self._queue_name, durable=True
-        )
+        self._queue = await self._channel.declare_queue(self._queue_name, durable=True)
 
         logger.info("RabbitMQNotificationQueue initialized: queue=%s", self._queue_name)
 
