@@ -1,4 +1,8 @@
 ---
+description: "Plans multi-day travel itineraries with budget optimization and local recommendations"
+display_name: "Travel Planner"
+tags: ["travel", "planning", "budgeting"]
+version: "1.0.0"
 skills:
   - travel-planning
 input_schema:

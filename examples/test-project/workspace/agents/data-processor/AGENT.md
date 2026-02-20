@@ -1,4 +1,6 @@
 ---
+display_name: "Data Processor"
+tags: ["data", "async"]
 execution_mode: async
 skills:
   - data-processing

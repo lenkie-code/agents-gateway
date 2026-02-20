@@ -114,6 +114,9 @@ class AgentInfo(BaseModel):
 
     id: str
     description: str = ""
+    display_name: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    version: str | None = None
     skills: list[str] = Field(default_factory=list)
     tools: list[str] = Field(default_factory=list)
     model: str | None = None

@@ -1,4 +1,8 @@
 ---
+description: "General-purpose assistant with math and utility skills"
+display_name: "Assistant"
+tags: ["general", "math"]
+version: "1.0.0"
 skills:
   - math-workflow
   - general-tools

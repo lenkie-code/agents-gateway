@@ -44,6 +44,12 @@ class AgentDefinition:
     agent_prompt: str  # Content of AGENT.md
     behavior_prompt: str = ""  # Content of BEHAVIOR.md (optional)
 
+    # Public metadata from AGENT.md frontmatter
+    description: str = ""
+    display_name: str | None = None
+    tags: list[str] = field(default_factory=list)
+    version: str | None = None
+
     # Parsed from AGENT.md frontmatter
     skills: list[str] = field(default_factory=list)
     model: AgentModelConfig = field(default_factory=AgentModelConfig)
@@ -77,6 +83,25 @@ class AgentDefinition:
         if behavior_md.exists():
             behavior_parsed = parse_markdown_file(behavior_md)
             behavior_prompt = behavior_parsed.content
+
+        # Parse public metadata
+        description = agent_meta.get("description", "")
+        if not isinstance(description, str):
+            logger.warning("Agent '%s': 'description' must be a string, ignoring", agent_id)
+            description = ""
+
+        display_name = agent_meta.get("display_name", None)
+        if display_name is not None and not isinstance(display_name, str):
+            logger.warning("Agent '%s': 'display_name' must be a string, ignoring", agent_id)
+            display_name = None
+
+        tags = agent_meta.get("tags", [])
+        if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+            logger.warning("Agent '%s': 'tags' must be a list of strings, ignoring", agent_id)
+            tags = []
+
+        raw_version = agent_meta.get("version", None)
+        version = str(raw_version) if raw_version is not None else None
 
         skills = agent_meta.get("skills", [])
 
@@ -119,6 +144,10 @@ class AgentDefinition:
             path=agent_dir,
             agent_prompt=agent_parsed.content,
             behavior_prompt=behavior_prompt,
+            description=description,
+            display_name=display_name,
+            tags=tags,
+            version=version,
             skills=skills,
             model=model_config,
             schedules=schedules,

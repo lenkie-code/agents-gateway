@@ -139,6 +139,66 @@ class TestAgentDefinition:
         assert not hasattr(agent, "tools") or "tools" not in agent.__dataclass_fields__
         assert "tools should be declared in SKILL.md" in caplog.text  # type: ignore[union-attr]
 
+    def test_load_agent_with_public_metadata(self, tmp_path: Path) -> None:
+        """Agent with all public metadata fields."""
+        agent_dir = tmp_path / "rich-agent"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text(
+            "---\n"
+            "description: A helpful agent\n"
+            "display_name: Rich Agent\n"
+            "tags:\n  - general\n  - math\n"
+            "version: '1.2.0'\n"
+            "skills:\n  - math-workflow\n"
+            "---\n"
+            "# Rich Agent\n\nYou are helpful."
+        )
+
+        agent = AgentDefinition.load(agent_dir)
+        assert agent is not None
+        assert agent.description == "A helpful agent"
+        assert agent.display_name == "Rich Agent"
+        assert agent.tags == ["general", "math"]
+        assert agent.version == "1.2.0"
+
+    def test_load_agent_metadata_defaults(self, tmp_path: Path) -> None:
+        """Agent without metadata fields gets sensible defaults."""
+        agent_dir = tmp_path / "bare-agent"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text("# Bare Agent\n\nJust a prompt.")
+
+        agent = AgentDefinition.load(agent_dir)
+        assert agent is not None
+        assert agent.description == ""
+        assert agent.display_name is None
+        assert agent.tags == []
+        assert agent.version is None
+
+    def test_load_agent_invalid_metadata_types(self, tmp_path: Path) -> None:
+        """Invalid metadata types fall back to defaults with warnings."""
+        agent_dir = tmp_path / "bad-meta"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text(
+            "---\ndescription: 123\ndisplay_name: 456\ntags: not-a-list\n---\n# Agent\n\nHello."
+        )
+
+        agent = AgentDefinition.load(agent_dir)
+
+        assert agent is not None
+        assert agent.description == ""
+        assert agent.display_name is None
+        assert agent.tags == []
+
+    def test_load_agent_numeric_version_coerced(self, tmp_path: Path) -> None:
+        """Numeric version values are coerced to strings."""
+        agent_dir = tmp_path / "num-ver"
+        agent_dir.mkdir()
+        (agent_dir / "AGENT.md").write_text("---\nversion: 1.0\n---\n# Agent\n\nHello.")
+
+        agent = AgentDefinition.load(agent_dir)
+        assert agent is not None
+        assert agent.version == "1.0"
+
     def test_frontmatter_schedules_in_agent_md(self, tmp_path: Path) -> None:
         """Schedules defined in AGENT.md frontmatter are loaded."""
         agent_dir = tmp_path / "sched-fm"
