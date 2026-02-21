@@ -66,13 +66,7 @@
   <!-- Input form -->
   {% if agents and selected_agent_id %}
   <div class="chat-input-area">
-    <form id="chat-form"
-          hx-post="/dashboard/chat/send"
-          hx-target="#messages"
-          hx-swap="beforeend"
-          hx-disabled-elt="find button[type='submit']"
-          hx-on::before-request="document.getElementById('chat-message-input').value = ''">
-
+    <form id="chat-form">
       <input type="hidden" name="agent_id" value="{{ selected_agent_id }}" />
       <input type="hidden" name="session_id" id="session-id-field" value="{{ session_id or '' }}" />
 
@@ -95,18 +89,4 @@
   {% endif %}
 </div>
 
-<script>
-// Update session-id after each response
-document.addEventListener('htmx:afterSwap', (e) => {
-  if (e.detail.target && e.detail.target.id === 'messages') {
-    // Find the most recently added message bubble with a data-session-id
-    const last = e.detail.target.querySelector('[data-session-id]:last-child') ||
-                 e.detail.target.querySelector('[data-session-id]');
-    if (last && last.dataset.sessionId) {
-      const field = document.getElementById('session-id-field');
-      if (field) field.value = last.dataset.sessionId;
-    }
-  }
-});
-</script>
 {% endblock %}

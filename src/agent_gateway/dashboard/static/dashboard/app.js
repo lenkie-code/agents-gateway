@@ -43,45 +43,157 @@ document.addEventListener('htmx:configRequest', (event) => {
       event.detail.headers['X-CSRF-Token'] = csrfMeta.content;
     }
   }
-
-  // Optimistic user message bubble for chat (works for both Enter and button click)
-  if (event.detail.elt && event.detail.elt.id === 'chat-form') {
-    const msg = (event.detail.parameters && event.detail.parameters.message || '').trim();
-    if (msg) appendUserMessage(msg);
-  }
 });
 
-// --- HTMX: auto-scroll chat messages area after swap ---
-document.addEventListener('htmx:afterSwap', (event) => {
-  const target = event.detail.target;
-  // Scroll messages area to bottom
-  if (target && target.id === 'messages') {
-    target.scrollTop = target.scrollHeight;
+// --- SSE Chat Streaming ---
+function createAssistantBubble() {
+  const div = document.createElement('div');
+  div.className = 'message message-assistant';
+  div.innerHTML = `
+    <div class="message-avatar" style="font-size:0.75rem;">AI</div>
+    <div class="message-bubble"></div>
+  `;
+  return div;
+}
+
+function parseSSEEvents(buffer) {
+  const events = [];
+  const lines = buffer.split('\n');
+  let currentEvent = null;
+  let remaining = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // If this is the last line and doesn't end with newline, it's incomplete
+    if (i === lines.length - 1 && !buffer.endsWith('\n')) {
+      remaining = line;
+      break;
+    }
+
+    if (line.startsWith('event: ')) {
+      currentEvent = { type: line.slice(7).trim(), data: '' };
+    } else if (line.startsWith('data: ') && currentEvent) {
+      currentEvent.data = line.slice(6);
+      try {
+        currentEvent.data = JSON.parse(currentEvent.data);
+      } catch(e) { /* keep as string */ }
+      events.push(currentEvent);
+      currentEvent = null;
+    } else if (line === '' && currentEvent) {
+      // Empty line ends an event
+      events.push(currentEvent);
+      currentEvent = null;
+    }
   }
 
-  // Hide loading indicator when chat response arrives
+  return { parsed: events, remaining };
+}
+
+async function sendChatMessage(form) {
+  const formData = new FormData(form);
+  const msg = (formData.get('message') || '').trim();
+  if (!msg) return;
+
+  const messagesArea = document.getElementById('messages');
+  const textarea = document.getElementById('chat-message-input');
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  // Optimistic user bubble
+  appendUserMessage(msg);
+  textarea.value = '';
+  textarea.style.height = 'auto';
+
+  // Disable submit while streaming
+  if (submitBtn) submitBtn.disabled = true;
+
+  // Show loading indicator
   const indicator = document.getElementById('chat-loading');
-  if (indicator && target && target.id === 'messages') {
-    indicator.style.display = 'none';
-  }
+  if (indicator) indicator.style.display = 'flex';
 
-  // Render markdown in agent message bubbles
-  if (typeof marked !== 'undefined') {
-    const bubbles = document.querySelectorAll('.message-assistant .message-bubble[data-raw]');
-    bubbles.forEach(bubble => {
-      if (!bubble.dataset.rendered) {
-        bubble.innerHTML = marked.parse(bubble.dataset.raw || '');
-        bubble.dataset.rendered = '1';
-      }
+  // Create assistant bubble
+  const bubble = createAssistantBubble();
+  messagesArea.appendChild(bubble);
+  messagesArea.scrollTop = messagesArea.scrollHeight;
+
+  const bubbleContent = bubble.querySelector('.message-bubble');
+  let fullText = '';
+
+  try {
+    const response = await fetch('/dashboard/chat/stream', {
+      method: 'POST',
+      body: formData,
     });
-  }
-});
 
-// --- HTMX: show loading indicator when chat sends ---
-document.addEventListener('htmx:beforeRequest', (event) => {
-  if (event.detail.elt && event.detail.elt.id === 'chat-form') {
-    const indicator = document.getElementById('chat-loading');
-    if (indicator) indicator.style.display = 'flex';
+    if (!response.ok) {
+      bubbleContent.textContent = 'Error: ' + response.statusText;
+      bubble.classList.add('message-error');
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let firstToken = true;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const result = parseSSEEvents(buffer);
+      buffer = result.remaining;
+
+      for (const event of result.parsed) {
+        if (event.type === 'token') {
+          if (firstToken) {
+            // Hide loading indicator on first token
+            if (indicator) indicator.style.display = 'none';
+            firstToken = false;
+          }
+          fullText += event.data.content || '';
+          bubbleContent.textContent = fullText;
+          messagesArea.scrollTop = messagesArea.scrollHeight;
+        } else if (event.type === 'session') {
+          // Update session ID
+          const field = document.getElementById('session-id-field');
+          if (field && event.data.session_id) {
+            field.value = event.data.session_id;
+          }
+        } else if (event.type === 'done') {
+          // Render final markdown
+          if (fullText && typeof marked !== 'undefined') {
+            bubbleContent.innerHTML = marked.parse(fullText);
+          }
+          // Update session ID from done event too
+          const field = document.getElementById('session-id-field');
+          if (field && event.data.session_id) {
+            field.value = event.data.session_id;
+          }
+        } else if (event.type === 'error') {
+          bubbleContent.textContent = event.data.message || 'An error occurred';
+          bubble.classList.add('message-error');
+        }
+      }
+    }
+  } catch (err) {
+    bubbleContent.textContent = 'Connection error: ' + err.message;
+    bubble.classList.add('message-error');
+  } finally {
+    if (indicator) indicator.style.display = 'none';
+    if (submitBtn) submitBtn.disabled = false;
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+  }
+}
+
+// Wire up chat form submit
+document.addEventListener('DOMContentLoaded', () => {
+  const chatForm = document.getElementById('chat-form');
+  if (chatForm) {
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendChatMessage(chatForm);
+    });
   }
 });
 
@@ -103,10 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const form = textarea.closest('form');
       if (form && textarea.value.trim()) {
-        // Trigger HTMX submit FIRST so it captures the current textarea value.
-        // The hx-on::before-request handler on the form will clear it afterward.
-        htmx.trigger(form, 'submit');
-        textarea.style.height = 'auto';
+        sendChatMessage(form);
       }
     }
   });

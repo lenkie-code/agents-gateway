@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, PackageLoader, select_autoescape
+from starlette.responses import StreamingResponse
 
 from agent_gateway.dashboard.auth import (
     DashboardUser,
@@ -31,7 +32,8 @@ from agent_gateway.dashboard.models import (
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-    from agent_gateway.config import DashboardConfig
+    from agent_gateway.config import DashboardConfig, DashboardOAuth2Config
+    from agent_gateway.dashboard.oauth2 import OIDCDiscoveryClient
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +53,11 @@ def _build_templates(dash_config: DashboardConfig) -> Jinja2Templates:
     env.globals["dashboard_title"] = dash_config.title
     env.globals["dashboard_logo_url"] = dash_config.logo_url
     env.globals["dashboard_favicon_url"] = dash_config.favicon_url
-    env.globals["dashboard_accent"] = dash_config.theme.accent_color
-    env.globals["dashboard_accent_dark"] = dash_config.theme.accent_color_dark
+    colors = dash_config.theme.resolved_colors()
+    env.globals["dashboard_colors"] = colors
+    # Legacy compat
+    env.globals["dashboard_accent"] = colors.accent
+    env.globals["dashboard_accent_dark"] = colors.accent_dark
     env.globals["dashboard_theme_mode"] = dash_config.theme.mode
     return Jinja2Templates(env=env)
 
@@ -63,9 +68,16 @@ def _static_dir() -> str:
         return str(p)
 
 
-def register_dashboard(app: FastAPI, dash_config: DashboardConfig) -> None:
+def register_dashboard(
+    app: FastAPI,
+    dash_config: DashboardConfig,
+    oauth2_config: DashboardOAuth2Config | None = None,
+    discovery_client: OIDCDiscoveryClient | None = None,
+) -> None:
     """Mount dashboard routes and static files onto the FastAPI app."""
+    auth_method = "oauth2" if oauth2_config else "password"
     templates = _build_templates(dash_config)
+    templates.env.globals["auth_method"] = auth_method
     get_dashboard_user = make_get_dashboard_user(dash_config.auth)
     login_handler = make_login_handler(dash_config.auth)
 
@@ -111,6 +123,23 @@ def register_dashboard(app: FastAPI, dash_config: DashboardConfig) -> None:
     async def logout(request: Request) -> RedirectResponse:
         request.session.clear()
         return RedirectResponse(url="/dashboard/login", status_code=303)
+
+    # --- OAuth2 routes (if configured) ---
+    if oauth2_config and discovery_client:
+        from agent_gateway.dashboard.oauth2 import (
+            make_authorize_handler,
+            make_callback_handler,
+        )
+
+        authorize_handler = make_authorize_handler(oauth2_config, discovery_client)
+        callback_handler = make_callback_handler(oauth2_config, discovery_client)
+
+        public.add_api_route(
+            "/oauth2/authorize", authorize_handler, methods=["GET"], name="oauth2_authorize"
+        )
+        public.add_api_route(
+            "/oauth2/callback", callback_handler, methods=["GET"], name="oauth2_callback"
+        )
 
     # --- Protected router ---
     protected = APIRouter(
@@ -253,44 +282,96 @@ def register_dashboard(app: FastAPI, dash_config: DashboardConfig) -> None:
             },
         )
 
-    @protected.post("/chat/send", response_class=HTMLResponse)
-    async def chat_send(
+    @protected.post("/chat/stream")
+    async def chat_stream(
         request: Request,
         agent_id: str = Form(...),
         message: str = Form(...),
         session_id: str = Form(""),
         current_user: DashboardUser = Depends(get_dashboard_user),
-    ) -> HTMLResponse:
-        gw = request.app
-        try:
-            new_session_id, result = await gw.chat(
-                agent_id=agent_id,
-                message=message,
-                session_id=session_id or None,
-            )
-            reply = result.raw_text or ""
-        except Exception as exc:
-            logger.error("Chat execution error: %s", exc)
-            return templates.TemplateResponse(
-                request=request,
-                name="dashboard/_chat_message.html",
-                context={
-                    "role": "error",
-                    "content": str(exc),
-                    "session_id": session_id,
-                    "agent_id": agent_id,
-                },
-            )
+    ) -> StreamingResponse:
+        from agent_gateway.engine.models import ExecutionHandle, ExecutionOptions
+        from agent_gateway.engine.streaming import stream_chat_execution
+        from agent_gateway.workspace.prompt import assemble_system_prompt
 
-        return templates.TemplateResponse(
-            request=request,
-            name="dashboard/_chat_message.html",
-            context={
-                "role": "assistant",
-                "content": reply,
-                "user_message": message,
-                "session_id": new_session_id,
-                "agent_id": agent_id,
+        gw = request.app
+
+        async def event_generator() -> Any:
+            snapshot = gw._snapshot
+            if snapshot is None or snapshot.workspace is None:
+                yield (
+                    f"event: error\ndata: {json.dumps({'message': 'Workspace not loaded'})}\n\n"
+                )
+                return
+
+            agent = snapshot.workspace.agents.get(agent_id)
+            if agent is None:
+                yield (
+                    f"event: error\ndata: "
+                    f"{json.dumps({'message': f'Agent {agent_id!r} not found'})}\n\n"
+                )
+                return
+
+            session_store = gw._session_store
+            if session_store is None:
+                yield (
+                    f"event: error\ndata: "
+                    f"{json.dumps({'message': 'Session store not available'})}\n\n"
+                )
+                return
+
+            if session_id:
+                session = session_store.get_session(session_id)
+                if session is None or session.agent_id != agent_id:
+                    session = session_store.create_session(agent_id)
+            else:
+                session = session_store.create_session(agent_id)
+
+            session.append_user_message(message)
+            session.truncate_history(session_store._max_history)
+
+            retriever_reg = snapshot.retriever_registry
+            system_prompt = await assemble_system_prompt(
+                agent,
+                snapshot.workspace,
+                query=message,
+                retriever_registry=retriever_reg,
+                context_retrieval_config=snapshot.context_retrieval_config,
+                chat_mode=True,
+            )
+            messages: list[dict[str, Any]] = [
+                {"role": "system", "content": system_prompt},
+                *session.messages,
+            ]
+
+            exec_options = ExecutionOptions()
+            import uuid
+
+            execution_id = str(uuid.uuid4())
+            handle = ExecutionHandle(execution_id)
+            gw._execution_handles[execution_id] = handle
+
+            try:
+                async for event in stream_chat_execution(
+                    gw=gw,
+                    agent=agent,
+                    session=session,
+                    messages=messages,
+                    exec_options=exec_options,
+                    execution_id=execution_id,
+                    handle=handle,
+                ):
+                    yield event
+            finally:
+                gw._execution_handles.pop(execution_id, None)
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
             },
         )
 
