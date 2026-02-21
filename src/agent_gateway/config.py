@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -186,6 +186,67 @@ class MemoryConfig(BaseModel):
     max_memory_md_lines: int = 200
 
 
+class DashboardOAuth2Config(BaseModel):
+    issuer: str
+    client_id: str
+    client_secret: str  # Required — confidential client
+    scopes: list[str] = Field(default_factory=lambda: ["openid", "profile", "email"])
+
+
+class DashboardAuthConfig(BaseModel):
+    enabled: bool = True
+    username: str = "admin"
+    password: str = ""  # empty = no password (warned at startup)
+    session_secret: str = ""  # auto-generated if empty
+    oauth2: DashboardOAuth2Config | None = None
+
+
+class DashboardColorConfig(BaseModel):
+    primary: str = "#6366f1"
+    primary_dark: str = "#818cf8"
+    secondary: str = "#64748b"
+    secondary_dark: str = "#94a3b8"
+    accent: str = ""  # defaults to primary if empty
+    accent_dark: str = ""  # defaults to primary_dark if empty
+    surface: str = "#ffffff"
+    surface_dark: str = "#141b2d"
+    sidebar: str = "#0f172a"
+    sidebar_dark: str = "#0b0f1a"
+    danger: str = "#ef4444"
+    danger_dark: str = "#f87171"
+
+
+class DashboardThemeConfig(BaseModel):
+    mode: Literal["light", "dark", "auto"] = "auto"
+    accent_color: str = "#6366f1"  # legacy — maps to colors.primary
+    accent_color_dark: str = "#818cf8"  # legacy — maps to colors.primary_dark
+    colors: DashboardColorConfig = DashboardColorConfig()
+
+    def resolved_colors(self) -> DashboardColorConfig:
+        """Return colors with legacy accent_color mapped and defaults resolved."""
+        data = self.colors.model_dump()
+        # Legacy compat: accent_color overrides primary if changed from default
+        if self.accent_color != "#6366f1" and data["primary"] == "#6366f1":
+            data["primary"] = self.accent_color
+        if self.accent_color_dark != "#818cf8" and data["primary_dark"] == "#818cf8":
+            data["primary_dark"] = self.accent_color_dark
+        # Accent defaults to primary
+        if not data["accent"]:
+            data["accent"] = data["primary"]
+        if not data["accent_dark"]:
+            data["accent_dark"] = data["primary_dark"]
+        return DashboardColorConfig(**data)
+
+
+class DashboardConfig(BaseModel):
+    enabled: bool = False  # opt-in
+    title: str = "Agent Gateway"
+    logo_url: str | None = None
+    favicon_url: str | None = None
+    auth: DashboardAuthConfig = DashboardAuthConfig()
+    theme: DashboardThemeConfig = DashboardThemeConfig()
+
+
 class GatewayConfig(BaseSettings):
     """Root configuration for the Agent Gateway.
 
@@ -208,6 +269,7 @@ class GatewayConfig(BaseSettings):
     context_retrieval: ContextRetrievalConfig = ContextRetrievalConfig()
     memory: MemoryConfig = MemoryConfig()
     context: dict[str, Any] = Field(default_factory=dict)
+    dashboard: DashboardConfig = DashboardConfig()
 
     @classmethod
     def from_yaml(cls, path: Path) -> GatewayConfig:

@@ -1,0 +1,27 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Agents — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Agents{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Agents</div>
+  <div class="page-description">{{ agents | length }} agent{{ 's' if agents | length != 1 else '' }} in workspace</div>
+</div>
+
+{% if workspace_errors %}
+<div class="alert alert-warning mb-4">
+  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+  </svg>
+  <div>
+    <strong>Workspace loaded with warnings</strong>
+    {% for err in workspace_errors %}
+    <div class="text-xs mt-1">{{ err }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% include "dashboard/_agent_cards.html" %}
+{% endblock %}

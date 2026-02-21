@@ -32,6 +32,30 @@ class ExecutionRepository(Protocol):
 
     async def list_by_agent(self, agent_id: str, limit: int = 50) -> list[ExecutionRecord]: ...
 
+    async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None: ...
+
+    async def list_all(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> list[ExecutionRecord]: ...
+
+    async def count_all(
+        self,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> int: ...
+
+    async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]: ...
+
+    async def cost_by_agent(self, days: int = 30) -> list[dict[str, Any]]: ...
+
+    async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]: ...
+
     async def add_step(self, step: ExecutionStep) -> None: ...
 
 

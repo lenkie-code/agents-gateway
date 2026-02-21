@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from agent_gateway.config import ContextRetrievalConfig
 from agent_gateway.context.protocol import ContextRetriever
@@ -24,6 +25,7 @@ async def assemble_system_prompt(
     retriever_registry: RetrieverRegistry | None = None,
     context_retrieval_config: ContextRetrievalConfig | None = None,
     memory_block: str = "",
+    chat_mode: bool = False,
 ) -> str:
     """Build the full system prompt for an agent.
 
@@ -60,6 +62,11 @@ async def assemble_system_prompt(
     # 4. Agent behavior
     if agent.behavior_prompt:
         parts.append(agent.behavior_prompt)
+
+    # 4.5. Chat schema guidance (only in chat mode)
+    if chat_mode and agent.input_schema:
+        schema_section = _format_chat_schema_guidance(agent.input_schema)
+        parts.append(schema_section)
 
     # 5. Agent memory
     if memory_block:
@@ -187,4 +194,46 @@ def _format_skills_section(skills: list[SkillDefinition]) -> str:
         if skill.instructions:
             parts.append(skill.instructions)
         parts.append("")
+    return "\n".join(parts)
+
+
+def _format_chat_schema_guidance(schema: dict[str, Any]) -> str:
+    """Format input schema as natural conversation guidance for chat mode."""
+    parts = ["## Conversation Data Collection\n"]
+    parts.append(
+        "This agent accepts structured input. In conversation, you should "
+        "naturally gather the following information from the user. Do NOT "
+        "ask for each field one by one like a form — have a natural conversation "
+        "and extract values from what the user says.\n"
+    )
+
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []))
+
+    if properties:
+        parts.append("### Information to collect\n")
+        for name, prop in properties.items():
+            req_marker = " **(required)**" if name in required else " *(optional)*"
+            desc = prop.get("description", "")
+            ptype = prop.get("type", "")
+            line = f"- **{name}**{req_marker}"
+            if desc:
+                line += f": {desc}"
+            if ptype:
+                line += f" (type: {ptype})"
+            parts.append(line)
+
+    parts.append("\n### Guidelines\n")
+    parts.append(
+        "- Interpret natural language values (e.g. 'tomorrow' → actual date, "
+        "'about a thousand' → 1000)\n"
+        "- Use the current date/time provided above to resolve relative dates\n"
+        "- Only ask about optional fields if the user brings them up or they're "
+        "contextually relevant\n"
+        "- If the user provides multiple values at once, acknowledge them all\n"
+        "- Do NOT output raw JSON or field names to the user\n"
+        "- Once you have all required information, proceed according to your "
+        "instructions — do not ask the user to confirm field-by-field"
+    )
+
     return "\n".join(parts)

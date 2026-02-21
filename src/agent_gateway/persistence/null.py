@@ -15,6 +15,8 @@ from agent_gateway.persistence.domain import (
     ScheduleRecord,
 )
 
+_EMPTY_ANALYTICS: list[dict[str, Any]] = []
+
 
 class NullExecutionRepository:
     """No-op execution repository — used when persistence is disabled."""
@@ -38,6 +40,36 @@ class NullExecutionRepository:
 
     async def list_by_agent(self, agent_id: str, limit: int = 50) -> list[ExecutionRecord]:
         return []
+
+    async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None:
+        return None
+
+    async def list_all(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> list[ExecutionRecord]:
+        return []
+
+    async def count_all(
+        self,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> int:
+        return 0
+
+    async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
+        return _EMPTY_ANALYTICS
+
+    async def cost_by_agent(self, days: int = 30) -> list[dict[str, Any]]:
+        return _EMPTY_ANALYTICS
+
+    async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
+        return _EMPTY_ANALYTICS
 
     async def add_step(self, step: ExecutionStep) -> None:
         pass

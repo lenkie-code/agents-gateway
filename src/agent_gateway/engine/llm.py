@@ -174,6 +174,7 @@ class LLMClient:
             "model": model or "default",
             "messages": messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         if tools:
             kwargs["tools"] = tools

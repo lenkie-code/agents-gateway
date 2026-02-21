@@ -13,10 +13,28 @@ from agent_gateway.engine.models import ExecutionOptions
 
 load_dotenv()
 
-gw = Gateway(
-    workspace="./workspace",
-    title="Test Project",
-)
+KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
+KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "agent-gateway")
+KEYCLOAK_ISSUER = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
+
+# Use Keycloak OAuth2 for API auth when KEYCLOAK_API=1 is set
+use_keycloak_api = os.environ.get("KEYCLOAK_API", "").strip() in ("1", "true")
+
+gw_kwargs: dict = {
+    "workspace": "./workspace",
+    "title": "Test Project",
+}
+
+# When API is protected with OAuth2, configure Swagger UI to show the login button
+if use_keycloak_api:
+    gw_kwargs["swagger_ui_init_oauth"] = {
+        "clientId": os.environ.get("KEYCLOAK_API_CLIENT_ID", "agw-api"),
+        "clientSecret": os.environ.get("KEYCLOAK_API_CLIENT_SECRET", "agw-api-secret"),
+        "scopes": "openid",
+    }
+    gw_kwargs["swagger_ui_oauth2_redirect_url"] = "/docs/oauth2-redirect"
+
+gw = Gateway(**gw_kwargs)
 
 # --- Pluggable backends (fluent API) ---
 
@@ -32,16 +50,52 @@ gw.use_rabbitmq_queue(
         "amqp://agentgw:agentgw_dev@localhost:56720/",
     ),
 )
-gw.use_api_keys(
-    [
-        {
-            "name": "dev",
-            "key": os.environ.get("AGENT_GATEWAY_API_KEY", "dev-api-key-change-me"),
-            "scopes": ["*"],
-        }
-    ]
-)
+
+# API auth: Keycloak OAuth2 or static API key
+if use_keycloak_api:
+    gw.use_oauth2(
+        issuer=KEYCLOAK_ISSUER,
+        audience=os.environ.get("KEYCLOAK_API_CLIENT_ID", "agw-api"),
+    )
+else:
+    gw.use_api_keys(
+        [
+            {
+                "name": "dev",
+                "key": os.environ.get("AGENT_GATEWAY_API_KEY", "dev-api-key-change-me"),
+                "scopes": ["*"],
+            }
+        ]
+    )
+
 gw.use_file_memory()
+
+# --- Dashboard ---
+# Supports password auth (default) or OAuth2/OIDC SSO (mutually exclusive).
+# Set KEYCLOAK_DASHBOARD=1 to use Keycloak SSO for the dashboard.
+# Otherwise falls back to username/password.
+
+use_keycloak_dashboard = os.environ.get("KEYCLOAK_DASHBOARD", "").strip() in ("1", "true")
+
+if use_keycloak_dashboard:
+    gw.use_dashboard(
+        title="Agent Gateway — Test Project",
+        oauth2_issuer=KEYCLOAK_ISSUER,
+        oauth2_client_id=os.environ.get("KEYCLOAK_DASHBOARD_CLIENT_ID", "agw-dashboard"),
+        oauth2_client_secret=os.environ.get(
+            "KEYCLOAK_DASHBOARD_CLIENT_SECRET", "agw-dashboard-secret"
+        ),
+        primary_color="#2563eb",
+        sidebar_color="#0f172a",
+    )
+else:
+    gw.use_dashboard(
+        title="Agent Gateway — Test Project",
+        auth_username="admin",
+        auth_password=os.environ.get("DASHBOARD_PASSWORD", "admin"),
+        primary_color="#2563eb",
+        sidebar_color="#0f172a",
+    )
 
 # --- Notifications (optional — configure via env vars) ---
 

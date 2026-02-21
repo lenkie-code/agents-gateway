@@ -1,0 +1,18 @@
+{% if user_message %}
+<!-- User message (immediately appended client-side via JS, but also server-confirmed here for reliability) -->
+{% endif %}
+
+<!-- Agent / error response -->
+{% if role == 'assistant' %}
+<div class="message message-assistant htmx-added"
+     data-session-id="{{ session_id or '' }}">
+  <div class="message-avatar" style="font-size:0.6875rem;">AI</div>
+  <div class="message-bubble" data-raw="{{ content | e }}">
+    {{ content }}
+  </div>
+</div>
+{% elif role == 'error' %}
+<div class="message message-error htmx-added">
+  <div class="message-bubble">⚠ {{ content }}</div>
+</div>
+{% endif %}

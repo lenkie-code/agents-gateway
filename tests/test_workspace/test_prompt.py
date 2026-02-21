@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agent_gateway.workspace.loader import load_workspace
-from agent_gateway.workspace.prompt import assemble_system_prompt
+from agent_gateway.workspace.prompt import _format_chat_schema_guidance, assemble_system_prompt
 
 
 class TestAssembleSystemPrompt:
@@ -99,3 +99,60 @@ class TestAssembleSystemPrompt:
         agent = state.agents["my-agent"]
         prompt = await assemble_system_prompt(agent, state)
         assert "\n\n---\n\n" in prompt
+
+
+class TestChatSchemaGuidance:
+    async def test_chat_mode_false_excludes_schema(self, tmp_path: Path) -> None:
+        agent_dir = tmp_path / "agents" / "my-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text(
+            "---\ninput_schema:\n  type: object\n  properties:\n"
+            "    name:\n      type: string\n---\n# Agent\n\nHello."
+        )
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+        prompt = await assemble_system_prompt(agent, state, chat_mode=False)
+        assert "Conversation Data Collection" not in prompt
+
+    async def test_chat_mode_true_includes_schema(self, tmp_path: Path) -> None:
+        agent_dir = tmp_path / "agents" / "my-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text(
+            "---\ninput_schema:\n  type: object\n  properties:\n"
+            "    name:\n      type: string\n---\n# Agent\n\nHello."
+        )
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+        prompt = await assemble_system_prompt(agent, state, chat_mode=True)
+        assert "Conversation Data Collection" in prompt
+
+    async def test_chat_mode_true_no_schema_excludes(self, tmp_path: Path) -> None:
+        agent_dir = tmp_path / "agents" / "my-agent"
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "AGENT.md").write_text("# Agent\n\nHello.")
+
+        state = load_workspace(tmp_path)
+        agent = state.agents["my-agent"]
+        prompt = await assemble_system_prompt(agent, state, chat_mode=True)
+        assert "Conversation Data Collection" not in prompt
+
+    def test_format_chat_schema_guidance(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Full name"},
+                "age": {"type": "integer", "description": "Age in years"},
+                "notes": {"type": "string"},
+            },
+            "required": ["name", "age"],
+        }
+
+        result = _format_chat_schema_guidance(schema)
+
+        assert "Conversation Data Collection" in result
+        assert "**name** **(required)**: Full name (type: string)" in result
+        assert "**age** **(required)**: Age in years (type: integer)" in result
+        assert "**notes** *(optional)* (type: string)" in result
+        assert "Guidelines" in result

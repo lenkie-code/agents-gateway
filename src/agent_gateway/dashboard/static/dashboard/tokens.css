@@ -1,0 +1,164 @@
+/* Design tokens — CSS custom properties for the Agent Gateway dashboard */
+:root {
+  /* --- Palette (raw values) --- */
+  --palette-slate-50: #f8fafc;
+  --palette-slate-100: #f1f5f9;
+  --palette-slate-200: #e2e8f0;
+  --palette-slate-300: #cbd5e1;
+  --palette-slate-400: #94a3b8;
+  --palette-slate-500: #64748b;
+  --palette-slate-600: #475569;
+  --palette-slate-700: #334155;
+  --palette-slate-800: #1e293b;
+  --palette-slate-900: #0f172a;
+  --palette-slate-950: #020617;
+
+  --palette-emerald-400: #34d399;
+  --palette-emerald-500: #10b981;
+  --palette-red-400: #f87171;
+  --palette-red-500: #ef4444;
+  --palette-amber-400: #fbbf24;
+  --palette-amber-500: #f59e0b;
+  --palette-sky-400: #38bdf8;
+  --palette-sky-500: #0ea5e9;
+
+  /* --- Semantic colour tokens (light mode) --- */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-2: var(--palette-slate-100);
+  --color-surface-3: var(--palette-slate-200);
+  --color-border: rgba(0, 0, 0, 0.06);
+  --color-border-subtle: rgba(0, 0, 0, 0.04);
+
+  --color-text: var(--palette-slate-900);
+  --color-text-secondary: var(--palette-slate-500);
+  --color-text-tertiary: var(--palette-slate-400);
+  --color-text-inverse: #ffffff;
+
+  /* Accent (injected inline as --color-accent from Python config) */
+  --color-accent: #6366f1;
+  --color-accent-dark: #818cf8;
+  --color-accent-hover: color-mix(in srgb, var(--color-accent) 85%, black);
+  --color-accent-muted: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --color-accent-text: var(--color-accent);
+
+  /* Status colours */
+  --color-success: var(--palette-emerald-500);
+  --color-success-bg: color-mix(in srgb, var(--palette-emerald-500) 8%, transparent);
+  --color-success-text: #065f46;
+  --color-danger: var(--color-cfg-danger, var(--palette-red-500));
+  --color-danger-bg: color-mix(in srgb, var(--palette-red-500) 8%, transparent);
+  --color-danger-text: #991b1b;
+  --color-warning: var(--palette-amber-500);
+  --color-warning-bg: color-mix(in srgb, var(--palette-amber-500) 10%, transparent);
+  --color-warning-text: #92400e;
+  --color-info: var(--palette-sky-500);
+  --color-info-bg: color-mix(in srgb, var(--palette-sky-500) 8%, transparent);
+  --color-info-text: #0c4a6e;
+
+  /* --- Sidebar --- */
+  --sidebar-width: 14.5rem;
+  --sidebar-bg: var(--color-cfg-sidebar, var(--palette-slate-900));
+  --sidebar-text: var(--palette-slate-300);
+  --sidebar-text-secondary: var(--palette-slate-500);
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.04);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.04);
+  --sidebar-active-text: #ffffff;
+
+  /* --- Spacing scale --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.125rem;
+  --space-6: 1.375rem;
+  --space-8: 1.75rem;
+  --space-10: 2.25rem;
+  --space-12: 2.75rem;
+  --space-16: 3.5rem;
+
+  /* --- Typography --- */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.375rem;
+  --text-3xl: 1.625rem;
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+
+  /* --- Radius --- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-full: 9999px;
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  /* --- Transitions --- */
+  --transition-fast: 100ms ease;
+  --transition-base: 150ms ease;
+  --transition-slow: 150ms ease;
+
+  /* --- Z-index scale --- */
+  --z-sidebar: 100;
+  --z-modal: 200;
+  --z-toast: 300;
+}
+
+/* Dark mode via system preference */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --color-bg: #0b0f1a;
+    --color-surface: #141b2d;
+    --color-surface-2: #1a2236;
+    --color-surface-3: #243049;
+    --color-border: rgba(255, 255, 255, 0.06);
+    --color-border-subtle: rgba(255, 255, 255, 0.04);
+    --color-text: var(--palette-slate-50);
+    --color-text-secondary: var(--palette-slate-400);
+    --color-text-tertiary: var(--palette-slate-500);
+    --color-accent-text: var(--color-accent-dark);
+    --color-success-text: var(--palette-emerald-400);
+    --color-danger-text: var(--palette-red-400);
+    --color-warning-text: var(--palette-amber-400);
+    --color-info-text: var(--palette-sky-400);
+
+    --sidebar-bg: var(--color-cfg-sidebar-dark, #0b0f1a);
+  }
+}
+
+/* Manual dark mode toggle via .dark class on <html> */
+html.dark {
+  --color-bg: #0b0f1a;
+  --color-surface: #141b2d;
+  --color-surface-2: #1a2236;
+  --color-surface-3: #243049;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+  --color-text: var(--palette-slate-50);
+  --color-text-secondary: var(--palette-slate-400);
+  --color-text-tertiary: var(--palette-slate-500);
+  --color-accent-text: var(--color-accent-dark);
+  --color-success-text: var(--palette-emerald-400);
+  --color-danger-text: var(--palette-red-400);
+  --color-warning-text: var(--palette-amber-400);
+  --color-info-text: var(--palette-sky-400);
+
+  --sidebar-bg: #0b0f1a;
+}
+
+html.light {
+  /* Force light even if system is dark */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+}

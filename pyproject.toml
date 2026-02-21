@@ -56,6 +56,11 @@ slack = ["slack-bolt>=1.18"]
 redis = ["redis>=5.0"]
 rabbitmq = ["aio-pika>=9.0"]
 webhooks = ["jinja2>=3.1"]
+dashboard = [
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -74,8 +79,10 @@ dev = [
     "aio-pika>=9.0",
     "jinja2>=3.1",
     "slack-bolt>=1.18",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
 ]
-all = ["agent-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq]"]
+all = ["agent-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq,dashboard]"]
 
 [project.scripts]
 agent-gateway = "agent_gateway.cli.main:app"
@@ -87,6 +94,11 @@ Repository = "https://github.com/honesdev/agent-gateway"
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_gateway"]
 
+[tool.hatch.build.targets.wheel.force-include]
+# Include dashboard templates and static assets in the wheel
+"src/agent_gateway/dashboard/templates" = "agent_gateway/dashboard/templates"
+"src/agent_gateway/dashboard/static" = "agent_gateway/dashboard/static"
+
 [tool.uv.workspace]
 members = ["examples/test-project"]
 
@@ -96,6 +108,12 @@ line-length = 99
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI Depends() in function defaults is idiomatic and intentional
+"src/agent_gateway/dashboard/router.py" = ["B008"]
+# SQL string literals that exceed line length
+"src/agent_gateway/persistence/backends/sql/repository.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

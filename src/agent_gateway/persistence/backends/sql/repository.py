@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import selectinload
 
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
@@ -16,11 +17,42 @@ from agent_gateway.persistence.domain import (
 )
 
 
+def _is_postgres(session_factory: async_sessionmaker[AsyncSession]) -> bool:
+    """Check if the session factory is bound to a PostgreSQL engine."""
+    bind = session_factory.kw.get("bind")
+    if bind is None:
+        return False
+    return "postgresql" in str(bind.url)
+
+
+def _normalize_row(row_mapping: Any) -> dict[str, Any]:
+    """Convert non-JSON-serializable types from raw SQL results."""
+    from decimal import Decimal
+
+    result: dict[str, Any] = {}
+    for k, v in dict(row_mapping).items():
+        if isinstance(v, date) and not isinstance(v, datetime):
+            result[k] = v.isoformat()
+        elif isinstance(v, Decimal):
+            result[k] = float(v)
+        else:
+            result[k] = v
+    return result
+
+
+def _json_field(column: str, key: str, *, is_postgres: bool) -> str:
+    """Return a SQL expression to extract a JSON field, dialect-aware."""
+    if is_postgres:
+        return f"CAST(({column}::json)->>'{key}' AS NUMERIC)"
+    return f"CAST(json_extract({column}, '$.{key}') AS REAL)"
+
+
 class ExecutionRepository:
     """CRUD operations for execution records and steps."""
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+        self._pg = _is_postgres(session_factory)
 
     async def create(self, execution: ExecutionRecord) -> None:
         """Insert a new execution record."""
@@ -87,6 +119,139 @@ class ExecutionRepository:
         async with self._session_factory() as session:
             session.add(step)
             await session.commit()
+
+    async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None:
+        """Fetch an execution by ID with all its steps eagerly loaded."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ExecutionRecord)
+                .where(ExecutionRecord.id == execution_id)  # type: ignore[arg-type]
+                .options(selectinload(ExecutionRecord.steps))  # type: ignore[arg-type]
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+    async def list_all(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> list[ExecutionRecord]:
+        """List executions across all agents, most recent first."""
+        async with self._session_factory() as session:
+            stmt = select(ExecutionRecord).order_by(
+                ExecutionRecord.created_at.desc()  # type: ignore[union-attr]
+            )
+            if agent_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]
+                )
+            if status is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.status == status  # type: ignore[arg-type]
+                )
+            if since is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
+                )
+            stmt = stmt.limit(limit).offset(offset)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def count_all(
+        self,
+        agent_id: str | None = None,
+        status: str | None = None,
+        since: datetime | None = None,
+    ) -> int:
+        """Count executions with optional filters."""
+        async with self._session_factory() as session:
+            stmt = select(func.count()).select_from(ExecutionRecord)
+            if agent_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]
+                )
+            if status is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.status == status  # type: ignore[arg-type]
+                )
+            if since is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
+                )
+            result = await session.execute(stmt)
+            return result.scalar_one()
+
+    async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
+        """Daily cost aggregation for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
+        out = _json_field("usage", "output_tokens", is_postgres=self._pg)
+        async with self._session_factory() as session:
+            stmt = text(f"""
+                SELECT
+                    date(created_at) as day,
+                    COUNT(*) as execution_count,
+                    SUM({cost}) as total_cost_usd,
+                    SUM({inp}) as total_input_tokens,
+                    SUM({out}) as total_output_tokens
+                FROM executions
+                WHERE created_at >= :since
+                  AND usage IS NOT NULL
+                GROUP BY date(created_at)
+                ORDER BY day ASC
+                """)
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            return [_normalize_row(row._mapping) for row in result]
+
+    async def cost_by_agent(self, days: int = 30) -> list[dict[str, Any]]:
+        """Per-agent cost aggregation for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
+        out = _json_field("usage", "output_tokens", is_postgres=self._pg)
+        async with self._session_factory() as session:
+            stmt = text(f"""
+                SELECT
+                    agent_id,
+                    COUNT(*) as execution_count,
+                    SUM({cost}) as total_cost_usd,
+                    SUM({inp}) as total_input_tokens,
+                    SUM({out}) as total_output_tokens
+                FROM executions
+                WHERE created_at >= :since
+                  AND usage IS NOT NULL
+                GROUP BY agent_id
+                ORDER BY total_cost_usd DESC
+                """)
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            return [_normalize_row(row._mapping) for row in result]
+
+    async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
+        """Daily execution count by status for the last N days."""
+        since = datetime.now(UTC) - timedelta(days=days)
+        async with self._session_factory() as session:
+            stmt = text(
+                """
+                SELECT
+                    date(created_at) as day,
+                    COUNT(*) as count,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count
+                FROM executions
+                WHERE created_at >= :since
+                GROUP BY date(created_at)
+                ORDER BY day ASC
+                """
+            )
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            return [_normalize_row(row._mapping) for row in result]
 
 
 class ScheduleRepository:

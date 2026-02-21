@@ -1,0 +1,92 @@
+{% macro status_badge(status) %}
+  {% if status == 'completed' %}
+    <span class="badge badge-green"><span class="status-dot"></span>Completed</span>
+  {% elif status == 'running' %}
+    <span class="badge badge-blue badge-pulse"><span class="status-dot"></span>Running</span>
+  {% elif status == 'failed' %}
+    <span class="badge badge-red"><span class="status-dot"></span>Failed</span>
+  {% elif status == 'queued' %}
+    <span class="badge badge-amber"><span class="status-dot"></span>Queued</span>
+  {% elif status == 'cancelled' %}
+    <span class="badge badge-gray"><span class="status-dot"></span>Cancelled</span>
+  {% elif status == 'timeout' %}
+    <span class="badge badge-amber"><span class="status-dot"></span>Timeout</span>
+  {% else %}
+    <span class="badge badge-gray">{{ status }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% if rows %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Agent</th>
+        <th>Status</th>
+        <th>Message</th>
+        <th>Session</th>
+        <th>Duration</th>
+        <th>Cost</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="{% if row.is_running %}status-running{% endif %}">
+        <td>
+          <a href="/dashboard/executions/{{ row.id }}" class="table-link">
+            {{ row.id_short }}
+          </a>
+        </td>
+        <td>
+          <a href="/dashboard/executions?agent_id={{ row.agent_id }}" class="text-muted" style="text-decoration:none;">
+            {{ agent_names.get(row.agent_id, row.agent_id) }}
+          </a>
+        </td>
+        <td>{{ status_badge(row.status) }}</td>
+        <td class="text-muted truncate" style="max-width: 20rem;">
+          {{ row.message_preview }}{% if row.message_preview | length >= 80 %}…{% endif %}
+        </td>
+        <td class="text-mono text-xs text-muted">
+          {% if row.session_id %}{{ row.session_id[:8] }}{% else %}—{% endif %}
+        </td>
+        <td class="text-mono text-muted">{{ format_duration(row.duration_ms) }}</td>
+        <td class="text-mono text-muted">{{ format_cost(row.cost_usd) }}</td>
+        <td class="text-muted text-xs">{{ relative_time(row.created_at) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  <div class="pagination">
+    <span class="pagination-info">
+      Page {{ page }} of {{ total_pages }}  ({{ total }} total)
+    </span>
+    <div class="pagination-controls">
+      {% if page > 1 %}
+      <a href="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page - 1 }}"
+         class="btn btn-secondary btn-sm">
+        ← Prev
+      </a>
+      {% endif %}
+      {% if page < total_pages %}
+      <a href="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page + 1 }}"
+         class="btn btn-secondary btn-sm">
+        Next →
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+  </svg>
+  <div class="empty-title">No executions yet</div>
+  <div class="empty-desc">Executions appear here once agents are invoked via the API or scheduled runs.</div>
+</div>
+{% endif %}

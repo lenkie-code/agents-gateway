@@ -134,6 +134,70 @@ class TestToolCalling:
         assert result.raw_text == "Final answer"
 
 
+class TestChatMessageHistoryWithInput:
+    @pytest.mark.asyncio
+    async def test_synthetic_messages_inserted_with_input_and_schema(self) -> None:
+        """Synthetic input messages are inserted with input and schema."""
+        engine, mock_llm, _ = make_engine(responses=[make_llm_response(text="Got it.")])
+        agent = make_agent()
+        agent.input_schema = {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        }
+        workspace = make_workspace()
+
+        message_history = [
+            {"role": "system", "content": "You are a test agent."},
+            {"role": "user", "content": "Hello"},
+        ]
+
+        result = await engine.execute(
+            agent,
+            "Hello",
+            workspace,
+            input={"name": "Alice"},
+            message_history=message_history,
+        )
+
+        assert result.stop_reason == StopReason.COMPLETED
+        # Check the messages sent to the LLM include the synthetic exchange
+        sent_messages = mock_llm.calls[0]["messages"]
+        assert sent_messages[1]["role"] == "user"
+        assert "pre-provided some input values" in sent_messages[1]["content"]
+        assert '"name": "Alice"' in sent_messages[1]["content"]
+        assert sent_messages[2]["role"] == "assistant"
+        assert "Understood" in sent_messages[2]["content"]
+        # Original user message should now be at index 3
+        assert sent_messages[3]["role"] == "user"
+        assert sent_messages[3]["content"] == "Hello"
+
+    @pytest.mark.asyncio
+    async def test_no_synthetic_messages_without_schema(self) -> None:
+        """No synthetic messages when input_schema is absent."""
+        engine, mock_llm, _ = make_engine(responses=[make_llm_response(text="Got it.")])
+        agent = make_agent()
+        workspace = make_workspace()
+
+        message_history = [
+            {"role": "system", "content": "You are a test agent."},
+            {"role": "user", "content": "Hello"},
+        ]
+
+        result = await engine.execute(
+            agent,
+            "Hello",
+            workspace,
+            input={"name": "Alice"},
+            message_history=message_history,
+        )
+
+        assert result.stop_reason == StopReason.COMPLETED
+        sent_messages = mock_llm.calls[0]["messages"]
+        assert len(sent_messages) == 2
+        assert sent_messages[1]["content"] == "Hello"
+
+
 class TestLLMError:
     @pytest.mark.asyncio
     async def test_llm_call_fails(self) -> None:

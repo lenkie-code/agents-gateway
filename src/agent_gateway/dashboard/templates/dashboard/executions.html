@@ -1,0 +1,57 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Executions — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Executions{% endblock %}
+
+{% block content %}
+<div class="page-header flex items-center justify-between">
+  <div>
+    <div class="page-title">Executions</div>
+    <div class="page-description">{{ total }} total execution{{ 's' if total != 1 else '' }}</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <div class="tab-group">
+    {% set statuses = [('', 'All'), ('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')] %}
+    {% for s_val, s_label in statuses %}
+    <button
+      class="tab {% if status_filter == s_val %}active{% endif %}"
+      hx-get="/dashboard/executions?{% if agent_id_filter %}agent_id={{ agent_id_filter }}&{% endif %}status={{ s_val }}&page=1"
+      hx-target="#exec-table-wrap"
+      hx-swap="outerHTML"
+    >
+      {{ s_label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  {% if agent_names %}
+  <select class="input" style="width:auto;"
+    hx-get="/dashboard/executions?status={{ status_filter }}&page=1"
+    hx-target="#exec-table-wrap"
+    hx-swap="outerHTML"
+    hx-include="[name='agent_id']"
+    name="agent_id"
+    onchange="this.form && htmx.trigger(this, 'change')"
+  >
+    <option value="">All agents</option>
+    {% for aid, aname in agent_names.items() %}
+    <option value="{{ aid }}" {% if agent_id_filter == aid %}selected{% endif %}>{{ aname }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+</div>
+
+<!-- Table -->
+<div id="exec-table-wrap"
+  {% if has_running %}
+  hx-get="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page }}"
+  hx-trigger="every 10s"
+  hx-swap="outerHTML"
+  {% endif %}
+>
+  {% include "dashboard/_exec_rows.html" %}
+</div>
+{% endblock %}

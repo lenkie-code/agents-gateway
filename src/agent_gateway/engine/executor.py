@@ -33,6 +33,8 @@ from agent_gateway.engine.output import (
     validate_output_pydantic,
 )
 from agent_gateway.hooks import HookRegistry
+from agent_gateway.persistence.domain import ExecutionStep
+from agent_gateway.persistence.protocols import ExecutionRepository
 from agent_gateway.telemetry import attributes as attr
 from agent_gateway.telemetry.metrics import create_metrics
 from agent_gateway.telemetry.tracing import (
@@ -86,6 +88,7 @@ class ExecutionEngine:
         config: GatewayConfig,
         hooks: HookRegistry | None = None,
         retriever_registry: RetrieverRegistry | None = None,
+        execution_repo: ExecutionRepository | None = None,
     ) -> None:
         self._llm = llm_client
         self._registry = tool_registry
@@ -93,6 +96,7 @@ class ExecutionEngine:
         self._hooks = hooks or HookRegistry()
         self._metrics = create_metrics()
         self._retriever_registry = retriever_registry
+        self._execution_repo = execution_repo
 
     async def execute(
         self,
@@ -164,6 +168,17 @@ class ExecutionEngine:
         # Build initial messages
         if message_history is not None:
             messages = list(message_history)
+            # Surface any pre-provided input data (from API chat callers)
+            if input and agent.input_schema:
+                input_note = (
+                    "The caller has pre-provided some input values:\n"
+                    f"```json\n{json.dumps(input, indent=2)}\n```\n"
+                    "Use these values and only ask for missing required fields."
+                )
+                # Insert synthetic exchange after the system prompt
+                messages.insert(1, {"role": "user", "content": input_note})
+                ack = "Understood, I'll use those values."
+                messages.insert(2, {"role": "assistant", "content": ack})
         else:
             # Inject structured input into the user message when available
             user_content = message
@@ -210,6 +225,7 @@ class ExecutionEngine:
                     timeout_s=timeout_s,
                     max_iterations=max_iterations,
                     max_tool_calls=max_tool_calls,
+                    execution_id=execution_id,
                     json_schema=json_schema,
                     model_cls=model_cls,
                 )
@@ -250,12 +266,14 @@ class ExecutionEngine:
         timeout_s: float,
         max_iterations: int,
         max_tool_calls: int,
+        execution_id: str | None = None,
         json_schema: dict[str, Any] | None = None,
         model_cls: Any = None,
     ) -> ExecutionResult:
         """Inner execution loop, wrapped by OTel span and hooks in execute()."""
         total_tool_calls = 0
         last_text: str = ""
+        step_seq = 0
 
         try:
             async with asyncio.timeout(timeout_s):
@@ -269,6 +287,7 @@ class ExecutionEngine:
                         )
 
                     # Call LLM with span
+                    llm_start = time.monotonic()
                     llm_response = await self._call_llm_with_span(
                         messages=messages,
                         tools=tool_declarations,
@@ -277,6 +296,8 @@ class ExecutionEngine:
                         max_tokens=max_tokens,
                         agent_id=agent.id,
                     )
+                    llm_duration_ms = int((time.monotonic() - llm_start) * 1000)
+
                     if llm_response is None:
                         return ExecutionResult(
                             raw_text=last_text,
@@ -304,6 +325,28 @@ class ExecutionEngine:
                     # Track last text
                     if llm_response.text:
                         last_text = llm_response.text
+
+                    # Record LLM call step
+                    if self._execution_repo is not None and execution_id is not None:
+                        content_preview = (llm_response.text or "")[:2048]
+                        await self._execution_repo.add_step(
+                            ExecutionStep(
+                                execution_id=execution_id,
+                                step_type="llm_call",
+                                sequence=step_seq,
+                                data={
+                                    "model": llm_response.model,
+                                    "input_tokens": llm_response.input_tokens,
+                                    "output_tokens": llm_response.output_tokens,
+                                    "cost_usd": llm_response.cost,
+                                    "has_tool_calls": len(llm_response.tool_calls) > 0,
+                                    "content": content_preview,
+                                    "tool_calls_count": len(llm_response.tool_calls),
+                                },
+                                duration_ms=llm_duration_ms,
+                            )
+                        )
+                        step_seq += 1
 
                     # No tool calls → completion
                     if not llm_response.tool_calls:
@@ -346,6 +389,24 @@ class ExecutionEngine:
                         assistant_msg["content"] = llm_response.text
                     messages.append(assistant_msg)
 
+                    # Record tool_call steps before execution
+                    if self._execution_repo is not None and execution_id is not None:
+                        for tc in llm_response.tool_calls:
+                            await self._execution_repo.add_step(
+                                ExecutionStep(
+                                    execution_id=execution_id,
+                                    step_type="tool_call",
+                                    sequence=step_seq,
+                                    data={
+                                        "tool_name": tc.name,
+                                        "call_id": tc.call_id,
+                                        "arguments": tc.arguments,
+                                    },
+                                    duration_ms=0,
+                                )
+                            )
+                            step_seq += 1
+
                     # Execute tools (parallel with bounded concurrency)
                     tool_results = await self._execute_tool_calls(
                         tool_calls=llm_response.tool_calls,
@@ -367,7 +428,7 @@ class ExecutionEngine:
                             usage=usage,
                         )
 
-                    # Append tool results to messages
+                    # Append tool results to messages and record steps
                     for tr in tool_results:
                         output_str = _truncate_result(_serialize_tool_output(tr.output))
                         messages.append(
@@ -377,6 +438,25 @@ class ExecutionEngine:
                                 "content": output_str,
                             }
                         )
+                        if self._execution_repo is not None and execution_id is not None:
+                            result_preview = output_str[:2048]
+                            truncated = len(output_str) > 2048
+                            await self._execution_repo.add_step(
+                                ExecutionStep(
+                                    execution_id=execution_id,
+                                    step_type="tool_result",
+                                    sequence=step_seq,
+                                    data={
+                                        "tool_name": tr.name,
+                                        "call_id": tr.call_id,
+                                        "success": tr.success,
+                                        "result": result_preview,
+                                        "truncated": truncated,
+                                    },
+                                    duration_ms=tr.duration_ms,
+                                )
+                            )
+                            step_seq += 1
 
                     # Check if max tool calls exceeded
                     if total_tool_calls >= max_tool_calls:
