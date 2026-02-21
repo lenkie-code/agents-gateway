@@ -7,9 +7,12 @@ from typing import Any, Protocol, runtime_checkable
 
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
+    ConversationMessage,
+    ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserProfile,
 )
 
 
@@ -102,3 +105,46 @@ class AuditRepository(Protocol):
     ) -> None: ...
 
     async def list_recent(self, limit: int = 100) -> list[AuditLogEntry]: ...
+
+
+@runtime_checkable
+class UserRepository(Protocol):
+    """Interface for user profile persistence."""
+
+    async def upsert(self, profile: UserProfile) -> None: ...
+
+    async def get(self, user_id: str) -> UserProfile | None: ...
+
+    async def delete(self, user_id: str) -> bool: ...
+
+
+@runtime_checkable
+class ConversationRepository(Protocol):
+    """Interface for conversation persistence."""
+
+    async def create(self, record: ConversationRecord) -> None: ...
+
+    async def get(self, conversation_id: str) -> ConversationRecord | None: ...
+
+    async def list_by_user(
+        self,
+        user_id: str,
+        agent_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ConversationRecord]: ...
+
+    async def update(self, record: ConversationRecord) -> None: ...
+
+    async def add_message(self, message: ConversationMessage) -> None: ...
+
+    async def get_messages(
+        self,
+        conversation_id: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ConversationMessage]: ...
+
+    async def update_summary(self, conversation_id: str, summary: str) -> None: ...
+
+    async def delete(self, conversation_id: str) -> bool: ...

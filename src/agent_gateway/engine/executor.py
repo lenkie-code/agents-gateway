@@ -109,6 +109,7 @@ class ExecutionEngine:
         tool_executor: ToolExecutorFn | None = None,
         message_history: list[dict[str, Any]] | None = None,
         memory_block: str = "",
+        caller_identity: str | None = None,
     ) -> ExecutionResult:
         """Run the full agent execution loop.
 
@@ -195,6 +196,7 @@ class ExecutionEngine:
         tool_context = ToolContext(
             execution_id=execution_id,
             agent_id=agent.id,
+            caller_identity=caller_identity,
             metadata=input or {},
         )
 

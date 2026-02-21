@@ -10,9 +10,12 @@ from typing import Any
 
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
+    ConversationMessage,
+    ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserProfile,
 )
 
 _EMPTY_ANALYTICS: list[dict[str, Any]] = []
@@ -139,3 +142,55 @@ class NullAuditRepository:
 
     async def list_recent(self, limit: int = 100) -> list[AuditLogEntry]:
         return []
+
+
+class NullUserRepository:
+    """No-op user repository — used when persistence is disabled."""
+
+    async def upsert(self, profile: UserProfile) -> None:
+        pass
+
+    async def get(self, user_id: str) -> UserProfile | None:
+        return None
+
+    async def delete(self, user_id: str) -> bool:
+        return False
+
+
+class NullConversationRepository:
+    """No-op conversation repository — used when persistence is disabled."""
+
+    async def create(self, record: ConversationRecord) -> None:
+        pass
+
+    async def get(self, conversation_id: str) -> ConversationRecord | None:
+        return None
+
+    async def list_by_user(
+        self,
+        user_id: str,
+        agent_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ConversationRecord]:
+        return []
+
+    async def update(self, record: ConversationRecord) -> None:
+        pass
+
+    async def add_message(self, message: ConversationMessage) -> None:
+        pass
+
+    async def get_messages(
+        self,
+        conversation_id: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ConversationMessage]:
+        return []
+
+    async def update_summary(self, conversation_id: str, summary: str) -> None:
+        pass
+
+    async def delete(self, conversation_id: str) -> bool:
+        return False

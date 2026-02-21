@@ -155,10 +155,16 @@ class FileMemoryRepository:
         self,
         agent_id: str,
         *,
+        user_id: str | None = None,
+        include_global: bool = True,
         memory_type: MemoryType | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MemoryRecord]:
+        if user_id is not None and not include_global:
+            # File backend only stores global memories
+            logger.debug("FileMemoryRepository: per-user memory not supported, returning empty")
+            return []
         records = self._parse_file(agent_id)
         if memory_type is not None:
             records = [r for r in records if r.memory_type == memory_type]
@@ -171,10 +177,18 @@ class FileMemoryRepository:
         agent_id: str,
         query: str,
         *,
+        user_id: str | None = None,
+        include_global: bool = True,
         memory_type: MemoryType | None = None,
         limit: int = 10,
     ) -> list[MemorySearchResult]:
-        """Simple keyword search — case-insensitive matching."""
+        """Simple keyword search — case-insensitive matching.
+
+        File backend only stores global agent memory. Per-user searches
+        with include_global=False return empty results.
+        """
+        if user_id is not None and not include_global:
+            return []
         records = self._parse_file(agent_id)
         if memory_type is not None:
             records = [r for r in records if r.memory_type == memory_type]
@@ -204,7 +218,10 @@ class FileMemoryRepository:
             self._write_records(agent_id, records)
             return True
 
-    async def delete_all(self, agent_id: str) -> int:
+    async def delete_all(self, agent_id: str, user_id: str | None = None) -> int:
+        if user_id is not None:
+            # File backend doesn't support per-user memory deletion
+            return 0
         async with self._lock_for(agent_id):
             records = self._parse_file(agent_id)
             count = len(records)
@@ -213,7 +230,9 @@ class FileMemoryRepository:
                 path.write_text("", encoding="utf-8")
             return count
 
-    async def count(self, agent_id: str) -> int:
+    async def count(self, agent_id: str, user_id: str | None = None) -> int:
+        if user_id is not None:
+            return 0
         return len(self._parse_file(agent_id))
 
 

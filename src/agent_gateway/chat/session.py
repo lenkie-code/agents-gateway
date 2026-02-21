@@ -25,6 +25,7 @@ class ChatSession:
 
     session_id: str
     agent_id: str
+    user_id: str | None = None  # NULL = shared/anonymous session
     messages: list[dict[str, Any]] = field(default_factory=list)
     created_at: float = field(default_factory=lambda: datetime.now(UTC).timestamp())
     updated_at: float = field(default_factory=lambda: datetime.now(UTC).timestamp())
@@ -129,6 +130,7 @@ class SessionStore:
         self,
         agent_id: str,
         metadata: dict[str, Any] | None = None,
+        user_id: str | None = None,
     ) -> ChatSession:
         """Create a new chat session. Evicts LRU if at capacity."""
         # Evict oldest if at capacity
@@ -140,6 +142,7 @@ class SessionStore:
         session = ChatSession(
             session_id=session_id,
             agent_id=agent_id,
+            user_id=user_id,
             metadata=metadata or {},
         )
         self._sessions[session_id] = session
@@ -170,14 +173,17 @@ class SessionStore:
     def list_sessions(
         self,
         agent_id: str | None = None,
+        user_id: str | None = None,
         limit: int = 50,
     ) -> list[ChatSession]:
-        """List sessions, optionally filtered by agent_id."""
+        """List sessions, optionally filtered by agent_id and/or user_id."""
         results: list[ChatSession] = []
         for session in reversed(self._sessions.values()):
             if self._is_expired(session):
                 continue
             if agent_id and session.agent_id != agent_id:
+                continue
+            if user_id is not None and session.user_id != user_id:
                 continue
             results.append(session)
             if len(results) >= limit:

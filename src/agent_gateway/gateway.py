@@ -47,13 +47,17 @@ from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
 from agent_gateway.persistence.null import (
     NullAuditRepository,
+    NullConversationRepository,
     NullExecutionRepository,
     NullScheduleRepository,
+    NullUserRepository,
 )
 from agent_gateway.persistence.protocols import (
     AuditRepository,
+    ConversationRepository,
     ExecutionRepository,
     ScheduleRepository,
+    UserRepository,
 )
 from agent_gateway.queue.null import NullQueue
 from agent_gateway.queue.protocol import ExecutionQueue
@@ -127,6 +131,8 @@ class Gateway(FastAPI):
         self._notification_worker: Any | None = None  # NotificationWorker
         self._scheduler: SchedulerEngine | None = None
         self._schedule_repo: ScheduleRepository = NullScheduleRepository()
+        self._user_repo: UserRepository = NullUserRepository()
+        self._conversation_repo: ConversationRepository = NullConversationRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
@@ -312,6 +318,8 @@ class Gateway(FastAPI):
                 self._execution_repo = backend.execution_repo
                 self._audit_repo = backend.audit_repo
                 self._schedule_repo = backend.schedule_repo
+                self._user_repo = backend.user_repo
+                self._conversation_repo = backend.conversation_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -1649,19 +1657,141 @@ class Gateway(FastAPI):
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 
-    async def _get_memory_block(self, agent_id: str, message: str, memory_config: Any) -> str:
+    async def _get_memory_block(
+        self, agent_id: str, message: str, memory_config: Any, user_id: str | None = None
+    ) -> str:
         """Fetch the memory context block for an agent, returning empty string on failure."""
         if self._memory_manager is None or not memory_config or not memory_config.enabled:
             return ""
         try:
-            return await self._memory_manager.get_context_block(
+            block = await self._memory_manager.get_context_block(
                 agent_id,
                 query=message,
                 max_chars=memory_config.max_injected_chars,
+                user_id=user_id,
             )
+
+            # Prepend user profile info so agents can address users by name
+            if user_id is not None:
+                try:
+                    profile = await self._user_repo.get(user_id)
+                    if profile is not None and profile.display_name:
+                        user_line = f"### Current User\nName: {profile.display_name}"
+                        block = f"{user_line}\n\n{block}" if block else user_line
+                except Exception:
+                    pass  # Non-critical — don't fail the whole memory block
+
+            return block
         except Exception:
             logger.warning("Failed to fetch memory for agent '%s'", agent_id, exc_info=True)
             return ""
+
+    def _derive_user_id(self, auth: Any | None) -> str | None:
+        """Derive a user_id from an AuthResult. Returns None for shared mode."""
+        if auth is None:
+            return None
+        if not getattr(auth, "authenticated", False):
+            return None
+        method = getattr(auth, "auth_method", "")
+        if method == "oauth2":
+            return getattr(auth, "subject", None)
+        return None
+
+    async def _ensure_user_profile(self, auth: Any | None) -> None:
+        """Auto-create or update user profile from auth claims."""
+        if auth is None or not getattr(auth, "authenticated", False):
+            return
+        user_id = self._derive_user_id(auth)
+        if user_id is None:
+            return
+
+        from datetime import UTC, datetime
+
+        from agent_gateway.persistence.domain import UserProfile
+
+        claims = getattr(auth, "claims", {})
+        now = datetime.now(UTC)
+        profile = UserProfile(
+            user_id=user_id,
+            display_name=claims.get("name") or claims.get("preferred_username"),
+            email=claims.get("email"),
+            metadata={k: v for k, v in claims.items() if k not in ("name", "email", "sub")},
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        try:
+            await self._user_repo.upsert(profile)
+        except Exception:
+            logger.warning("Failed to upsert user profile for '%s'", user_id, exc_info=True)
+
+    def _persist_conversation_messages(
+        self,
+        session: ChatSession,
+        user_message: str,
+        assistant_text: str | None,
+    ) -> None:
+        """Async write-behind: persist conversation and messages to the database."""
+        from datetime import UTC, datetime
+
+        from agent_gateway.persistence.domain import (
+            ConversationMessage,
+            ConversationRecord,
+        )
+
+        conv_repo = self._conversation_repo
+        now = datetime.now(UTC)
+
+        async def _persist() -> None:
+            # Ensure conversation record exists
+            existing = await conv_repo.get(session.session_id)
+            if existing is None:
+                record = ConversationRecord(
+                    conversation_id=session.session_id,
+                    agent_id=session.agent_id,
+                    user_id=session.user_id,
+                    message_count=0,
+                    created_at=now,
+                    updated_at=now,
+                )
+                await conv_repo.create(record)
+
+            # Persist user message
+            await conv_repo.add_message(
+                ConversationMessage(
+                    message_id=uuid.uuid4().hex[:16],
+                    conversation_id=session.session_id,
+                    role="user",
+                    content=user_message,
+                    created_at=now,
+                )
+            )
+
+            # Persist assistant message
+            if assistant_text:
+                await conv_repo.add_message(
+                    ConversationMessage(
+                        message_id=uuid.uuid4().hex[:16],
+                        conversation_id=session.session_id,
+                        role="assistant",
+                        content=assistant_text,
+                        created_at=now,
+                    )
+                )
+
+            # Update conversation metadata
+            msg_count = len(session.messages)
+            existing_record = await conv_repo.get(session.session_id)
+            if existing_record is not None:
+                existing_record.message_count = msg_count
+                existing_record.updated_at = now
+                await conv_repo.update(existing_record)
+
+        task = asyncio.create_task(
+            _persist(),
+            name=f"persist-conv-{session.session_id}",
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def invoke(
         self,
@@ -1748,6 +1878,7 @@ class Gateway(FastAPI):
         session_id: str | None = None,
         input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
+        auth: Any | None = None,
     ) -> tuple[str, ExecutionResult]:
         """Send a chat message programmatically (bypasses HTTP).
 
@@ -1757,6 +1888,7 @@ class Gateway(FastAPI):
             session_id: Optional existing session ID. Creates new session if None.
             input: Optional input dict.
             options: Optional execution options.
+            auth: Optional AuthResult from the request (for user-scoped operations).
 
         Returns:
             Tuple of (session_id, ExecutionResult).
@@ -1778,6 +1910,18 @@ class Gateway(FastAPI):
         if self._session_store is None:
             raise ValueError("Session store not initialized")
 
+        # Derive user context from auth
+        user_id = self._derive_user_id(auth)
+
+        # Auto-create/update user profile (fire-and-forget)
+        if user_id is not None:
+            profile_task = asyncio.create_task(
+                self._ensure_user_profile(auth),
+                name=f"user-profile-{user_id}",
+            )
+            self._background_tasks.add(profile_task)
+            profile_task.add_done_callback(self._background_tasks.discard)
+
         # Get or create session
         if session_id:
             session = self._session_store.get_session(session_id)
@@ -1788,8 +1932,11 @@ class Gateway(FastAPI):
                     f"Session '{session_id}' belongs to agent "
                     f"'{session.agent_id}', not '{agent_id}'"
                 )
+            # Enforce session ownership in multi-user mode
+            if user_id is not None and session.user_id is not None and session.user_id != user_id:
+                raise ValueError(f"Session '{session_id}' does not belong to this user")
         else:
-            session = self._session_store.create_session(agent_id, metadata=input)
+            session = self._session_store.create_session(agent_id, metadata=input, user_id=user_id)
 
         if input:
             session.merge_metadata(input)
@@ -1799,7 +1946,9 @@ class Gateway(FastAPI):
             session.truncate_history(self._session_store._max_history)
 
             agent_mem = agent.memory_config
-            memory_block = await self._get_memory_block(agent_id, message, agent_mem)
+            memory_block = await self._get_memory_block(
+                agent_id, message, agent_mem, user_id=user_id
+            )
 
             retriever_reg = snapshot.retriever_registry if snapshot else None
             system_prompt = await assemble_system_prompt(
@@ -1831,6 +1980,7 @@ class Gateway(FastAPI):
                     handle=handle,
                     tool_executor=execute_tool,
                     message_history=messages,
+                    caller_identity=user_id,
                 )
             finally:
                 self._execution_handles.pop(execution_id, None)
@@ -1840,6 +1990,9 @@ class Gateway(FastAPI):
             if result.raw_text:
                 session.append_assistant_message(content=result.raw_text)
 
+            # Persist conversation messages (async write-behind)
+            self._persist_conversation_messages(session, message, result.raw_text)
+
             # Auto-extract memories from conversation (fire-and-forget, debounced)
             if (
                 self._memory_manager is not None
@@ -1848,18 +2001,22 @@ class Gateway(FastAPI):
                 and self._llm_client is not None
             ):
                 now = time.monotonic()
-                last_extraction = self._extraction_cooldowns.get(agent_id, 0.0)
+                debounce_key = f"{agent_id}:{user_id or ''}"
+                last_extraction = self._extraction_cooldowns.get(debounce_key, 0.0)
                 if now - last_extraction >= self._extraction_debounce:
-                    self._extraction_cooldowns[agent_id] = now
+                    self._extraction_cooldowns[debounce_key] = now
                     recent_messages = session.messages[-10:]
                     mm = self._memory_manager
+                    _uid = user_id
 
                     async def _extract() -> None:
-                        await mm.extract_memories(agent_id, recent_messages)
+                        await mm.extract_memories(agent_id, recent_messages, user_id=_uid)
+                        # Trigger compaction if threshold exceeded
+                        await mm.compact_memories(agent_id, user_id=_uid)
 
                     task = asyncio.create_task(
                         _extract(),
-                        name=f"memory-extract-{agent_id}",
+                        name=f"memory-extract-{agent_id}-{user_id or 'global'}",
                     )
                     self._background_tasks.add(task)
                     task.add_done_callback(self._background_tasks.discard)
