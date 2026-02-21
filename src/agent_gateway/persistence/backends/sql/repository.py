@@ -11,9 +11,12 @@ from sqlalchemy.orm import selectinload
 
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
+    ConversationMessage,
+    ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserProfile,
 )
 
 
@@ -393,3 +396,142 @@ class AuditRepository:
             )
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+
+class UserRepository:
+    """CRUD operations for user profiles."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def upsert(self, profile: UserProfile) -> None:
+        """Insert or update a user profile."""
+        async with self._session_factory() as session:
+            existing = await session.get(UserProfile, profile.user_id)
+            if existing is None:
+                session.add(profile)
+            else:
+                existing.display_name = profile.display_name
+                existing.email = profile.email
+                existing.metadata = profile.metadata
+                existing.last_seen_at = profile.last_seen_at
+            await session.commit()
+
+    async def get(self, user_id: str) -> UserProfile | None:
+        """Fetch a user profile by ID."""
+        async with self._session_factory() as session:
+            return await session.get(UserProfile, user_id)
+
+    async def delete(self, user_id: str) -> bool:
+        """Delete a user profile. Returns True if it existed."""
+        async with self._session_factory() as session:
+            profile = await session.get(UserProfile, user_id)
+            if profile is None:
+                return False
+            await session.delete(profile)
+            await session.commit()
+            return True
+
+
+class ConversationRepository:
+    """CRUD operations for conversations and messages."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def create(self, record: ConversationRecord) -> None:
+        """Insert a new conversation record."""
+        async with self._session_factory() as session:
+            session.add(record)
+            await session.commit()
+
+    async def get(self, conversation_id: str) -> ConversationRecord | None:
+        """Fetch a conversation by ID."""
+        async with self._session_factory() as session:
+            return await session.get(ConversationRecord, conversation_id)
+
+    async def list_by_user(
+        self,
+        user_id: str,
+        agent_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ConversationRecord]:
+        """List conversations for a user, most recent first."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ConversationRecord)
+                .where(
+                    ConversationRecord.user_id == user_id  # type: ignore[arg-type]
+                )
+                .order_by(
+                    ConversationRecord.updated_at.desc()  # type: ignore[union-attr]
+                )
+            )
+            if agent_id is not None:
+                stmt = stmt.where(
+                    ConversationRecord.agent_id == agent_id  # type: ignore[arg-type]
+                )
+            stmt = stmt.limit(limit).offset(offset)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def update(self, record: ConversationRecord) -> None:
+        """Update an existing conversation record."""
+        async with self._session_factory() as session:
+            existing = await session.get(ConversationRecord, record.conversation_id)
+            if existing is None:
+                return
+            existing.title = record.title
+            existing.summary = record.summary
+            existing.message_count = record.message_count
+            existing.updated_at = record.updated_at
+            existing.ended_at = record.ended_at
+            await session.commit()
+
+    async def add_message(self, message: ConversationMessage) -> None:
+        """Insert a message into a conversation."""
+        async with self._session_factory() as session:
+            session.add(message)
+            await session.commit()
+
+    async def get_messages(
+        self,
+        conversation_id: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ConversationMessage]:
+        """Get messages for a conversation, oldest first."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ConversationMessage)
+                .where(
+                    ConversationMessage.conversation_id == conversation_id  # type: ignore[arg-type]
+                )
+                .order_by(
+                    ConversationMessage.created_at  # type: ignore[arg-type]
+                )
+                .limit(limit)
+                .offset(offset)
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def update_summary(self, conversation_id: str, summary: str) -> None:
+        """Update the summary of a conversation."""
+        async with self._session_factory() as session:
+            record = await session.get(ConversationRecord, conversation_id)
+            if record is None:
+                return
+            record.summary = summary
+            await session.commit()
+
+    async def delete(self, conversation_id: str) -> bool:
+        """Delete a conversation and its messages. Returns True if it existed."""
+        async with self._session_factory() as session:
+            record = await session.get(ConversationRecord, conversation_id)
+            if record is None:
+                return False
+            await session.delete(record)
+            await session.commit()
+            return True

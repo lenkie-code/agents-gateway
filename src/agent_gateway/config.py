@@ -176,6 +176,17 @@ class ContextRetrievalConfig(BaseModel):
     max_context_file_chars: int = 100_000
 
 
+class CompactionConfig(BaseModel):
+    """Settings for memory compaction (prevents unbounded growth)."""
+
+    enabled: bool = True
+    max_memories_per_scope: int = 100  # trigger threshold
+    compact_ratio: float = 0.5  # compact oldest 50%
+    min_age_hours: int = 24  # don't compact memories < 24h old
+    importance_threshold: float = 0.8  # never compact importance >= 0.8
+    decay_factor: float = 0.95  # relevance decay per day since last access
+
+
 class MemoryConfig(BaseModel):
     """Global memory defaults (overridable per-agent in AGENT.md)."""
 
@@ -184,6 +195,7 @@ class MemoryConfig(BaseModel):
     extraction_model: str | None = None
     auto_extract: bool = False
     max_memory_md_lines: int = 200
+    compaction: CompactionConfig = CompactionConfig()
 
 
 class DashboardOAuth2Config(BaseModel):

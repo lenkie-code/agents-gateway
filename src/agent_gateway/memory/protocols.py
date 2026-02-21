@@ -17,6 +17,11 @@ class MemoryRepository(Protocol):
 
     Implementations must handle CRUD and search.
     Satisfied structurally (duck typing) — no inheritance required.
+
+    The ``user_id`` parameter enables per-user memory scoping:
+    - ``user_id=None`` → global agent memory only
+    - ``user_id="xyz"`` with ``include_global=True`` → both user and global
+    - ``user_id="xyz"`` with ``include_global=False`` → user-only
     """
 
     async def save(self, record: MemoryRecord) -> None:
@@ -31,11 +36,13 @@ class MemoryRepository(Protocol):
         self,
         agent_id: str,
         *,
+        user_id: str | None = None,
+        include_global: bool = True,
         memory_type: MemoryType | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MemoryRecord]:
-        """List memories with optional type filter, ordered by updated_at desc."""
+        """List memories with optional type/user filter, ordered by updated_at desc."""
         ...
 
     async def search(
@@ -43,6 +50,8 @@ class MemoryRepository(Protocol):
         agent_id: str,
         query: str,
         *,
+        user_id: str | None = None,
+        include_global: bool = True,
         memory_type: MemoryType | None = None,
         limit: int = 10,
     ) -> list[MemorySearchResult]:
@@ -53,12 +62,12 @@ class MemoryRepository(Protocol):
         """Delete a memory. Returns True if it existed."""
         ...
 
-    async def delete_all(self, agent_id: str) -> int:
-        """Delete all memories for an agent. Returns count deleted."""
+    async def delete_all(self, agent_id: str, user_id: str | None = None) -> int:
+        """Delete all memories for an agent (optionally scoped to user). Returns count."""
         ...
 
-    async def count(self, agent_id: str) -> int:
-        """Count memories for an agent."""
+    async def count(self, agent_id: str, user_id: str | None = None) -> int:
+        """Count memories for an agent (optionally scoped to user)."""
         ...
 
 

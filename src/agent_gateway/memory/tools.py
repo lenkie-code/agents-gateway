@@ -44,7 +44,15 @@ def make_memory_tools(
             with contextlib.suppress(ValueError):
                 mt = MemoryType(memory_type)
 
-        results = await memory_manager.search(context.agent_id, query, memory_type=mt, limit=limit)
+        user_id = context.caller_identity
+        results = await memory_manager.search(
+            context.agent_id,
+            query,
+            user_id=user_id,
+            include_global=True,
+            memory_type=mt,
+            limit=limit,
+        )
         return [
             {
                 "id": r.record.id,
@@ -52,6 +60,7 @@ def make_memory_tools(
                 "type": r.record.memory_type.value,
                 "importance": r.record.importance,
                 "score": r.score,
+                "scope": "user" if r.record.user_id else "global",
             }
             for r in results
         ]
@@ -81,10 +90,12 @@ def make_memory_tools(
             mt = MemoryType.SEMANTIC
 
         now = datetime.now(UTC)
+        user_id = context.caller_identity
         record = MemoryRecord(
             id=uuid.uuid4().hex[:12],
             agent_id=context.agent_id,
             content=content,
+            user_id=user_id,  # Saves to per-user scope when authenticated
             memory_type=mt,
             source=MemorySource.MANUAL,
             importance=max(0.0, min(1.0, importance)),

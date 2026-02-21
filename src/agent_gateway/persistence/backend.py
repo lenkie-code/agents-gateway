@@ -6,8 +6,10 @@ from typing import Protocol, runtime_checkable
 
 from agent_gateway.persistence.protocols import (
     AuditRepository,
+    ConversationRepository,
     ExecutionRepository,
     ScheduleRepository,
+    UserRepository,
 )
 
 
@@ -35,3 +37,9 @@ class PersistenceBackend(Protocol):
 
     @property
     def schedule_repo(self) -> ScheduleRepository: ...
+
+    @property
+    def user_repo(self) -> UserRepository: ...
+
+    @property
+    def conversation_repo(self) -> ConversationRepository: ...

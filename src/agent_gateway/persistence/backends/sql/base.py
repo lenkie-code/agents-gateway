@@ -15,6 +15,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -27,18 +28,24 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import registry, relationship
 
+from agent_gateway.memory.domain import MemoryRecord
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
+    ConversationMessage,
+    ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserProfile,
 )
 
 if TYPE_CHECKING:
     from agent_gateway.persistence.protocols import (
         AuditRepository,
+        ConversationRepository,
         ExecutionRepository,
         ScheduleRepository,
+        UserRepository,
     )
 
 logger = logging.getLogger(__name__)
@@ -136,11 +143,77 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         ),
     )
 
+    users = Table(
+        f"{prefix}users",
+        metadata,
+        Column("user_id", String, primary_key=True),
+        Column("display_name", String, nullable=True),
+        Column("email", String, nullable=True),
+        Column("metadata_json", JSON, nullable=False, server_default="{}"),
+        Column("first_seen_at", DateTime(timezone=True)),
+        Column("last_seen_at", DateTime(timezone=True)),
+    )
+
+    conversations = Table(
+        f"{prefix}conversations",
+        metadata,
+        Column("conversation_id", String, primary_key=True),
+        Column("agent_id", String, nullable=False),
+        Column("user_id", String, nullable=True),
+        Column("title", String, nullable=True),
+        Column("summary", Text, nullable=True),
+        Column("message_count", Integer, default=0),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Column("updated_at", DateTime(timezone=True)),
+        Column("ended_at", DateTime(timezone=True)),
+        Index(f"ix_{prefix}conversations_user_agent", "user_id", "agent_id"),
+        Index(f"ix_{prefix}conversations_user", "user_id"),
+    )
+
+    conversation_messages = Table(
+        f"{prefix}conversation_messages",
+        metadata,
+        Column("message_id", String, primary_key=True),
+        Column(
+            "conversation_id",
+            String,
+            ForeignKey(f"{prefix}conversations.conversation_id"),
+            nullable=False,
+        ),
+        Column("role", String, nullable=False),
+        Column("content", Text, nullable=False),
+        Column("metadata_json", JSON, server_default="{}"),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Index(f"ix_{prefix}conv_messages_conv_id", "conversation_id"),
+    )
+
+    memories = Table(
+        f"{prefix}memories",
+        metadata,
+        Column("id", String, primary_key=True),
+        Column("agent_id", String, nullable=False),
+        Column("user_id", String, nullable=True),  # NULL = global agent memory
+        Column("content", Text, nullable=False),
+        Column("memory_type", String, nullable=False, default="semantic"),
+        Column("source", String, nullable=False, default="manual"),
+        Column("importance", Float, default=0.5),
+        Column("access_count", Integer, default=0),
+        Column("last_accessed_at", DateTime(timezone=True), nullable=True),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Index(f"ix_{prefix}memories_agent_user", "agent_id", "user_id"),
+        Index(f"ix_{prefix}memories_agent_id", "agent_id"),
+    )
+
     return {
         "executions": executions,
         "execution_steps": execution_steps,
         "audit_log": audit_log,
         "schedules": schedules,
+        "users": users,
+        "conversations": conversations,
+        "conversation_messages": conversation_messages,
+        "memories": memories,
     }
 
 
@@ -173,6 +246,37 @@ def configure_mappers(mapper_registry: registry, tables: dict[str, Table]) -> No
 
     mapper_registry.map_imperatively(ScheduleRecord, tables["schedules"])
 
+    mapper_registry.map_imperatively(
+        UserProfile,
+        tables["users"],
+        properties={
+            "metadata": tables["users"].c.metadata_json,
+        },
+    )
+
+    mapper_registry.map_imperatively(
+        ConversationRecord,
+        tables["conversations"],
+        properties={
+            "messages": relationship(
+                ConversationMessage,
+                back_populates="conversation",
+                cascade="all, delete-orphan",
+            ),
+        },
+    )
+
+    mapper_registry.map_imperatively(
+        ConversationMessage,
+        tables["conversation_messages"],
+        properties={
+            "metadata": tables["conversation_messages"].c.metadata_json,
+            "conversation": relationship(ConversationRecord, back_populates="messages"),
+        },
+    )
+
+    mapper_registry.map_imperatively(MemoryRecord, tables["memories"])
+
 
 class SqlBackend:
     """Base class for SQL persistence backends.
@@ -204,15 +308,23 @@ class SqlBackend:
             AuditRepository as AuditRepo,
         )
         from agent_gateway.persistence.backends.sql.repository import (
+            ConversationRepository as ConvRepo,
+        )
+        from agent_gateway.persistence.backends.sql.repository import (
             ExecutionRepository as ExecRepo,
         )
         from agent_gateway.persistence.backends.sql.repository import (
             ScheduleRepository as SchedRepo,
         )
+        from agent_gateway.persistence.backends.sql.repository import (
+            UserRepository as UserRepo,
+        )
 
         self._execution_repo: ExecutionRepository = ExecRepo(self._session_factory)
         self._audit_repo: AuditRepository = AuditRepo(self._session_factory)
         self._schedule_repo: ScheduleRepository = SchedRepo(self._session_factory)
+        self._user_repo: UserRepository = UserRepo(self._session_factory)
+        self._conversation_repo: ConversationRepository = ConvRepo(self._session_factory)
 
     async def initialize(self) -> None:
         """Create all tables if they don't exist. Idempotent."""
@@ -236,3 +348,11 @@ class SqlBackend:
     @property
     def schedule_repo(self) -> ScheduleRepository:
         return self._schedule_repo
+
+    @property
+    def user_repo(self) -> UserRepository:
+        return self._user_repo
+
+    @property
+    def conversation_repo(self) -> ConversationRepository:
+        return self._conversation_repo

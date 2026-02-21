@@ -65,6 +65,7 @@ async def chat_with_agent(
         )
 
     # Non-streaming: delegate to gw.chat()
+    auth = request.scope.get("auth")
     try:
         session_id, result = await gw.chat(
             agent_id=agent_id,
@@ -72,6 +73,7 @@ async def chat_with_agent(
             session_id=body.session_id,
             input=body.input or None,
             options=ExecutionOptions(timeout_ms=body.options.timeout_ms),
+            auth=auth,
         )
     except ValueError as e:
         msg = str(e)
@@ -224,6 +226,12 @@ async def get_session(
     if session is None:
         return error_response(404, "session_not_found", f"Session '{session_id}' not found")
 
+    # Enforce session ownership
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+    if user_id is not None and session.user_id is not None and session.user_id != user_id:
+        return error_response(403, "forbidden", "Not authorized to access this session")
+
     return SessionInfo(
         session_id=session.session_id,
         agent_id=session.agent_id,
@@ -248,10 +256,17 @@ async def delete_session(
     if gw._session_store is None:
         return error_response(503, "sessions_unavailable", "Session store not initialized")
 
-    deleted = gw._session_store.delete_session(session_id)
-    if not deleted:
+    # Check ownership before deleting
+    session = gw._session_store.get_session(session_id)
+    if session is None:
         return error_response(404, "session_not_found", f"Session '{session_id}' not found")
 
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+    if user_id is not None and session.user_id is not None and session.user_id != user_id:
+        return error_response(403, "forbidden", "Not authorized to delete this session")
+
+    gw._session_store.delete_session(session_id)
     return JSONResponse(status_code=200, content={"deleted": True})
 
 
@@ -261,13 +276,16 @@ async def list_sessions(
     agent_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[SessionInfo]:
-    """List active sessions."""
+    """List active sessions. In multi-user mode, only returns the caller's sessions."""
     gw: Gateway = request.app
 
     if gw._session_store is None:
         return []
 
-    sessions = gw._session_store.list_sessions(agent_id=agent_id, limit=limit)
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+
+    sessions = gw._session_store.list_sessions(agent_id=agent_id, user_id=user_id, limit=limit)
     return [
         SessionInfo(
             session_id=s.session_id,
@@ -279,3 +297,122 @@ async def list_sessions(
         )
         for s in sessions
     ]
+
+
+# --- Conversation history endpoints (persistent) ---
+
+
+@router.get(
+    "/users/me/conversations",
+    response_model=None,
+    dependencies=[Depends(RequireScope("sessions:read"))],
+)
+async def list_conversations(
+    request: Request,
+    agent_id: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[dict[str, Any]]:
+    """List the caller's persisted conversations."""
+    gw: Gateway = request.app
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+
+    if user_id is None:
+        return error_response(  # type: ignore[return-value]
+            401, "auth_required", "Authentication required to list conversations"
+        )
+
+    records = await gw._conversation_repo.list_by_user(
+        user_id=user_id, agent_id=agent_id, limit=limit, offset=offset
+    )
+    return [
+        {
+            "conversation_id": r.conversation_id,
+            "agent_id": r.agent_id,
+            "title": r.title,
+            "summary": r.summary,
+            "message_count": r.message_count,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        }
+        for r in records
+    ]
+
+
+@router.get(
+    "/users/me/conversations/{conversation_id}/messages",
+    response_model=None,
+    dependencies=[Depends(RequireScope("sessions:read"))],
+)
+async def get_conversation_messages(
+    request: Request,
+    conversation_id: str = Path(..., min_length=1),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> list[dict[str, Any]] | JSONResponse:
+    """Get messages from a persisted conversation."""
+    gw: Gateway = request.app
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+
+    if user_id is None:
+        return error_response(401, "auth_required", "Authentication required")
+
+    # Verify conversation ownership
+    record = await gw._conversation_repo.get(conversation_id)
+    if record is None:
+        return error_response(404, "not_found", "Conversation not found")
+    if record.user_id != user_id:
+        return error_response(403, "forbidden", "Not authorized to access this conversation")
+
+    messages = await gw._conversation_repo.get_messages(
+        conversation_id, limit=limit, offset=offset
+    )
+    return [
+        {
+            "message_id": m.message_id,
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in messages
+    ]
+
+
+# --- Memory management endpoints ---
+
+
+@router.post(
+    "/agents/{agent_id}/memory/compact",
+    dependencies=[Depends(RequireScope("agents:manage"))],
+)
+async def compact_agent_memory(
+    request: Request,
+    agent_id: str = Path(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$"),
+) -> JSONResponse:
+    """Trigger memory compaction for an agent. Admin operation."""
+    gw: Gateway = request.app
+
+    if gw.memory_manager is None:
+        return error_response(503, "memory_unavailable", "Memory system not enabled")
+
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+
+    # Compact global agent memory
+    global_compacted = await gw.memory_manager.compact_memories(agent_id, user_id=None)
+
+    # Compact per-user memory if authenticated
+    user_compacted = 0
+    if user_id is not None:
+        user_compacted = await gw.memory_manager.compact_memories(agent_id, user_id=user_id)
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "agent_id": agent_id,
+            "global_compacted": global_compacted,
+            "user_compacted": user_compacted,
+        },
+    )

@@ -75,3 +75,42 @@ class ScheduleRecord:
     next_run_at: datetime | None = None
     deleted_at: datetime | None = None
     created_at: datetime | None = None
+
+
+@dataclass
+class UserProfile:
+    """Persistent user profile extracted from auth claims."""
+
+    user_id: str  # JWT sub claim or other identity
+    display_name: str | None = None
+    email: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    first_seen_at: datetime | None = None
+    last_seen_at: datetime | None = None
+
+
+@dataclass
+class ConversationRecord:
+    """A persisted conversation between a user and an agent."""
+
+    conversation_id: str  # Same as session_id
+    agent_id: str
+    user_id: str | None = None  # NULL = shared/anonymous
+    title: str | None = None
+    summary: str | None = None
+    message_count: int = 0
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    ended_at: datetime | None = None
+
+
+@dataclass
+class ConversationMessage:
+    """A single message within a conversation."""
+
+    message_id: str
+    conversation_id: str
+    role: str  # user, assistant, system, tool
+    content: str
+    metadata: dict[str, Any] | None = None
+    created_at: datetime | None = None

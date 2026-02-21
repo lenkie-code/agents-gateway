@@ -1,12 +1,17 @@
-"""File-based memory backend using MEMORY.md per agent.
+"""File-based memory backend using MEMORY.md per agent + per-user files.
 
 Stores memories as structured markdown sections grouped by type.
 Zero infrastructure — human-readable, git-committable, inspectable.
+
+Layout:
+    workspace/agents/{agent_id}/MEMORY.md              — agent-level (global) memories
+    workspace/agents/{agent_id}/memory/{user_id}.md    — per-user memories
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 import uuid
@@ -28,6 +33,7 @@ _MEMORY_LINE = re.compile(
 )
 
 _SAFE_AGENT_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+_SAFE_FILENAME = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$")
 
 _TYPE_TO_HEADING: dict[MemoryType, str] = {
     MemoryType.SEMANTIC: "Semantic",
@@ -37,8 +43,22 @@ _TYPE_TO_HEADING: dict[MemoryType, str] = {
 _HEADING_TO_TYPE: dict[str, MemoryType] = {v: k for k, v in _TYPE_TO_HEADING.items()}
 
 
+def _user_filename(user_id: str) -> str:
+    """Derive a safe filename from a user_id.
+
+    If the user_id is already filesystem-safe (e.g. 'alice'), use it directly.
+    Otherwise hash it to avoid path traversal or special characters.
+    """
+    if _SAFE_FILENAME.match(user_id) and len(user_id) <= 100:
+        return f"{user_id}.md"
+    hashed = hashlib.sha256(user_id.encode()).hexdigest()[:16]
+    return f"user-{hashed}.md"
+
+
 class FileMemoryRepository:
     """Repository that reads/writes structured markdown files.
+
+    Supports both agent-level (global) and per-user memory files.
 
     .. note::
         All file I/O is synchronous (stdlib ``pathlib``/``open``).  This is
@@ -53,23 +73,43 @@ class FileMemoryRepository:
         self._max_lines = max_lines
         self._locks: dict[str, asyncio.Lock] = {}
 
-    def _lock_for(self, agent_id: str) -> asyncio.Lock:
-        if agent_id not in self._locks:
-            self._locks[agent_id] = asyncio.Lock()
-        return self._locks[agent_id]
+    def _lock_for(self, key: str) -> asyncio.Lock:
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+        return self._locks[key]
 
-    def _memory_path(self, agent_id: str) -> Path:
+    def _agent_dir(self, agent_id: str) -> Path:
         if not _SAFE_AGENT_ID.match(agent_id):
             raise ValueError(f"Invalid agent_id: {agent_id!r}")
-        path = self._root / "agents" / agent_id / "MEMORY.md"
-        # Defense-in-depth: verify resolved path stays within workspace
+        path = self._root / "agents" / agent_id
         if not path.resolve().is_relative_to(self._root.resolve()):
             raise ValueError(f"Path traversal detected for agent_id: {agent_id!r}")
         return path
 
-    def _parse_file(self, agent_id: str) -> list[MemoryRecord]:
-        """Parse MEMORY.md into MemoryRecord objects."""
-        path = self._memory_path(agent_id)
+    def _global_memory_path(self, agent_id: str) -> Path:
+        return self._agent_dir(agent_id) / "MEMORY.md"
+
+    def _user_memory_path(self, agent_id: str, user_id: str) -> Path:
+        agent_dir = self._agent_dir(agent_id)
+        path = agent_dir / "memory" / _user_filename(user_id)
+        if not path.resolve().is_relative_to(agent_dir.resolve()):
+            raise ValueError(f"Path traversal detected for user_id: {user_id!r}")
+        return path
+
+    def _memory_path(self, agent_id: str, user_id: str | None = None) -> Path:
+        if user_id is not None:
+            return self._user_memory_path(agent_id, user_id)
+        return self._global_memory_path(agent_id)
+
+    def _lock_key(self, agent_id: str, user_id: str | None = None) -> str:
+        if user_id is not None:
+            return f"{agent_id}:user:{user_id}"
+        return agent_id
+
+    def _parse_file(
+        self, path: Path, agent_id: str, user_id: str | None = None
+    ) -> list[MemoryRecord]:
+        """Parse a MEMORY.md file into MemoryRecord objects."""
         if not path.exists():
             return []
 
@@ -95,6 +135,7 @@ class FileMemoryRepository:
                         content=memory_content,
                         memory_type=current_type,
                         source=MemorySource.MANUAL,
+                        user_id=user_id,
                         created_at=now,
                         updated_at=now,
                     )
@@ -102,9 +143,8 @@ class FileMemoryRepository:
 
         return records
 
-    def _write_records(self, agent_id: str, records: list[MemoryRecord]) -> None:
-        """Write records to MEMORY.md as structured markdown."""
-        path = self._memory_path(agent_id)
+    def _write_records(self, path: Path, records: list[MemoryRecord]) -> None:
+        """Write records to a memory file as structured markdown."""
         path.parent.mkdir(parents=True, exist_ok=True)
 
         grouped: dict[MemoryType, list[MemoryRecord]] = {
@@ -128,8 +168,10 @@ class FileMemoryRepository:
         path.write_text("\n".join(lines), encoding="utf-8")
 
     async def save(self, record: MemoryRecord) -> None:
-        async with self._lock_for(record.agent_id):
-            records = self._parse_file(record.agent_id)
+        key = self._lock_key(record.agent_id, record.user_id)
+        path = self._memory_path(record.agent_id, record.user_id)
+        async with self._lock_for(key):
+            records = self._parse_file(path, record.agent_id, record.user_id)
 
             # Upsert: replace existing record with same id
             found = False
@@ -142,24 +184,46 @@ class FileMemoryRepository:
             if not found:
                 records.append(record)
 
-            self._write_records(record.agent_id, records)
+            self._write_records(path, records)
 
     async def get(self, agent_id: str, memory_id: str) -> MemoryRecord | None:
-        records = self._parse_file(agent_id)
-        for r in records:
+        # Search global first, then all user files
+        global_records = self._parse_file(self._global_memory_path(agent_id), agent_id)
+        for r in global_records:
             if r.id == memory_id:
                 return r
+
+        user_dir = self._agent_dir(agent_id) / "memory"
+        if user_dir.exists():
+            for user_file in user_dir.glob("*.md"):
+                user_records = self._parse_file(user_file, agent_id)
+                for r in user_records:
+                    if r.id == memory_id:
+                        return r
         return None
 
     async def list_memories(
         self,
         agent_id: str,
         *,
+        user_id: str | None = None,
+        include_global: bool = True,
         memory_type: MemoryType | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[MemoryRecord]:
-        records = self._parse_file(agent_id)
+        records: list[MemoryRecord] = []
+
+        # Include user-specific memories
+        if user_id is not None:
+            user_path = self._user_memory_path(agent_id, user_id)
+            records.extend(self._parse_file(user_path, agent_id, user_id))
+
+        # Include global memories
+        if include_global or user_id is None:
+            global_path = self._global_memory_path(agent_id)
+            records.extend(self._parse_file(global_path, agent_id))
+
         if memory_type is not None:
             records = [r for r in records if r.memory_type == memory_type]
         # Most recent first (by position in file, newest appended last)
@@ -171,11 +235,22 @@ class FileMemoryRepository:
         agent_id: str,
         query: str,
         *,
+        user_id: str | None = None,
+        include_global: bool = True,
         memory_type: MemoryType | None = None,
         limit: int = 10,
     ) -> list[MemorySearchResult]:
         """Simple keyword search — case-insensitive matching."""
-        records = self._parse_file(agent_id)
+        records: list[MemoryRecord] = []
+
+        if user_id is not None:
+            user_path = self._user_memory_path(agent_id, user_id)
+            records.extend(self._parse_file(user_path, agent_id, user_id))
+
+        if include_global or user_id is None:
+            global_path = self._global_memory_path(agent_id)
+            records.extend(self._parse_file(global_path, agent_id))
+
         if memory_type is not None:
             records = [r for r in records if r.memory_type == memory_type]
 
@@ -189,36 +264,90 @@ class FileMemoryRepository:
             matches = sum(1 for w in query_words if w in content_lower)
             if matches > 0:
                 score = matches / len(query_words) if query_words else 0.0
+                # Boost user-specific memories when searching with user context
+                if user_id is not None and r.user_id == user_id:
+                    score *= 1.2
                 results.append(MemorySearchResult(record=r, score=score))
 
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:limit]
 
     async def delete(self, agent_id: str, memory_id: str) -> bool:
-        async with self._lock_for(agent_id):
-            records = self._parse_file(agent_id)
+        # Try global file first
+        global_path = self._global_memory_path(agent_id)
+        key = self._lock_key(agent_id)
+        async with self._lock_for(key):
+            records = self._parse_file(global_path, agent_id)
             original_count = len(records)
             records = [r for r in records if r.id != memory_id]
-            if len(records) == original_count:
-                return False
-            self._write_records(agent_id, records)
-            return True
+            if len(records) < original_count:
+                self._write_records(global_path, records)
+                return True
 
-    async def delete_all(self, agent_id: str) -> int:
-        async with self._lock_for(agent_id):
-            records = self._parse_file(agent_id)
-            count = len(records)
-            if count > 0:
-                path = self._memory_path(agent_id)
-                path.write_text("", encoding="utf-8")
-            return count
+        # Try user files
+        user_dir = self._agent_dir(agent_id) / "memory"
+        if user_dir.exists():
+            for user_file in user_dir.glob("*.md"):
+                user_key = f"{agent_id}:file:{user_file.name}"
+                async with self._lock_for(user_key):
+                    user_records = self._parse_file(user_file, agent_id)
+                    original_count = len(user_records)
+                    user_records = [r for r in user_records if r.id != memory_id]
+                    if len(user_records) < original_count:
+                        self._write_records(user_file, user_records)
+                        return True
+        return False
 
-    async def count(self, agent_id: str) -> int:
-        return len(self._parse_file(agent_id))
+    async def delete_all(self, agent_id: str, user_id: str | None = None) -> int:
+        if user_id is not None:
+            # Delete only this user's memories
+            user_path = self._user_memory_path(agent_id, user_id)
+            key = self._lock_key(agent_id, user_id)
+            async with self._lock_for(key):
+                records = self._parse_file(user_path, agent_id, user_id)
+                count = len(records)
+                if count > 0:
+                    user_path.write_text("", encoding="utf-8")
+                return count
+
+        # Delete all memories (global + all user files)
+        total = 0
+        global_path = self._global_memory_path(agent_id)
+        key = self._lock_key(agent_id)
+        async with self._lock_for(key):
+            records = self._parse_file(global_path, agent_id)
+            total += len(records)
+            if records:
+                global_path.write_text("", encoding="utf-8")
+
+        user_dir = self._agent_dir(agent_id) / "memory"
+        if user_dir.exists():
+            for user_file in user_dir.glob("*.md"):
+                user_key = f"{agent_id}:file:{user_file.name}"
+                async with self._lock_for(user_key):
+                    user_records = self._parse_file(user_file, agent_id)
+                    total += len(user_records)
+                    if user_records:
+                        user_file.write_text("", encoding="utf-8")
+
+        return total
+
+    async def count(self, agent_id: str, user_id: str | None = None) -> int:
+        if user_id is not None:
+            user_path = self._user_memory_path(agent_id, user_id)
+            return len(self._parse_file(user_path, agent_id, user_id))
+
+        # Count all (global + all user files)
+        total = len(self._parse_file(self._global_memory_path(agent_id), agent_id))
+        user_dir = self._agent_dir(agent_id) / "memory"
+        if user_dir.exists():
+            for user_file in user_dir.glob("*.md"):
+                total += len(self._parse_file(user_file, agent_id))
+        return total
 
 
 class FileMemoryBackend:
-    """File-based memory backend using MEMORY.md per agent.
+    """File-based memory backend using MEMORY.md per agent + per-user files.
 
     Zero-config default. Stores memories as structured markdown sections
     grouped by type. Supports keyword search and per-agent asyncio locks.
