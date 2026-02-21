@@ -17,11 +17,12 @@ if TYPE_CHECKING:
 @dataclass
 class DashboardUser:
     username: str
+    display_name: str = ""
+    auth_method: str = "password"
 
 
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
-
 
 
 def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[no-untyped-def]
@@ -39,7 +40,11 @@ def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[n
                     headers={"HX-Redirect": "/dashboard/login"},
                 )
             raise HTTPException(status_code=302, headers={"Location": "/dashboard/login"})
-        return DashboardUser(username=str(user_id))
+        return DashboardUser(
+            username=str(user_id),
+            display_name=request.session.get("display_name", ""),
+            auth_method=request.session.get("auth_method", "password"),
+        )
 
     return get_dashboard_user
 
