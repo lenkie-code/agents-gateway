@@ -68,7 +68,9 @@ else:
         ]
     )
 
-gw.use_file_memory()
+# Memory: auto-selects SQL backend (per-user) when Postgres is configured,
+# otherwise falls back to file-based (MEMORY.md per agent).
+# To force file-based: gw.use_file_memory()
 
 # --- Dashboard ---
 # Supports password auth (default) or OAuth2/OIDC SSO (mutually exclusive).

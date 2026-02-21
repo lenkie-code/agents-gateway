@@ -403,13 +403,24 @@ class Gateway(FastAPI):
         )
         if (memory_cfg.enabled or memory_backend is not None) and has_memory_agents:
             if memory_backend is None:
-                # Default to file-based memory
-                from agent_gateway.memory.backends.file import FileMemoryBackend
+                # Auto-select: SQL backend when persistence is SQL (per-user support),
+                # otherwise file-based (single MEMORY.md per agent).
+                if self._persistence_backend is not None and hasattr(
+                    self._persistence_backend, "_session_factory"
+                ):
+                    from agent_gateway.memory.backends.sql import SqlMemoryBackend
 
-                memory_backend = FileMemoryBackend(
-                    workspace_root=ws_path,
-                    max_lines=memory_cfg.max_memory_md_lines,
-                )
+                    memory_backend = SqlMemoryBackend(
+                        self._persistence_backend._session_factory
+                    )
+                    logger.info("Using SQL memory backend (per-user scoping enabled)")
+                else:
+                    from agent_gateway.memory.backends.file import FileMemoryBackend
+
+                    memory_backend = FileMemoryBackend(
+                        workspace_root=ws_path,
+                        max_lines=memory_cfg.max_memory_md_lines,
+                    )
             try:
                 await memory_backend.initialize()
 

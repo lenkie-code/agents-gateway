@@ -47,38 +47,76 @@ async def manager(
 
 
 class TestFileBackendUserScoping:
-    """File backend gracefully degrades — per-user ops return empty."""
+    """File backend stores per-user memories in separate files."""
 
-    async def test_list_user_only_returns_empty(self, manager: MemoryManager) -> None:
+    async def test_user_memory_isolated_from_global(self, manager: MemoryManager) -> None:
         await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="global fact"))
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="user pref", user_id="user1")
+        )
+        # User-only query should return only user memories
         results = await manager.repo.list_memories(
             "test-agent", user_id="user1", include_global=False
         )
-        assert results == []
+        assert len(results) == 1
+        assert results[0].content == "user pref"
 
-    async def test_list_with_global_includes_memories(self, manager: MemoryManager) -> None:
+    async def test_list_with_global_includes_both(self, manager: MemoryManager) -> None:
         await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="global fact"))
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="user pref", user_id="user1")
+        )
         results = await manager.repo.list_memories(
             "test-agent", user_id="user1", include_global=True
         )
-        assert len(results) >= 1
+        assert len(results) == 2
 
-    async def test_search_user_only_returns_empty(self, manager: MemoryManager) -> None:
+    async def test_search_user_only(self, manager: MemoryManager) -> None:
         await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="global fact"))
-        results = await manager.repo.search(
-            "test-agent", "global", user_id="user1", include_global=False
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="user fact", user_id="user1")
         )
-        assert results == []
+        results = await manager.repo.search(
+            "test-agent", "fact", user_id="user1", include_global=False
+        )
+        assert len(results) == 1
+        assert results[0].record.user_id == "user1"
 
-    async def test_count_user_returns_zero(self, manager: MemoryManager) -> None:
+    async def test_count_user_memories(self, manager: MemoryManager) -> None:
         await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="global fact"))
-        count = await manager.repo.count("test-agent", user_id="user1")
-        assert count == 0
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="user fact", user_id="user1")
+        )
+        assert await manager.repo.count("test-agent", user_id="user1") == 1
 
-    async def test_delete_all_user_returns_zero(self, manager: MemoryManager) -> None:
+    async def test_delete_all_user_only(self, manager: MemoryManager) -> None:
         await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="global fact"))
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="user fact", user_id="user1")
+        )
         deleted = await manager.repo.delete_all("test-agent", user_id="user1")
-        assert deleted == 0
+        assert deleted == 1
+        # Global memory should still exist
+        global_records = await manager.repo.list_memories("test-agent")
+        assert len(global_records) == 1
+
+    async def test_users_isolated_from_each_other(self, manager: MemoryManager) -> None:
+        await manager.save(
+            MemoryRecord(id="a", agent_id="test-agent", content="alice pref", user_id="alice")
+        )
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="bob pref", user_id="bob")
+        )
+        alice = await manager.repo.list_memories(
+            "test-agent", user_id="alice", include_global=False
+        )
+        bob = await manager.repo.list_memories(
+            "test-agent", user_id="bob", include_global=False
+        )
+        assert len(alice) == 1
+        assert alice[0].content == "alice pref"
+        assert len(bob) == 1
+        assert bob[0].content == "bob pref"
 
 
 class TestContextBlockLayering:
@@ -91,11 +129,14 @@ class TestContextBlockLayering:
         assert "User Context" not in block
 
     async def test_layered_sections_with_user(self, manager: MemoryManager) -> None:
-        """File backend only stores global, so user section should be empty."""
         await manager.save(MemoryRecord(id="a", agent_id="test-agent", content="global fact"))
+        await manager.save(
+            MemoryRecord(id="b", agent_id="test-agent", content="user pref", user_id="user1")
+        )
         block = await manager.get_context_block("test-agent", user_id="user1")
         assert "Agent Knowledge" in block
         assert "global fact" in block
+        assert "user pref" in block
 
     async def test_empty_when_no_memories(self, manager: MemoryManager) -> None:
         block = await manager.get_context_block("test-agent", user_id="user1")
