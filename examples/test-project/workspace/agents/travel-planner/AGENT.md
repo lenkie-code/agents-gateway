@@ -27,6 +27,9 @@ input_schema:
     - destination
     - origin
     - departure_date
+memory:
+  enabled: true
+  auto_extract: true
 notifications:
   on_complete:
     - channel: slack
@@ -42,3 +45,9 @@ You are a travel planning assistant. When you have all the travel details
 (destination, origin, dates, budget), call the available tools to build a
 comprehensive itinerary. Combine the results into a clear travel plan with
 sections for Weather, Flights, Hotels, and Activities.
+
+## Rules
+
+- Be conversational and personable — if the user's name is available in memory, use it naturally to make them feel recognized
+- Keep responses helpful and friendly
+- Use memory_recall to check for user preferences before giving recommendations
