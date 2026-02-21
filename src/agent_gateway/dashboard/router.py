@@ -298,6 +298,13 @@ def register_dashboard(
 
         gw = request.app
 
+        # Derive user_id from dashboard user (OAuth2 subject or username)
+        user_id: str | None = None
+        if current_user.username and current_user.username != "anonymous":
+            user_id = current_user.username
+            # Ensure user profile exists so memory block can reference name
+            await gw._ensure_dashboard_user_profile(current_user)
+
         async def event_generator() -> Any:
             snapshot = gw._snapshot
             if snapshot is None or snapshot.workspace is None:
@@ -325,9 +332,9 @@ def register_dashboard(
             if session_id:
                 session = session_store.get_session(session_id)
                 if session is None or session.agent_id != agent_id:
-                    session = session_store.create_session(agent_id)
+                    session = session_store.create_session(agent_id, user_id=user_id)
             else:
-                session = session_store.create_session(agent_id)
+                session = session_store.create_session(agent_id, user_id=user_id)
 
             session.append_user_message(message)
             session.truncate_history(session_store._max_history)
@@ -341,6 +348,14 @@ def register_dashboard(
                 context_retrieval_config=snapshot.context_retrieval_config,
                 chat_mode=True,
             )
+
+            # Inject memory context (user name + memories) into system prompt
+            memory_block = await gw._get_memory_block(
+                agent_id, message, agent.memory_config, user_id=user_id
+            )
+            if memory_block:
+                system_prompt = f"{system_prompt}\n\n{memory_block}"
+
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
                 *session.messages,
@@ -354,6 +369,7 @@ def register_dashboard(
             gw._execution_handles[execution_id] = handle
 
             try:
+                collected_text: list[str] = []
                 async for event in stream_chat_execution(
                     gw=gw,
                     agent=agent,
@@ -363,9 +379,26 @@ def register_dashboard(
                     execution_id=execution_id,
                     handle=handle,
                 ):
+                    # Collect assistant text for persistence + memory extraction
+                    if isinstance(event, str) and "event: token\n" in event:
+                        for line in event.split("\n"):
+                            if line.startswith("data: "):
+                                try:
+                                    payload = json.loads(line[6:])
+                                    collected_text.append(payload.get("content", ""))
+                                except (json.JSONDecodeError, KeyError):
+                                    pass
                     yield event
             finally:
                 gw._execution_handles.pop(execution_id, None)
+
+                # Persist conversation and trigger memory extraction
+                assistant_text = "".join(collected_text) if collected_text else None
+                if assistant_text:
+                    gw._persist_conversation_messages(session, message, assistant_text)
+                    gw._trigger_memory_extraction(
+                        agent_id, message, assistant_text, user_id=user_id
+                    )
 
         return StreamingResponse(
             event_generator(),

@@ -1793,6 +1793,63 @@ class Gateway(FastAPI):
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
+    async def _ensure_dashboard_user_profile(self, dashboard_user: Any) -> None:
+        """Create/update a user profile from a DashboardUser (used by dashboard chat)."""
+        username = getattr(dashboard_user, "username", None)
+        if not username or username == "anonymous":
+            return
+        from datetime import UTC, datetime
+
+        from agent_gateway.persistence.domain import UserProfile
+
+        now = datetime.now(UTC)
+        profile = UserProfile(
+            user_id=username,
+            display_name=getattr(dashboard_user, "display_name", "") or username,
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        try:
+            await self._user_repo.upsert(profile)
+        except Exception:
+            logger.warning("Failed to upsert dashboard user profile for '%s'", username)
+
+    def _trigger_memory_extraction(
+        self,
+        agent_id: str,
+        user_message: str,
+        assistant_text: str,
+        user_id: str | None = None,
+    ) -> None:
+        """Fire-and-forget memory extraction with debouncing."""
+        if self._memory_manager is None or self._llm_client is None:
+            return
+
+        now = time.monotonic()
+        debounce_key = f"{agent_id}:{user_id or ''}"
+        last_extraction = self._extraction_cooldowns.get(debounce_key, 0.0)
+        if now - last_extraction < self._extraction_debounce:
+            return
+
+        self._extraction_cooldowns[debounce_key] = now
+        recent_messages = [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": assistant_text},
+        ]
+        mm = self._memory_manager
+        _uid = user_id
+
+        async def _extract() -> None:
+            await mm.extract_memories(agent_id, recent_messages, user_id=_uid)
+            await mm.compact_memories(agent_id, user_id=_uid)
+
+        task = asyncio.create_task(
+            _extract(),
+            name=f"memory-extract-{agent_id}-{user_id or 'global'}",
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
     async def invoke(
         self,
         agent_id: str,
