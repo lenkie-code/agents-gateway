@@ -355,13 +355,20 @@ class MemoryManager:
         user_id: str | None = None,
         include_global: bool = True,
     ) -> str:
-        """Build a memory section from search or list results."""
+        """Build a memory section from search or list results.
+
+        Uses query-based search when available, falling back to listing
+        recent memories when search yields no results.
+        """
+        records: list[MemoryRecord] = []
         if query:
             results = await self._backend.memory_repo.search(
                 agent_id, query, user_id=user_id, include_global=include_global, limit=20
             )
             records = [r.record for r in results]
-        else:
+
+        # Fall back to recent memories when search returns nothing
+        if not records:
             records = await self._backend.memory_repo.list_memories(
                 agent_id, user_id=user_id, include_global=include_global, limit=50
             )
