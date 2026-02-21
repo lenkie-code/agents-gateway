@@ -20,11 +20,21 @@
   <link rel="stylesheet" href="/dashboard/static/dashboard/tokens.css" />
   <link rel="stylesheet" href="/dashboard/static/dashboard/app.css" />
 
-  <!-- Accent color injection from config -->
+  <!-- Theme color injection from config -->
   <style>
     :root {
-      --color-accent: {{ dashboard_accent }};
-      --color-accent-dark: {{ dashboard_accent_dark }};
+      --color-accent: {{ dashboard_colors.accent }};
+      --color-accent-dark: {{ dashboard_colors.accent_dark }};
+      --color-primary: {{ dashboard_colors.primary }};
+      --color-primary-dark: {{ dashboard_colors.primary_dark }};
+      --color-secondary: {{ dashboard_colors.secondary }};
+      --color-secondary-dark: {{ dashboard_colors.secondary_dark }};
+      --color-cfg-surface: {{ dashboard_colors.surface }};
+      --color-cfg-surface-dark: {{ dashboard_colors.surface_dark }};
+      --color-cfg-sidebar: {{ dashboard_colors.sidebar }};
+      --color-cfg-sidebar-dark: {{ dashboard_colors.sidebar_dark }};
+      --color-cfg-danger: {{ dashboard_colors.danger }};
+      --color-cfg-danger-dark: {{ dashboard_colors.danger_dark }};
     }
   </style>
 
