@@ -163,6 +163,7 @@ def _create_streaming_response(
             query=body.message,
             retriever_registry=retriever_reg,
             context_retrieval_config=snapshot.context_retrieval_config,
+            chat_mode=True,
         )
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},

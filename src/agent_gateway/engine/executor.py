@@ -168,6 +168,17 @@ class ExecutionEngine:
         # Build initial messages
         if message_history is not None:
             messages = list(message_history)
+            # Surface any pre-provided input data (from API chat callers)
+            if input and agent.input_schema:
+                input_note = (
+                    "The caller has pre-provided some input values:\n"
+                    f"```json\n{json.dumps(input, indent=2)}\n```\n"
+                    "Use these values and only ask for missing required fields."
+                )
+                # Insert synthetic exchange after the system prompt
+                messages.insert(1, {"role": "user", "content": input_note})
+                ack = "Understood, I'll use those values."
+                messages.insert(2, {"role": "assistant", "content": ack})
         else:
             # Inject structured input into the user message when available
             user_content = message
