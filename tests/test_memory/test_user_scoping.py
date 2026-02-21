@@ -110,9 +110,7 @@ class TestFileBackendUserScoping:
         alice = await manager.repo.list_memories(
             "test-agent", user_id="alice", include_global=False
         )
-        bob = await manager.repo.list_memories(
-            "test-agent", user_id="bob", include_global=False
-        )
+        bob = await manager.repo.list_memories("test-agent", user_id="bob", include_global=False)
         assert len(alice) == 1
         assert alice[0].content == "alice pref"
         assert len(bob) == 1

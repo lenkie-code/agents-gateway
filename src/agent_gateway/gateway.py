@@ -410,9 +410,7 @@ class Gateway(FastAPI):
                 ):
                     from agent_gateway.memory.backends.sql import SqlMemoryBackend
 
-                    memory_backend = SqlMemoryBackend(
-                        self._persistence_backend._session_factory
-                    )
+                    memory_backend = SqlMemoryBackend(self._persistence_backend._session_factory)
                     logger.info("Using SQL memory backend (per-user scoping enabled)")
                 else:
                     from agent_gateway.memory.backends.file import FileMemoryBackend
