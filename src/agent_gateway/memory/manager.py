@@ -379,7 +379,8 @@ class MemoryManager:
         lines: list[str] = []
         total_chars = 0
         for r in records:
-            line = f"- [{r.memory_type.value}] {r.content}"
+            mtype = r.memory_type.value if isinstance(r.memory_type, MemoryType) else r.memory_type
+            line = f"- [{mtype}] {r.content}"
             if total_chars + len(line) > max_chars:
                 break
             lines.append(line)
