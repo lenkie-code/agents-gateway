@@ -7,6 +7,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import jsonschema
@@ -19,6 +20,7 @@ from agent_gateway.engine.models import (
     ToolContext,
     UsageAccumulator,
 )
+from agent_gateway.persistence.domain import ExecutionRecord, ExecutionStep
 from agent_gateway.tools.runner import execute_tool
 
 if TYPE_CHECKING:
@@ -81,6 +83,19 @@ async def stream_chat_execution(
     if snapshot is None or snapshot.engine is None:
         yield _sse_event("error", {"message": "Engine not available"})
         return
+
+    # Persist initial execution record
+    repo = gw._execution_repo
+    record = ExecutionRecord(
+        id=execution_id,
+        agent_id=agent.id,
+        status="running",
+        message=next((m["content"] for m in reversed(messages) if m.get("role") == "user"), ""),
+        options={"session_id": session.session_id},
+        started_at=datetime.now(UTC),
+    )
+    await repo.create(record)
+    step_seq = 0
 
     # Acquire session lock inside the generator to hold it during streaming
     async with session.lock:
@@ -188,6 +203,25 @@ async def stream_chat_execution(
                         if accumulated_text:
                             last_text = accumulated_text
 
+                        # Record LLM call step
+                        llm_step_data: dict[str, Any] = {
+                            "has_tool_calls": len(pending_tool_calls) > 0,
+                            "content": (accumulated_text or "")[:2048],
+                            "tool_calls_count": len(pending_tool_calls),
+                        }
+                        try:
+                            await repo.add_step(
+                                ExecutionStep(
+                                    execution_id=execution_id,
+                                    step_type="llm_call",
+                                    sequence=step_seq,
+                                    data=llm_step_data,
+                                )
+                            )
+                            step_seq += 1
+                        except Exception:
+                            logger.debug("Failed to persist LLM step", exc_info=True)
+
                         # No tool calls -> done
                         if not pending_tool_calls:
                             stop_reason = StopReason.COMPLETED
@@ -211,6 +245,25 @@ async def stream_chat_execution(
                         if accumulated_text:
                             assistant_msg["content"] = accumulated_text
                         messages.append(assistant_msg)
+
+                        # Record tool_call steps
+                        for tc in pending_tool_calls:
+                            try:
+                                await repo.add_step(
+                                    ExecutionStep(
+                                        execution_id=execution_id,
+                                        step_type="tool_call",
+                                        sequence=step_seq,
+                                        data={
+                                            "tool_name": tc.name,
+                                            "call_id": tc.call_id,
+                                            "arguments": tc.arguments,
+                                        },
+                                    )
+                                )
+                                step_seq += 1
+                            except Exception:
+                                logger.debug("Failed to persist tool_call step", exc_info=True)
 
                         # Execute tools with validation
                         for tc in pending_tool_calls:
@@ -295,7 +348,9 @@ async def stream_chat_execution(
 
                             try:
                                 usage.add_tool_call()
+                                tool_start = time.monotonic()
                                 result = await execute_tool(resolved, tc.arguments, tool_context)
+                                tool_dur = int((time.monotonic() - tool_start) * 1000)
                                 output_str = _truncate_result(_serialize_tool_output(result))
                                 yield _sse_event(
                                     "tool_result",
@@ -312,6 +367,27 @@ async def stream_chat_execution(
                                         "content": output_str,
                                     }
                                 )
+                                # Record tool_result step
+                                try:
+                                    await repo.add_step(
+                                        ExecutionStep(
+                                            execution_id=execution_id,
+                                            step_type="tool_result",
+                                            sequence=step_seq,
+                                            data={
+                                                "tool_name": tc.name,
+                                                "call_id": tc.call_id,
+                                                "success": True,
+                                                "result": output_str[:2048],
+                                            },
+                                            duration_ms=tool_dur,
+                                        )
+                                    )
+                                    step_seq += 1
+                                except Exception:
+                                    logger.debug(
+                                        "Failed to persist tool_result step", exc_info=True
+                                    )
                             except Exception as e:
                                 logger.error(
                                     "Tool '%s' failed during streaming: %s",
@@ -355,20 +431,33 @@ async def stream_chat_execution(
 
         duration_ms = int((time.monotonic() - start) * 1000)
 
+        # Persist execution result
+        final_status = "completed" if stop_reason == StopReason.COMPLETED else "failed"
+        usage_dict = {
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "cost_usd": round(usage.cost_usd, 6),
+            "llm_calls": usage.llm_calls,
+            "tool_calls": usage.tool_calls,
+            "models_used": list(usage.models_used),
+            "duration_ms": duration_ms,
+        }
+        try:
+            await repo.update_status(execution_id, final_status)
+            await repo.update_result(
+                execution_id,
+                result={"content": last_text} if last_text else {},
+                usage=usage_dict,
+            )
+        except Exception:
+            logger.warning("Failed to persist chat execution %s", execution_id)
+
         # Emit done event
         yield _sse_event(
             "done",
             {
                 "status": stop_reason.value,
-                "usage": {
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
-                    "cost_usd": round(usage.cost_usd, 6),
-                    "llm_calls": usage.llm_calls,
-                    "tool_calls": usage.tool_calls,
-                    "models_used": list(usage.models_used),
-                    "duration_ms": duration_ms,
-                },
+                "usage": usage_dict,
                 "turn_count": session.turn_count,
             },
         )

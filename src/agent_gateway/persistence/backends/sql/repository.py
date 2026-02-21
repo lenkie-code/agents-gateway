@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import selectinload
 
 from agent_gateway.persistence.domain import (
     AuditLogEntry,
@@ -16,11 +17,42 @@ from agent_gateway.persistence.domain import (
 )
 
 
+def _is_postgres(session_factory: async_sessionmaker[AsyncSession]) -> bool:
+    """Check if the session factory is bound to a PostgreSQL engine."""
+    bind = session_factory.kw.get("bind")
+    if bind is None:
+        return False
+    return "postgresql" in str(bind.url)
+
+
+def _normalize_row(row_mapping: Any) -> dict[str, Any]:
+    """Convert non-JSON-serializable types from raw SQL results."""
+    from decimal import Decimal
+
+    result: dict[str, Any] = {}
+    for k, v in dict(row_mapping).items():
+        if isinstance(v, date) and not isinstance(v, datetime):
+            result[k] = v.isoformat()
+        elif isinstance(v, Decimal):
+            result[k] = float(v)
+        else:
+            result[k] = v
+    return result
+
+
+def _json_field(column: str, key: str, *, is_postgres: bool) -> str:
+    """Return a SQL expression to extract a JSON field, dialect-aware."""
+    if is_postgres:
+        return f"CAST(({column}::json)->>'{key}' AS NUMERIC)"
+    return f"CAST(json_extract({column}, '$.{key}') AS REAL)"
+
+
 class ExecutionRepository:
     """CRUD operations for execution records and steps."""
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+        self._pg = _is_postgres(session_factory)
 
     async def create(self, execution: ExecutionRecord) -> None:
         """Insert a new execution record."""
@@ -91,18 +123,13 @@ class ExecutionRepository:
     async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None:
         """Fetch an execution by ID with all its steps eagerly loaded."""
         async with self._session_factory() as session:
-            record = await session.get(ExecutionRecord, execution_id)
-            if record is None:
-                return None
-            # Load steps separately (imperative mapping without relationships)
             stmt = (
-                select(ExecutionStep)
-                .where(ExecutionStep.execution_id == execution_id)  # type: ignore[arg-type]
-                .order_by(ExecutionStep.sequence)  # type: ignore[arg-type]
+                select(ExecutionRecord)
+                .where(ExecutionRecord.id == execution_id)  # type: ignore[arg-type]
+                .options(selectinload(ExecutionRecord.steps))  # type: ignore[arg-type]
             )
             result = await session.execute(stmt)
-            record.steps = list(result.scalars().all())
-            return record
+            return result.scalars().first()
 
     async def list_all(
         self,
@@ -160,47 +187,50 @@ class ExecutionRepository:
     async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily cost aggregation for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
+        out = _json_field("usage", "output_tokens", is_postgres=self._pg)
         async with self._session_factory() as session:
-            # Use SQLite-compatible date extraction; works on Postgres too
-            stmt = text(
-                """
+            stmt = text(f"""
                 SELECT
                     date(created_at) as day,
                     COUNT(*) as execution_count,
-                    SUM(CAST(json_extract(usage, '$.cost_usd') AS REAL)) as total_cost_usd,
-                    SUM(CAST(json_extract(usage, '$.input_tokens') AS INTEGER)) as total_input_tokens,
-                    SUM(CAST(json_extract(usage, '$.output_tokens') AS INTEGER)) as total_output_tokens
+                    SUM({cost}) as total_cost_usd,
+                    SUM({inp}) as total_input_tokens,
+                    SUM({out}) as total_output_tokens
                 FROM executions
                 WHERE created_at >= :since
                   AND usage IS NOT NULL
                 GROUP BY date(created_at)
                 ORDER BY day ASC
-                """
-            )
-            result = await session.execute(stmt, {"since": since.isoformat()})
-            return [dict(row._mapping) for row in result]
+                """)
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            return [_normalize_row(row._mapping) for row in result]
 
     async def cost_by_agent(self, days: int = 30) -> list[dict[str, Any]]:
         """Per-agent cost aggregation for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
+        out = _json_field("usage", "output_tokens", is_postgres=self._pg)
         async with self._session_factory() as session:
-            stmt = text(
-                """
+            stmt = text(f"""
                 SELECT
                     agent_id,
                     COUNT(*) as execution_count,
-                    SUM(CAST(json_extract(usage, '$.cost_usd') AS REAL)) as total_cost_usd,
-                    SUM(CAST(json_extract(usage, '$.input_tokens') AS INTEGER)) as total_input_tokens,
-                    SUM(CAST(json_extract(usage, '$.output_tokens') AS INTEGER)) as total_output_tokens
+                    SUM({cost}) as total_cost_usd,
+                    SUM({inp}) as total_input_tokens,
+                    SUM({out}) as total_output_tokens
                 FROM executions
                 WHERE created_at >= :since
                   AND usage IS NOT NULL
                 GROUP BY agent_id
                 ORDER BY total_cost_usd DESC
-                """
-            )
-            result = await session.execute(stmt, {"since": since.isoformat()})
-            return [dict(row._mapping) for row in result]
+                """)
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            return [_normalize_row(row._mapping) for row in result]
 
     async def executions_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily execution count by status for the last N days."""
@@ -219,8 +249,9 @@ class ExecutionRepository:
                 ORDER BY day ASC
                 """
             )
-            result = await session.execute(stmt, {"since": since.isoformat()})
-            return [dict(row._mapping) for row in result]
+            since_param = since if self._pg else since.isoformat()
+            result = await session.execute(stmt, {"since": since_param})
+            return [_normalize_row(row._mapping) for row in result]
 
 
 class ScheduleRepository:

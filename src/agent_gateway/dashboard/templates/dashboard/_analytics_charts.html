@@ -1,3 +1,4 @@
+<div id="analytics-content">
 <!-- Summary stats -->
 <div class="stats-strip">
   <div class="stat-card">
@@ -6,7 +7,7 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">Executions</div>
-    <div class="stat-value">{{ summary.total_executions }}</div>
+    <div class="stat-value">{{ "{:,}".format(summary.total_executions) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Success Rate</div>
@@ -23,7 +24,7 @@
 
   <!-- Cost over time -->
   <div class="chart-card">
-    <div class="chart-title">Cost Over Time (USD)</div>
+    <div class="chart-title">Cost Over Time</div>
     {% if summary.cost_by_day %}
     <div class="chart-container">
       <canvas id="chart-cost"></canvas>
@@ -79,44 +80,61 @@
 
 </div>
 
-<!-- Chart init data (passed via inline script to Chart.js) -->
+<!-- Chart init data -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  if (typeof Chart === 'undefined') return;
-  if (typeof initCostChart === 'undefined') return;
+(function() {
+  function initCharts() {
+    if (typeof Chart === 'undefined') return;
+    if (typeof initCostChart === 'undefined') return;
+    if (typeof applyChartDefaults === 'function') applyChartDefaults();
 
-  // Cost over time
-  {% if summary.cost_by_day %}
-  initCostChart('chart-cost',
-    {{ summary.cost_by_day | map(attribute='day') | list | tojson }},
-    {{ summary.cost_by_day | map(attribute='total_cost_usd') | list | tojson }}
-  );
-  {% endif %}
+    // Destroy existing charts before re-creating (for HTMX swaps)
+    ['chart-cost', 'chart-executions', 'chart-agent-cost', 'chart-tokens'].forEach(function(id) {
+      var existing = Chart.getChart(id);
+      if (existing) existing.destroy();
+    });
 
-  // Executions per day
-  {% if summary.executions_by_day %}
-  initExecutionsChart('chart-executions',
-    {{ summary.executions_by_day | map(attribute='day') | list | tojson }},
-    {{ summary.executions_by_day | map(attribute='success_count') | list | tojson }},
-    {{ summary.executions_by_day | map(attribute='failed_count') | list | tojson }}
-  );
-  {% endif %}
+    // Cost over time
+    {% if summary.cost_by_day %}
+    initCostChart('chart-cost',
+      {{ summary.cost_by_day | map(attribute='day') | list | tojson }},
+      {{ summary.cost_by_day | map(attribute='total_cost_usd') | list | tojson }}
+    );
+    {% endif %}
 
-  // Cost by agent
-  {% if summary.cost_by_agent %}
-  initAgentCostChart('chart-agent-cost',
-    {{ summary.cost_by_agent | map(attribute='agent_id') | list | tojson }},
-    {{ summary.cost_by_agent | map(attribute='total_cost_usd') | list | tojson }}
-  );
-  {% endif %}
+    // Executions per day
+    {% if summary.executions_by_day %}
+    initExecutionsChart('chart-executions',
+      {{ summary.executions_by_day | map(attribute='day') | list | tojson }},
+      {{ summary.executions_by_day | map(attribute='success_count') | list | tojson }},
+      {{ summary.executions_by_day | map(attribute='failed_count') | list | tojson }}
+    );
+    {% endif %}
 
-  // Token usage
-  {% if summary.cost_by_day %}
-  initTokenChart('chart-tokens',
-    {{ summary.cost_by_day | map(attribute='day') | list | tojson }},
-    {{ summary.cost_by_day | map(attribute='total_input_tokens') | list | tojson }},
-    {{ summary.cost_by_day | map(attribute='total_output_tokens') | list | tojson }}
-  );
-  {% endif %}
-});
+    // Cost by agent
+    {% if summary.cost_by_agent %}
+    initAgentCostChart('chart-agent-cost',
+      {{ summary.cost_by_agent | map(attribute='agent_id') | list | tojson }},
+      {{ summary.cost_by_agent | map(attribute='total_cost_usd') | list | tojson }}
+    );
+    {% endif %}
+
+    // Token usage
+    {% if summary.cost_by_day %}
+    initTokenChart('chart-tokens',
+      {{ summary.cost_by_day | map(attribute='day') | list | tojson }},
+      {{ summary.cost_by_day | map(attribute='total_input_tokens') | list | tojson }},
+      {{ summary.cost_by_day | map(attribute='total_output_tokens') | list | tojson }}
+    );
+    {% endif %}
+  }
+
+  // Init on first load or HTMX swap
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCharts);
+  } else {
+    initCharts();
+  }
+})();
 </script>
+</div>

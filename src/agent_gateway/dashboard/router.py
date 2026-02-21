@@ -25,6 +25,7 @@ from agent_gateway.dashboard.models import (
     ExecutionDetail,
     ExecutionRow,
     format_cost,
+    format_datetime,
     format_duration,
     relative_time,
 )
@@ -47,6 +48,7 @@ def _build_templates(dash_config: DashboardConfig) -> Jinja2Templates:
     )
     # Global helpers available in all templates
     env.globals["format_cost"] = format_cost
+    env.globals["format_datetime"] = format_datetime
     env.globals["format_duration"] = format_duration
     env.globals["relative_time"] = relative_time
     env.globals["json_dumps"] = json.dumps
@@ -372,6 +374,29 @@ def register_dashboard(
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
+            },
+        )
+
+    @protected.get("/schedules", response_class=HTMLResponse)
+    async def schedules_page(
+        request: Request,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> HTMLResponse:
+        gw = request.app
+        schedule_repo = gw._schedule_repo
+        records = await schedule_repo.list_all()
+
+        ws = gw.workspace
+        agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/schedules.html",
+            context={
+                "schedules": records,
+                "agent_names": agent_names,
+                "current_user": current_user,
+                "active_page": "schedules",
             },
         )
 

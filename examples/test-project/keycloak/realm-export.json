@@ -13,7 +13,7 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "protocol": "openid-connect",
-      "defaultClientScopes": ["openid", "profile", "email"]
+      "defaultClientScopes": ["profile", "email"]
     },
     {
       "clientId": "agw-dashboard",
@@ -25,7 +25,7 @@
       "protocol": "openid-connect",
       "redirectUris": ["http://localhost:8000/dashboard/oauth2/callback"],
       "webOrigins": ["http://localhost:8000"],
-      "defaultClientScopes": ["openid", "profile", "email"]
+      "defaultClientScopes": ["profile", "email"]
     }
   ],
   "users": [

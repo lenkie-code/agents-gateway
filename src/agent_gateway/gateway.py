@@ -536,9 +536,9 @@ class Gateway(FastAPI):
                     public_paths=public,
                 )
 
-        # 11b. Add OpenAPI security scheme for OAuth2 (enables Swagger Authorize button)
-        if auth_provider is not None and self._oauth2_issuer:
-            await self._inject_oauth2_openapi_scheme(self._oauth2_issuer)
+        # 11b. Add OpenAPI security scheme (enables Swagger UI Authorize button)
+        if auth_provider is not None:
+            await self._inject_openapi_security_scheme()
 
         # 12. Mount dashboard if enabled
         self._maybe_init_dashboard()
@@ -1260,43 +1260,57 @@ class Gateway(FastAPI):
 
         return None
 
-    async def _inject_oauth2_openapi_scheme(self, issuer: str) -> None:
-        """Add an OAuth2 security scheme to the OpenAPI spec.
+    async def _inject_openapi_security_scheme(self) -> None:
+        """Add security scheme(s) to the OpenAPI spec for Swagger UI Authorize button.
 
-        Fetches the OIDC discovery document to get the authorization and token
-        endpoints, then patches the OpenAPI schema so Swagger UI shows the
-        Authorize button for interactive login.
+        - API key auth → HTTP Bearer scheme
+        - OAuth2 auth → OAuth2 Authorization Code flow (via OIDC discovery)
+        - Both present (composite) → both schemes
         """
-        import httpx
+        schemes: dict[str, dict[str, Any]] = {}
+        security: list[dict[str, list[str]]] = []
 
-        discovery_url = f"{issuer.rstrip('/')}/.well-known/openid-configuration"
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(discovery_url)
-                resp.raise_for_status()
-                discovery = resp.json()
-            auth_url = discovery["authorization_endpoint"]
-            token_url = discovery["token_endpoint"]
-        except Exception:
-            logger.warning(
-                "Failed to fetch OIDC discovery from %s; Swagger Authorize button "
-                "will not be available",
-                discovery_url,
-            )
-            return
-
-        scheme: dict[str, Any] = {
-            "type": "oauth2",
-            "flows": {
-                "authorizationCode": {
-                    "authorizationUrl": auth_url,
-                    "tokenUrl": token_url,
-                    "scopes": {"openid": "OpenID Connect"},
-                }
-            },
+        # Always add Bearer scheme — the auth middleware accepts Bearer tokens
+        # regardless of whether it's API key or OAuth2 JWT validation.
+        schemes["bearerAuth"] = {
+            "type": "http",
+            "scheme": "bearer",
+            "description": "API key or JWT access token",
         }
+        security.append({"bearerAuth": []})
 
-        # Patch the openapi() method to inject the security scheme.
+        # If OAuth2 issuer is configured, also add the OAuth2 flow so Swagger UI
+        # can perform interactive login (authorization code + token exchange).
+        if self._oauth2_issuer:
+            import httpx
+
+            discovery_url = f"{self._oauth2_issuer.rstrip('/')}/.well-known/openid-configuration"
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(discovery_url)
+                    resp.raise_for_status()
+                    discovery = resp.json()
+                auth_url = discovery["authorization_endpoint"]
+                token_url = discovery["token_endpoint"]
+                schemes["oauth2"] = {
+                    "type": "oauth2",
+                    "flows": {
+                        "authorizationCode": {
+                            "authorizationUrl": auth_url,
+                            "tokenUrl": token_url,
+                            "scopes": {"openid": "OpenID Connect"},
+                        }
+                    },
+                }
+                security.append({"oauth2": ["openid"]})
+            except Exception:
+                logger.warning(
+                    "Failed to fetch OIDC discovery from %s; OAuth2 Swagger login "
+                    "will not be available (Bearer auth still works)",
+                    discovery_url,
+                )
+
+        # Patch the openapi() method to inject the security schemes.
         # Clear any cached schema so the next call regenerates with our patch.
         self.openapi_schema = None
         original_openapi = self.openapi
@@ -1305,9 +1319,10 @@ class Gateway(FastAPI):
             result = original_openapi()
             components = result.setdefault("components", {})
             security_schemes = components.setdefault("securitySchemes", {})
-            security_schemes["oauth2"] = scheme
+            security_schemes.update(schemes)
             # Apply globally so all endpoints show the lock icon
-            result.setdefault("security", [{"oauth2": ["openid"]}])
+            if "security" not in result:
+                result["security"] = security
             return result
 
         self.openapi = patched_openapi  # type: ignore[method-assign]

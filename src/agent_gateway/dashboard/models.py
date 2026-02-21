@@ -55,10 +55,12 @@ class ExecutionRow:
     duration_ms: int | None
     created_at: datetime | None
     is_running: bool
+    session_id: str | None
 
     @classmethod
     def from_record(cls, record: ExecutionRecord) -> ExecutionRow:
         usage = record.usage or {}
+        options = record.options or {}
         duration: int | None = None
         if record.started_at and record.completed_at:
             duration = int((record.completed_at - record.started_at).total_seconds() * 1000)
@@ -74,6 +76,7 @@ class ExecutionRow:
             duration_ms=duration,
             created_at=record.created_at,
             is_running=record.status in ("queued", "running"),
+            session_id=options.get("session_id"),
         )
 
 
@@ -174,6 +177,18 @@ def relative_time(dt: datetime | None) -> str:
         dt = dt.replace(tzinfo=UTC)
     diff = now - dt
     seconds = int(diff.total_seconds())
+    if seconds < 0:
+        # Future time
+        seconds = abs(seconds)
+        if seconds < 60:
+            return "in <1m"
+        if seconds < 3600:
+            return f"in {seconds // 60}m"
+        if seconds < 86400:
+            h = seconds // 3600
+            m = (seconds % 3600) // 60
+            return f"in {h}h {m}m" if m else f"in {h}h"
+        return f"in {seconds // 86400}d"
     if seconds < 60:
         return "just now"
     if seconds < 3600:
@@ -181,3 +196,12 @@ def relative_time(dt: datetime | None) -> str:
     if seconds < 86400:
         return f"{seconds // 3600}h ago"
     return f"{seconds // 86400}d ago"
+
+
+def format_datetime(dt: datetime | None) -> str:
+    """Format a datetime as a readable absolute string, e.g. 'Feb 21, 16:30 UTC'."""
+    if dt is None:
+        return "—"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.strftime("%b %d, %H:%M %Z")
