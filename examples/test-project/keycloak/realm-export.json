@@ -1,0 +1,47 @@
+{
+  "realm": "agent-gateway",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "agw-api",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "agw-api-secret",
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["openid", "profile", "email"]
+    },
+    {
+      "clientId": "agw-dashboard",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "agw-dashboard-secret",
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "protocol": "openid-connect",
+      "redirectUris": ["http://localhost:8000/dashboard/oauth2/callback"],
+      "webOrigins": ["http://localhost:8000"],
+      "defaultClientScopes": ["openid", "profile", "email"]
+    }
+  ],
+  "users": [
+    {
+      "username": "demo",
+      "enabled": true,
+      "email": "demo@example.com",
+      "firstName": "Demo",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

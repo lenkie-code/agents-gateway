@@ -130,6 +130,7 @@ class Gateway(FastAPI):
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
+        self._oauth2_issuer: str | None = None  # for OpenAPI security scheme
         self._extraction_cooldowns: dict[str, float] = {}
         _EXTRACTION_DEBOUNCE_SECONDS = 30.0
         self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
@@ -535,6 +536,10 @@ class Gateway(FastAPI):
                     public_paths=public,
                 )
 
+        # 11b. Add OpenAPI security scheme for OAuth2 (enables Swagger Authorize button)
+        if auth_provider is not None and self._oauth2_issuer:
+            await self._inject_oauth2_openapi_scheme(self._oauth2_issuer)
+
         # 12. Mount dashboard if enabled
         self._maybe_init_dashboard()
 
@@ -865,6 +870,7 @@ class Gateway(FastAPI):
             algorithms=algorithms,
             scope_claim=scope_claim,
         )
+        self._oauth2_issuer = issuer
         return self
 
     def use_auth(self, provider: AuthProvider | None) -> Gateway:
@@ -1037,6 +1043,15 @@ class Gateway(FastAPI):
         auth_password: str | None = None,
         theme: str | None = None,
         accent_color: str | None = None,
+        primary_color: str | None = None,
+        secondary_color: str | None = None,
+        surface_color: str | None = None,
+        sidebar_color: str | None = None,
+        danger_color: str | None = None,
+        oauth2_issuer: str | None = None,
+        oauth2_client_id: str | None = None,
+        oauth2_client_secret: str | None = None,
+        oauth2_scopes: list[str] | None = None,
     ) -> Gateway:
         """Enable and configure the built-in web dashboard at /dashboard.
 
@@ -1050,7 +1065,12 @@ class Gateway(FastAPI):
             auth_username: Dashboard login username (default: "admin").
             auth_password: Dashboard login password. Empty = no password.
             theme: Color scheme — "light", "dark", or "auto" (default).
-            accent_color: CSS hex color for the accent/primary color.
+            accent_color: CSS hex color for the accent/primary color (legacy).
+            primary_color: CSS hex color for buttons, links, active states.
+            secondary_color: CSS hex color for secondary actions, muted text.
+            surface_color: CSS hex color for card/panel backgrounds.
+            sidebar_color: CSS hex color for sidebar background.
+            danger_color: CSS hex color for error/destructive actions.
         """
         if self._started:
             raise RuntimeError("Cannot configure dashboard after gateway has started")
@@ -1069,6 +1089,32 @@ class Gateway(FastAPI):
             self._pending_dashboard_overrides.setdefault("theme", {})["accent_color"] = (
                 accent_color
             )
+        # Semantic color overrides
+        color_map = {
+            "primary": primary_color,
+            "secondary": secondary_color,
+            "surface": surface_color,
+            "sidebar": sidebar_color,
+            "danger": danger_color,
+        }
+        for key, val in color_map.items():
+            if val is not None:
+                colors = self._pending_dashboard_overrides.setdefault("theme", {}).setdefault(
+                    "colors", {}
+                )
+                colors[key] = val
+        if oauth2_issuer is not None or oauth2_client_id is not None:
+            oauth2_dict = self._pending_dashboard_overrides.setdefault("auth", {}).setdefault(
+                "oauth2", {}
+            )
+            if oauth2_issuer is not None:
+                oauth2_dict["issuer"] = oauth2_issuer
+            if oauth2_client_id is not None:
+                oauth2_dict["client_id"] = oauth2_client_id
+            if oauth2_client_secret is not None:
+                oauth2_dict["client_secret"] = oauth2_client_secret
+            if oauth2_scopes is not None:
+                oauth2_dict["scopes"] = oauth2_scopes
         return self
 
     def _init_notifications_from_config(self, config: NotificationsConfig) -> None:
@@ -1169,6 +1215,7 @@ class Gateway(FastAPI):
                 scope_claim=o.scope_claim,
                 clock_skew_seconds=o.clock_skew_seconds,
             )
+            self._oauth2_issuer = o.issuer
             return self._auth_provider
 
         if auth_cfg.mode == "composite":
@@ -1206,11 +1253,64 @@ class Gateway(FastAPI):
                         clock_skew_seconds=o.clock_skew_seconds,
                     )
                 )
+                self._oauth2_issuer = o.issuer
             if providers:
                 self._auth_provider = CompositeProvider(providers)
                 return self._auth_provider
 
         return None
+
+    async def _inject_oauth2_openapi_scheme(self, issuer: str) -> None:
+        """Add an OAuth2 security scheme to the OpenAPI spec.
+
+        Fetches the OIDC discovery document to get the authorization and token
+        endpoints, then patches the OpenAPI schema so Swagger UI shows the
+        Authorize button for interactive login.
+        """
+        import httpx
+
+        discovery_url = f"{issuer.rstrip('/')}/.well-known/openid-configuration"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(discovery_url)
+                resp.raise_for_status()
+                discovery = resp.json()
+            auth_url = discovery["authorization_endpoint"]
+            token_url = discovery["token_endpoint"]
+        except Exception:
+            logger.warning(
+                "Failed to fetch OIDC discovery from %s; Swagger Authorize button "
+                "will not be available",
+                discovery_url,
+            )
+            return
+
+        scheme: dict[str, Any] = {
+            "type": "oauth2",
+            "flows": {
+                "authorizationCode": {
+                    "authorizationUrl": auth_url,
+                    "tokenUrl": token_url,
+                    "scopes": {"openid": "OpenID Connect"},
+                }
+            },
+        }
+
+        # Patch the openapi() method to inject the security scheme.
+        # Clear any cached schema so the next call regenerates with our patch.
+        self.openapi_schema = None
+        original_openapi = self.openapi
+
+        def patched_openapi() -> dict[str, Any]:
+            result = original_openapi()
+            components = result.setdefault("components", {})
+            security_schemes = components.setdefault("securitySchemes", {})
+            security_schemes["oauth2"] = scheme
+            # Apply globally so all endpoints show the lock icon
+            result.setdefault("security", [{"oauth2": ["openid"]}])
+            return result
+
+        self.openapi = patched_openapi  # type: ignore[method-assign]
 
     def _apply_pending_input_schemas(self, workspace: WorkspaceState) -> None:
         """Apply code-registered input schemas to workspace agents."""
@@ -1260,13 +1360,42 @@ class Gateway(FastAPI):
             from agent_gateway.config import (
                 DashboardAuthConfig,
                 DashboardConfig,
+                DashboardOAuth2Config,
                 DashboardThemeConfig,
             )
 
             auth_overrides = overrides.pop("auth", {})
             theme_overrides = overrides.pop("theme", {})
-            auth = DashboardAuthConfig(**{**dash.auth.model_dump(), **auth_overrides})
-            theme = DashboardThemeConfig(**{**dash.theme.model_dump(), **theme_overrides})
+
+            # Handle nested oauth2 config
+            oauth2_overrides = auth_overrides.pop("oauth2", None)
+            existing_auth = dash.auth.model_dump()
+            merged_auth = {**existing_auth, **auth_overrides}
+
+            if oauth2_overrides:
+                if existing_auth.get("oauth2"):
+                    merged_oauth2 = {**existing_auth["oauth2"], **oauth2_overrides}
+                else:
+                    merged_oauth2 = oauth2_overrides
+                merged_auth["oauth2"] = DashboardOAuth2Config(**merged_oauth2)
+            else:
+                merged_auth.pop("oauth2", None)
+                if existing_auth.get("oauth2"):
+                    merged_auth["oauth2"] = DashboardOAuth2Config(**existing_auth["oauth2"])
+
+            auth = DashboardAuthConfig(**merged_auth)
+            # Handle nested colors config
+            colors_overrides = theme_overrides.pop("colors", None)
+            existing_theme = dash.theme.model_dump()
+            merged_theme = {**existing_theme, **theme_overrides}
+            if colors_overrides:
+                from agent_gateway.config import DashboardColorConfig
+
+                existing_colors = existing_theme.get("colors", {})
+                merged_theme["colors"] = DashboardColorConfig(
+                    **{**existing_colors, **colors_overrides}
+                )
+            theme = DashboardThemeConfig(**merged_theme)
             dash = DashboardConfig(
                 **{**dash.model_dump(), **overrides, "auth": auth, "theme": theme}
             )
@@ -1277,8 +1406,26 @@ class Gateway(FastAPI):
 
         dash_config = self._config.dashboard
 
-        # Warn if no password set
-        if dash_config.auth.enabled and not dash_config.auth.password:
+        # Validate mutually exclusive auth methods
+        from agent_gateway.exceptions import ConfigError
+
+        if dash_config.auth.oauth2 and dash_config.auth.password:
+            raise ConfigError(
+                "Dashboard auth: oauth2 and password are mutually exclusive. "
+                "Set either dashboard.auth.password or dashboard.auth.oauth2, not both."
+            )
+
+        if dash_config.auth.oauth2 and not dash_config.auth.oauth2.client_secret:
+            raise ConfigError(
+                "Dashboard OAuth2 requires a client_secret (confidential client only)."
+            )
+
+        # Warn if no password set (only for password auth mode)
+        if (
+            dash_config.auth.enabled
+            and not dash_config.auth.oauth2
+            and not dash_config.auth.password
+        ):
             logger.warning(
                 "Dashboard is enabled with no password set. "
                 "Set dashboard.auth.password in gateway.yaml or use_dashboard(auth_password=...)."
@@ -1317,12 +1464,35 @@ class Gateway(FastAPI):
             )
             return
 
+        # Create OAuth2 discovery client if needed
+        oauth2_config = dash_config.auth.oauth2
+        discovery_client = None
+        if oauth2_config:
+            from agent_gateway.dashboard.oauth2 import OIDCDiscoveryClient
+
+            discovery_client = OIDCDiscoveryClient(oauth2_config.issuer)
+            self._dashboard_discovery_client = discovery_client
+
+            async def _close_discovery() -> None:
+                if discovery_client is not None:
+                    await discovery_client.close()
+
+            # Register shutdown handler via the hooks system
+            self._hooks.register("gateway.shutdown", _close_discovery)
+
         # Register dashboard routes
         try:
             from agent_gateway.dashboard.router import register_dashboard
 
-            register_dashboard(self, dash_config)
-            logger.info("Dashboard enabled at /dashboard (user: %s)", dash_config.auth.username)
+            register_dashboard(
+                self, dash_config, oauth2_config=oauth2_config, discovery_client=discovery_client
+            )
+            if oauth2_config:
+                logger.info("Dashboard enabled at /dashboard (OAuth2/SSO)")
+            else:
+                logger.info(
+                    "Dashboard enabled at /dashboard (user: %s)", dash_config.auth.username
+                )
         except ImportError as e:
             logger.error("Failed to load dashboard (missing dependencies?): %s", e)
 
@@ -1624,6 +1794,7 @@ class Gateway(FastAPI):
                 retriever_registry=retriever_reg,
                 context_retrieval_config=snapshot.context_retrieval_config,
                 memory_block=memory_block,
+                chat_mode=True,
             )
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
