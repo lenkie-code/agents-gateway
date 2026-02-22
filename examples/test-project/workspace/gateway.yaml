@@ -13,6 +13,20 @@ memory:
     max_memories_per_scope: 100
     compact_ratio: 0.5
 
+cors:
+  enabled: true
+  allow_origins:
+    - "*"
+  allow_methods:
+    - GET
+    - POST
+    - DELETE
+    - OPTIONS
+  allow_headers:
+    - Authorization
+    - Content-Type
+  max_age: 3600
+
 telemetry:
   enabled: true
   exporter: console

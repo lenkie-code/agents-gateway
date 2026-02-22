@@ -260,6 +260,15 @@ class DashboardConfig(BaseModel):
     theme: DashboardThemeConfig = DashboardThemeConfig()
 
 
+class CorsConfig(BaseModel):
+    enabled: bool = False
+    allow_origins: list[str] = Field(default_factory=lambda: ["*"])
+    allow_methods: list[str] = Field(default_factory=lambda: ["GET", "POST", "DELETE", "OPTIONS"])
+    allow_headers: list[str] = Field(default_factory=lambda: ["Authorization", "Content-Type"])
+    allow_credentials: bool = False
+    max_age: int = 3600
+
+
 class GatewayConfig(BaseSettings):
     """Root configuration for the Agent Gateway.
 
@@ -282,6 +291,7 @@ class GatewayConfig(BaseSettings):
     context_retrieval: ContextRetrievalConfig = ContextRetrievalConfig()
     memory: MemoryConfig = MemoryConfig()
     context: dict[str, Any] = Field(default_factory=dict)
+    cors: CorsConfig = CorsConfig()
     dashboard: DashboardConfig = DashboardConfig()
 
     @classmethod
