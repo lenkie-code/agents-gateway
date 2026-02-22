@@ -28,7 +28,7 @@ After a thorough review of the entire codebase, here are all items that need add
 - [ ] **#12** [Configuration reference docs](publish/12-config-reference-docs.md) — Documentation
 - [ ] **#13** [API route unit tests](publish/13-api-route-tests.md) — Testing
 - [ ] **#14** [PyPI publish workflow](publish/14-pypi-publish-workflow.md) — CI/CD
-- [ ] **#15** [Package metadata completeness](publish/15-package-metadata.md) — Packaging
+- [x] **#15** [Package metadata completeness](publish/15-package-metadata.md) — Packaging
 
 ### P2 — Should Fix Before GA
 
