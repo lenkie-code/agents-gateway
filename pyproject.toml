@@ -10,15 +10,22 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
-    { name = "HonesDev" },
+    { name = "Vincent Nyanga", email = "vince.nyanga@protonmail.ch" },
 ]
+maintainers = [
+    { name = "Vincent Nyanga", email = "vince.nyanga@protonmail.ch" },
+]
+keywords = ["ai", "agents", "fastapi", "llm", "chatbot", "api", "gateway", "automation"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
     "Framework :: FastAPI",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Typing :: Typed",
 ]
@@ -90,6 +97,8 @@ agent-gateway = "agent_gateway.cli.main:app"
 [project.urls]
 Homepage = "https://github.com/honesdev/agent-gateway"
 Repository = "https://github.com/honesdev/agent-gateway"
+Issues = "https://github.com/honesdev/agent-gateway/issues"
+Changelog = "https://github.com/honesdev/agent-gateway/releases"
 
 [tool.hatch.version]
 source = "vcs"
