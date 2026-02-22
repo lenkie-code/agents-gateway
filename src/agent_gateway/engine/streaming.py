@@ -91,6 +91,7 @@ async def stream_chat_execution(
         agent_id=agent.id,
         status="running",
         message=next((m["content"] for m in reversed(messages) if m.get("role") == "user"), ""),
+        session_id=session.session_id,
         options={"session_id": session.session_id},
         started_at=datetime.now(UTC),
     )

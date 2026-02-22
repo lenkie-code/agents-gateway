@@ -41,6 +41,7 @@ def _record_to_response(record: ExecutionRecord) -> ExecutionResponse:
         result=record.result,
         error=record.error,
         usage=record.usage,
+        session_id=record.session_id,
         started_at=record.started_at,
         completed_at=record.completed_at,
         created_at=record.created_at,
@@ -74,16 +75,21 @@ async def get_execution(
 async def list_executions(
     request: Request,
     agent_id: str | None = Query(None, description="Filter by agent ID"),
+    session_id: str | None = Query(None, description="Filter by session/conversation ID"),
     limit: int = Query(50, ge=1, le=500, description="Max results"),
 ) -> list[ExecutionResponse]:
-    """List executions, optionally filtered by agent."""
+    """List executions, optionally filtered by agent or session."""
     gw: Gateway = request.app
 
-    if not agent_id:
-        # TODO: add a list_all method to ExecutionRepository
-        return []
+    if session_id:
+        records = await gw._execution_repo.list_by_session(session_id, limit=limit)
+        return [_record_to_response(r) for r in records]
 
-    records = await gw._execution_repo.list_by_agent(agent_id, limit=limit)
+    if agent_id:
+        records = await gw._execution_repo.list_by_agent(agent_id, limit=limit)
+        return [_record_to_response(r) for r in records]
+
+    records = await gw._execution_repo.list_all(limit=limit)
     return [_record_to_response(r) for r in records]
 
 

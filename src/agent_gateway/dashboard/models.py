@@ -60,10 +60,14 @@ class ExecutionRow:
     @classmethod
     def from_record(cls, record: ExecutionRecord) -> ExecutionRow:
         usage = record.usage or {}
-        options = record.options or {}
         duration: int | None = None
         if record.started_at and record.completed_at:
             duration = int((record.completed_at - record.started_at).total_seconds() * 1000)
+        # Prefer direct session_id field, fall back to options for legacy data
+        sid = record.session_id
+        if sid is None:
+            options = record.options or {}
+            sid = options.get("session_id")
         return cls(
             id=record.id,
             id_short=record.id[:8],
@@ -76,7 +80,7 @@ class ExecutionRow:
             duration_ms=duration,
             created_at=record.created_at,
             is_running=record.status in ("queued", "running"),
-            session_id=options.get("session_id"),
+            session_id=sid,
         )
 
 
@@ -139,6 +143,18 @@ class ExecutionDetail:
             duration_ms=duration,
             models_used=usage.get("models_used") or [],
         )
+
+
+@dataclass
+class ConversationDetail:
+    """Aggregated stats for a conversation's executions."""
+
+    session_id: str
+    execution_count: int
+    total_cost_usd: float
+    total_input_tokens: int
+    total_output_tokens: int
+    executions: list[ExecutionRow]
 
 
 @dataclass

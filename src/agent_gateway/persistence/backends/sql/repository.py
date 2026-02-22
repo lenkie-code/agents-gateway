@@ -141,6 +141,7 @@ class ExecutionRepository:
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        session_id: str | None = None,
     ) -> list[ExecutionRecord]:
         """List executions across all agents, most recent first."""
         async with self._session_factory() as session:
@@ -159,6 +160,10 @@ class ExecutionRepository:
                 stmt = stmt.where(
                     ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
                 )
+            if session_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
+                )
             stmt = stmt.limit(limit).offset(offset)
             result = await session.execute(stmt)
             return list(result.scalars().all())
@@ -168,6 +173,7 @@ class ExecutionRepository:
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        session_id: str | None = None,
     ) -> int:
         """Count executions with optional filters."""
         async with self._session_factory() as session:
@@ -184,8 +190,48 @@ class ExecutionRepository:
                 stmt = stmt.where(
                     ExecutionRecord.created_at >= since  # type: ignore[operator,arg-type]
                 )
+            if session_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
+                )
             result = await session.execute(stmt)
             return result.scalar_one()
+
+    async def list_by_session(
+        self,
+        session_id: str,
+        limit: int = 50,
+    ) -> list[ExecutionRecord]:
+        """List executions for a session, most recent first."""
+        async with self._session_factory() as session:
+            stmt = (
+                select(ExecutionRecord)
+                .where(ExecutionRecord.session_id == session_id)  # type: ignore[arg-type]
+                .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def cost_by_session(self, session_id: str) -> dict[str, Any]:
+        """Aggregate cost and token usage for all executions in a session."""
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
+        out = _json_field("usage", "output_tokens", is_postgres=self._pg)
+        async with self._session_factory() as session:
+            stmt = text(f"""
+                SELECT
+                    COUNT(*) as execution_count,
+                    COALESCE(SUM({cost}), 0) as total_cost_usd,
+                    COALESCE(SUM({inp}), 0) as total_input_tokens,
+                    COALESCE(SUM({out}), 0) as total_output_tokens
+                FROM executions
+                WHERE session_id = :session_id
+                  AND usage IS NOT NULL
+                """)
+            result = await session.execute(stmt, {"session_id": session_id})
+            row = result.one()
+            return _normalize_row(row._mapping)
 
     async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily cost aggregation for the last N days."""

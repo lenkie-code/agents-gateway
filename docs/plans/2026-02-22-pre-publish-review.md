@@ -11,7 +11,7 @@ After a thorough review of the entire codebase, here are all items that need add
 
 ### P0 — Must Fix Before Publish
 
-- [ ] **#1** [Conversation tracing & cost tracking](publish/01-conversation-tracing.md) — Bug/UX
+- [x] **#1** [Conversation tracing & cost tracking](publish/01-conversation-tracing.md) — Bug/UX
 - [ ] **#2** [Database migration strategy](publish/02-database-migrations.md) — Infrastructure
 - [x] **#3** [README & PyPI landing page](publish/03-readme.md) — Documentation
 - [x] **#4** [Version management (build pipeline)](publish/04-version-management.md) — Packaging

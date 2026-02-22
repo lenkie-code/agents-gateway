@@ -22,6 +22,7 @@ from agent_gateway.dashboard.auth import (
 from agent_gateway.dashboard.models import (
     AgentCard,
     AnalyticsSummary,
+    ConversationDetail,
     ExecutionDetail,
     ExecutionRow,
     format_cost,
@@ -181,6 +182,7 @@ def register_dashboard(
         request: Request,
         agent_id: str | None = None,
         status: str | None = None,
+        session_id: str | None = None,
         page: int = 1,
         current_user: DashboardUser = Depends(get_dashboard_user),
     ) -> HTMLResponse:
@@ -193,10 +195,12 @@ def register_dashboard(
             offset=offset,
             agent_id=agent_id or None,
             status=status or None,
+            session_id=session_id or None,
         )
         total = await repo.count_all(
             agent_id=agent_id or None,
             status=status or None,
+            session_id=session_id or None,
         )
         rows = [ExecutionRow.from_record(r) for r in records]
 
@@ -243,6 +247,21 @@ def register_dashboard(
 
         detail = ExecutionDetail.from_record(record, agent_name)
 
+        # Build conversation context if this execution is part of a session
+        conversation: ConversationDetail | None = None
+        session_id = record.session_id
+        if session_id:
+            session_records = await repo.list_by_session(session_id)
+            cost_data = await repo.cost_by_session(session_id)
+            conversation = ConversationDetail(
+                session_id=session_id,
+                execution_count=int(cost_data.get("execution_count", 0)),
+                total_cost_usd=float(cost_data.get("total_cost_usd", 0)),
+                total_input_tokens=int(cost_data.get("total_input_tokens", 0)),
+                total_output_tokens=int(cost_data.get("total_output_tokens", 0)),
+                executions=[ExecutionRow.from_record(r) for r in session_records],
+            )
+
         is_htmx = bool(request.headers.get("HX-Request"))
         is_running = record.status in ("queued", "running")
         template = (
@@ -255,6 +274,7 @@ def register_dashboard(
             name=template,
             context={
                 "detail": detail,
+                "conversation": conversation,
                 "is_running": is_running,
                 "current_user": current_user,
                 "active_page": "executions",

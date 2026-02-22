@@ -150,6 +150,113 @@ async def test_add_step(session_factory: async_sessionmaker[AsyncSession]):
     assert fetched is not None
 
 
+async def test_create_execution_with_session_id(
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    """Should create and retrieve an execution with session_id."""
+    repo = ExecutionRepository(session_factory)
+    record = ExecutionRecord(
+        id="exec-session-001",
+        agent_id="test-agent",
+        status="running",
+        message="Hello",
+        session_id="session-abc",
+    )
+    await repo.create(record)
+
+    fetched = await repo.get("exec-session-001")
+    assert fetched is not None
+    assert fetched.session_id == "session-abc"
+
+
+async def test_list_by_session(session_factory: async_sessionmaker[AsyncSession]):
+    """Should list executions for a session."""
+    repo = ExecutionRepository(session_factory)
+
+    for i in range(3):
+        record = ExecutionRecord(
+            id=f"exec-sess-{i}",
+            agent_id="test-agent",
+            status="completed",
+            message=f"Turn {i}",
+            session_id="session-123",
+        )
+        await repo.create(record)
+
+    # Create one in a different session
+    await repo.create(
+        ExecutionRecord(
+            id="exec-other",
+            agent_id="test-agent",
+            status="completed",
+            message="Other",
+            session_id="session-456",
+        )
+    )
+
+    results = await repo.list_by_session("session-123")
+    assert len(results) == 3
+    assert all(r.session_id == "session-123" for r in results)
+
+
+async def test_list_by_session_empty(session_factory: async_sessionmaker[AsyncSession]):
+    """Should return empty list for nonexistent session."""
+    repo = ExecutionRepository(session_factory)
+    results = await repo.list_by_session("no-such-session")
+    assert results == []
+
+
+async def test_cost_by_session(session_factory: async_sessionmaker[AsyncSession]):
+    """Should aggregate cost and tokens for a session."""
+    repo = ExecutionRepository(session_factory)
+
+    for i in range(2):
+        record = ExecutionRecord(
+            id=f"exec-cost-{i}",
+            agent_id="test-agent",
+            status="completed",
+            message=f"Turn {i}",
+            session_id="session-cost",
+            usage={"cost_usd": 0.01, "input_tokens": 100, "output_tokens": 50},
+        )
+        await repo.create(record)
+
+    result = await repo.cost_by_session("session-cost")
+    assert result["execution_count"] == 2
+    assert float(result["total_cost_usd"]) >= 0.019  # ~0.02
+    assert int(result["total_input_tokens"]) == 200
+    assert int(result["total_output_tokens"]) == 100
+
+
+async def test_list_all_with_session_filter(
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    """Should filter list_all by session_id."""
+    repo = ExecutionRepository(session_factory)
+
+    await repo.create(
+        ExecutionRecord(
+            id="exec-filt-1",
+            agent_id="test-agent",
+            status="completed",
+            message="A",
+            session_id="sess-filter",
+        )
+    )
+    await repo.create(
+        ExecutionRecord(
+            id="exec-filt-2",
+            agent_id="test-agent",
+            status="completed",
+            message="B",
+        )
+    )
+
+    results = await repo.list_all(session_id="sess-filter")
+    assert len(results) == 1
+    assert results[0].id == "exec-filt-1"
+
+
 async def test_audit_log(session_factory: async_sessionmaker[AsyncSession]):
     """Should write and retrieve audit log entries."""
     repo = AuditRepository(session_factory)

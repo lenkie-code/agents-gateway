@@ -47,6 +47,17 @@ class NullExecutionRepository:
     async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None:
         return None
 
+    async def list_by_session(self, session_id: str, limit: int = 50) -> list[ExecutionRecord]:
+        return []
+
+    async def cost_by_session(self, session_id: str) -> dict[str, Any]:
+        return {
+            "execution_count": 0,
+            "total_cost_usd": 0,
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+        }
+
     async def list_all(
         self,
         limit: int = 50,
@@ -54,6 +65,7 @@ class NullExecutionRepository:
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        session_id: str | None = None,
     ) -> list[ExecutionRecord]:
         return []
 
@@ -62,6 +74,7 @@ class NullExecutionRepository:
         agent_id: str | None = None,
         status: str | None = None,
         since: datetime | None = None,
+        session_id: str | None = None,
     ) -> int:
         return 0
 

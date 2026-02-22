@@ -1,6 +1,6 @@
 ---
 title: "Conversation Tracing & Cost Tracking"
-status: pending
+status: completed
 priority: P0
 category: Bug/UX
 date: 2026-02-22
