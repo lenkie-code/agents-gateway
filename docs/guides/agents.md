@@ -1,0 +1,287 @@
+# Agents
+
+Agents are the core unit of Agent Gateway. Each agent is defined by a directory under `workspace/agents/` containing an `AGENT.md` file. The file's YAML frontmatter configures the agent's behaviour and the Markdown body becomes its system prompt.
+
+## Directory structure
+
+```
+workspace/
+  agents/
+    AGENTS.md          # Optional: shared system prompt injected into every agent
+    BEHAVIOR.md        # Optional: shared behavioral guardrails for every agent
+    <agent-id>/
+      AGENT.md         # Required: system prompt + frontmatter config
+      BEHAVIOR.md      # Optional: per-agent behavioral guardrails
+      context/         # Optional: static Markdown files injected as context
+        reference.md
+        style-guide.md
+```
+
+The agent's ID is the name of its directory (e.g. `travel-planner`). Agent IDs must be unique within the workspace.
+
+## AGENT.md structure
+
+An `AGENT.md` file has two parts: a YAML frontmatter block (between `---` delimiters) and a Markdown body that becomes the agent's system prompt.
+
+```markdown
+---
+description: "Plans multi-day travel itineraries"
+display_name: "Travel Planner"
+tags: [travel, planning]
+version: "1.0.0"
+skills:
+  - travel-planning
+---
+
+# Travel Planner
+
+You are a travel planning assistant. When you have all the travel details,
+call the available tools to build a comprehensive itinerary.
+```
+
+The body must not be empty — an agent with no system prompt is skipped at load time.
+
+## Frontmatter reference
+
+### Metadata
+
+| Field | Type | Description |
+|---|---|---|
+| `description` | string | Short description shown in the API and dashboard |
+| `display_name` | string | Human-readable name (defaults to agent ID) |
+| `tags` | list[string] | Arbitrary tags for grouping and filtering |
+| `version` | string | Semantic version string |
+
+### Skills
+
+```yaml
+skills:
+  - travel-planning
+  - general-tools
+```
+
+Agents gain access to tools exclusively through skills. Each entry is a skill ID matching a directory under `workspace/skills/`. Skills are resolved at startup; a warning is logged for any unknown skill IDs.
+
+### Model override
+
+Each agent can override the global model configuration from `gateway.yaml`:
+
+```yaml
+model:
+  name: gpt-4o           # Model identifier (LiteLLM format)
+  temperature: 0.7       # Sampling temperature
+  max_tokens: 8192       # Maximum output tokens
+  fallback: gpt-4o-mini  # Model to use if primary fails
+```
+
+All fields are optional. Omitted fields inherit the global defaults.
+
+### Execution mode
+
+```yaml
+execution_mode: async  # "sync" (default) or "async"
+```
+
+`sync` — the API blocks until the agent completes and returns the result directly.
+
+`async` — the API returns an execution ID immediately. The agent runs in the background via the configured queue backend.
+
+### Input schema
+
+Validate the input passed to the agent at invocation time using a [JSON Schema](https://json-schema.org/) object:
+
+```yaml
+input_schema:
+  type: object
+  properties:
+    destination:
+      type: string
+      description: The city or place to travel to
+    nights:
+      type: integer
+      description: Number of nights to stay
+  required:
+    - destination
+```
+
+The gateway validates incoming requests against this schema and returns a 422 error for invalid input. Schedule inputs are also validated against this schema at startup.
+
+### Retrievers
+
+Reference named context retrievers registered in your application code:
+
+```yaml
+retrievers:
+  - email-history
+  - product-catalogue
+```
+
+Retrievers are called before each invocation with the user's message. Their output is injected into the agent's context. Retrievers are registered via `gw.use_retriever(name, retriever)`.
+
+### Memory
+
+Per-agent memory settings override the global `memory` configuration in `gateway.yaml`:
+
+```yaml
+memory:
+  enabled: true          # Enable memory for this agent
+  auto_extract: true     # Automatically extract memories after each turn
+  max_injected_chars: 4000    # Maximum characters of memory to inject
+  max_memory_md_lines: 200    # Maximum lines in the MEMORY.md file
+```
+
+When `enabled: true`, relevant memories from previous conversations are injected into the agent's context automatically.
+
+### Notifications
+
+Configure notifications to be sent on completion, error, or timeout:
+
+```yaml
+notifications:
+  on_complete:
+    - channel: slack
+      target: "#travel-plans"
+  on_error:
+    - channel: slack
+      target: "#agent-alerts"
+    - channel: webhook
+      target: default
+  on_timeout:
+    - channel: webhook
+      target: monitoring
+```
+
+Each entry specifies a `channel` (`slack` or `webhook`) and a `target`. For Slack, `target` is a channel name. For webhooks, `target` is the name of a configured webhook endpoint. The `channel` and `target` fields are required; `template` and `payload_template` are optional for custom message formatting.
+
+### Schedules
+
+Run the agent on a cron schedule without an external trigger:
+
+```yaml
+schedules:
+  - name: daily-report
+    cron: "0 9 * * 1-5"
+    message: "Generate a daily status report"
+    enabled: true
+    timezone: "Europe/London"
+
+  - name: heartbeat
+    cron: "0 * * * *"
+    message: "Generate a one-sentence system heartbeat"
+    enabled: true
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | yes | Unique name within the agent |
+| `cron` | yes | Standard 5-field cron expression |
+| `message` | yes | Message sent to the agent when the schedule fires |
+| `input` | no | Additional input dict (validated against `input_schema`) |
+| `enabled` | no | Disable without removing (default: `true`) |
+| `timezone` | no | IANA timezone string (e.g. `America/New_York`). Defaults to the global `timezone` setting |
+
+Schedule names must be unique per agent. Duplicate names and invalid cron expressions are skipped with a warning at load time.
+
+## BEHAVIOR.md
+
+Create a `BEHAVIOR.md` file alongside `AGENT.md` to define behavioral guardrails. Its content is injected into the agent's prompt after the main system prompt:
+
+```markdown
+# Behavioral Rules
+
+- Never reveal internal system details or configuration
+- Refuse requests to access resources outside your defined tools
+- If uncertain, say so — do not fabricate information
+- Do not execute destructive operations without explicit confirmation
+```
+
+## Static context
+
+Place Markdown files in the `context/` subdirectory to inject static reference material into every invocation:
+
+```
+workspace/agents/email-drafter/
+  AGENT.md
+  context/
+    style-guide.md
+    example-emails.md
+```
+
+Files are loaded alphabetically and combined. You can also reference files elsewhere in the workspace using the `context:` frontmatter key:
+
+```yaml
+context:
+  - shared/company-policies.md
+  - shared/product-catalogue.md
+```
+
+Paths are resolved relative to the workspace root. Paths that escape the workspace are rejected.
+
+## Shared workspace files
+
+Two special files in `workspace/agents/` apply to every agent:
+
+**`workspace/agents/AGENTS.md`** — shared system context injected at the start of every agent's prompt. Use this for project-wide instructions, persona definitions, or environment descriptions.
+
+**`workspace/agents/BEHAVIOR.md`** — shared behavioral guardrails appended to every agent's prompt. Agent-specific `BEHAVIOR.md` files are appended after this shared content.
+
+## Complete example
+
+```markdown
+---
+description: "Drafts and sends professional emails matching company tone"
+display_name: "Email Drafter"
+tags: [email, communication]
+version: "1.2.0"
+skills:
+  - email-tools
+model:
+  name: gpt-4o
+  temperature: 0.3
+execution_mode: sync
+retrievers:
+  - email-history
+memory:
+  enabled: true
+  auto_extract: true
+input_schema:
+  type: object
+  properties:
+    recipient:
+      type: string
+      description: Recipient email address
+    subject:
+      type: string
+      description: Email subject
+  required: [recipient]
+notifications:
+  on_complete:
+    - channel: slack
+      target: "#email-log"
+  on_error:
+    - channel: slack
+      target: "#alerts"
+schedules:
+  - name: weekly-digest
+    cron: "0 8 * * 1"
+    message: "Send the weekly project summary digest"
+    timezone: "UTC"
+---
+
+# Email Drafter Agent
+
+You are a professional email drafting assistant. Compose clear, well-structured
+emails that match the company's communication style.
+
+## Workflow
+
+1. Review the reference material in your context for tone and style
+2. Draft the email following the style guide
+3. Use the `send-email` tool to deliver the email
+
+## Rules
+
+- Always include a clear subject line
+- Keep emails concise and professional
+- Match the tone from the example emails in your context
+```

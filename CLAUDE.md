@@ -53,6 +53,10 @@ examples/test-project/  # Example app (run with `make dev`)
 
 After every feature or fix, the example project in `examples/test-project/` MUST be updated to exercise the change. This is how we do real-life testing — run it with `make dev`. Do not consider a feature or fix complete until the example project demonstrates it.
 
+## Documentation
+
+After every feature or fix, the documentation in `docs/` MUST be updated to reflect the change. If a new feature is added, add or update the relevant guide in `docs/guides/`. If configuration changes, update `docs/guides/configuration.md` and `docs/api-reference/configuration.md`. If the public API changes, update `docs/api-reference/gateway.md`. Keep `docs/llms.txt` in sync for AI-friendly documentation access. Build docs locally with `uv run mkdocs serve`.
+
 ## Pre-PR Checklist
 
 Before creating any PR, always run:

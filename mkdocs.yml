@@ -1,0 +1,86 @@
+site_name: Agent Gateway
+site_description: A FastAPI extension for building API-first AI agent services
+site_url: https://vince-nyanga.github.io/agents-gateway/
+repo_url: https://github.com/vince-nyanga/agents-gateway
+repo_name: vince-nyanga/agents-gateway
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Project Structure: getting-started/project-structure.md
+  - Guides:
+      - Agents: guides/agents.md
+      - Tools: guides/tools.md
+      - Skills: guides/skills.md
+      - Configuration: guides/configuration.md
+      - Authentication: guides/authentication.md
+      - Persistence: guides/persistence.md
+      - Notifications: guides/notifications.md
+      - Scheduling: guides/scheduling.md
+      - Memory: guides/memory.md
+      - Queue: guides/queue.md
+      - Telemetry: guides/telemetry.md
+      - Dashboard: guides/dashboard.md
+      - Context Retrieval: guides/context-retrieval.md
+      - Structured Output: guides/structured-output.md
+      - CORS: guides/cors.md
+  - API Reference:
+      - Gateway: api-reference/gateway.md
+      - Configuration: api-reference/configuration.md
+      - Hooks: api-reference/hooks.md
+      - Exceptions: api-reference/exceptions.md
+  - Deployment:
+      - Production: deployment/production.md
+      - Docker: deployment/docker.md
+  - Changelog: changelog.md
