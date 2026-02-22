@@ -1,6 +1,6 @@
 ---
 title: "README & PyPI Landing Page"
-status: pending
+status: completed
 priority: P0
 category: Documentation
 date: 2026-02-22
