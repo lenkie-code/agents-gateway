@@ -1,0 +1,216 @@
+# Agent Gateway
+
+> A FastAPI extension for building API-first AI agent services. Define agents, tools, and skills as markdown files, then serve them as a production-ready API.
+
+Agent Gateway (`agents-gateway` on PyPI) lets you build AI agent APIs by defining agents, tools, and skills as markdown files in a workspace directory. It extends FastAPI and provides authentication, persistence, scheduling, notifications, telemetry, memory, and more out of the box.
+
+## Installation
+
+```bash
+pip install agents-gateway[all]
+```
+
+Extras: sqlite, postgres, redis, rabbitmq, oauth2, slack, webhooks, dashboard, otlp
+
+## Quick Start
+
+```bash
+agents-gateway init myproject
+cd myproject
+agents-gateway serve
+```
+
+## Core Concepts
+
+### Gateway
+
+The main entry point. Subclasses FastAPI.
+
+```python
+from agent_gateway import Gateway
+
+gw = Gateway(workspace="./workspace")
+
+# Fluent configuration
+gw.use_sqlite("data.db")
+gw.use_api_key_auth(api_key="your-key")
+gw.use_dashboard()
+
+# Register code tools
+@gw.tool(agent="assistant")
+def add(a: float, b: float) -> float:
+    """Add two numbers."""
+    return a + b
+
+# Lifecycle hooks
+@gw.on("agent.invoke.after")
+async def on_complete(agent_id, result, **kw):
+    print(f"Agent {agent_id} completed")
+
+# Run
+gw.run()
+```
+
+### Agents (workspace/agents/<id>/AGENT.md)
+
+```markdown
+---
+description: A helpful assistant
+skills:
+  - general-tools
+memory:
+  enabled: true
+model:
+  name: gemini/gemini-2.0-flash
+  temperature: 0.1
+execution_mode: sync
+schedules:
+  - name: daily
+    cron: "0 9 * * 1-5"
+    message: "Generate report"
+notifications:
+  on_error:
+    - channel: slack
+      target: "#alerts"
+---
+You are a helpful assistant. Answer questions clearly.
+```
+
+### Tools
+
+File-based (workspace/tools/<id>/TOOL.md + handler.py):
+
+```markdown
+---
+name: fetch-url
+description: Fetch a URL
+parameters:
+  url:
+    type: string
+    required: true
+---
+```
+
+```python
+# handler.py
+async def handler(url: str) -> str:
+    import httpx
+    async with httpx.AsyncClient() as c:
+        return (await c.get(url)).text
+```
+
+Code-based:
+
+```python
+@gw.tool(name="add", allowed_agents=["assistant"])
+def add(a: float, b: float) -> float:
+    """Add two numbers."""
+    return a + b
+```
+
+### Skills (workspace/skills/<id>/SKILL.md)
+
+Composable workflow units grouping tools with optional sequential/parallel steps.
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /v1/health | Health check |
+| GET | /v1/agents | List agents |
+| GET | /v1/agents/{id} | Agent details |
+| POST | /v1/agents/{id}/invoke | Single-turn invocation |
+| POST | /v1/agents/{id}/chat | Multi-turn chat |
+| GET | /v1/executions/{id} | Execution status |
+| POST | /v1/executions/{id}/cancel | Cancel execution |
+| GET | /v1/sessions | List chat sessions |
+| GET | /v1/skills | List skills |
+| GET | /v1/tools | List tools |
+
+## Configuration (workspace/gateway.yaml)
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+model:
+  default: "gemini/gemini-2.0-flash"
+  temperature: 0.1
+  max_tokens: 4096
+
+auth:
+  enabled: true
+  mode: api_key  # api_key | oauth2 | composite | none
+
+persistence:
+  backend: sqlite  # sqlite | postgres
+  url: "sqlite+aiosqlite:///data.db"
+
+memory:
+  enabled: true
+  auto_extract: true
+
+cors:
+  enabled: true
+  allow_origins: ["*"]
+
+dashboard:
+  enabled: true
+
+queue:
+  backend: none  # none | memory | redis | rabbitmq
+```
+
+Environment variable overrides use prefix `AGENT_GATEWAY_` with `__` nesting:
+`AGENT_GATEWAY_SERVER__PORT=9000`
+
+## Programmatic Usage
+
+```python
+async with Gateway(workspace="./workspace") as gw:
+    # Single-turn
+    result = await gw.invoke("assistant", "Hello!")
+    print(result.output)
+
+    # Multi-turn chat
+    session_id, result = await gw.chat("assistant", "Hi!")
+    _, result2 = await gw.chat("assistant", "Follow up", session_id=session_id)
+
+    # Structured output
+    from pydantic import BaseModel
+    from agent_gateway.engine.models import ExecutionOptions
+
+    class Answer(BaseModel):
+        value: float
+
+    result = await gw.invoke(
+        "assistant", "What is 2+2?",
+        options=ExecutionOptions(output_schema=Answer),
+    )
+```
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `agents-gateway init <name>` | Scaffold project |
+| `agents-gateway serve` | Start server |
+| `agents-gateway invoke <agent> <msg>` | Invoke agent |
+| `agents-gateway chat <agent>` | Interactive chat |
+| `agents-gateway agents` | List agents |
+| `agents-gateway skills` | List skills |
+| `agents-gateway schedules` | List schedules |
+| `agents-gateway check` | Validate workspace |
+| `agents-gateway db upgrade` | Run migrations |
+| `agents-gateway db downgrade` | Rollback migration |
+| `agents-gateway version` | Show version |
+
+## Links
+
+- Documentation: https://vince-nyanga.github.io/agents-gateway/
+- Getting Started: https://vince-nyanga.github.io/agents-gateway/getting-started/installation/
+- Guides: https://vince-nyanga.github.io/agents-gateway/guides/agents/
+- API Reference: https://vince-nyanga.github.io/agents-gateway/api-reference/gateway/
+- Configuration Reference: https://vince-nyanga.github.io/agents-gateway/api-reference/configuration/
+- Deployment: https://vince-nyanga.github.io/agents-gateway/deployment/production/
