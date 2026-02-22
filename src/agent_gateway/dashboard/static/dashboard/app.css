@@ -424,7 +424,6 @@ tr:last-child td { border-bottom: none; }
 tbody tr {
   transition: background var(--transition-fast);
 }
-tbody tr:hover { background: var(--color-surface-2); }
 
 .table-link {
   color: var(--color-text);
@@ -1006,6 +1005,35 @@ html.dark .icon-moon { display: none; }
   .sidebar.open ~ .sidebar-overlay { display: block; }
 }
 
+/* === Copy-on-click tooltip === */
+.copyable {
+  position: relative;
+  cursor: pointer;
+}
+
+.copy-toast {
+  position: absolute;
+  top: -1.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--palette-slate-900);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fadeInOut 1.2s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* === Focus rings === */
 button:focus-visible,
 a:focus-visible,
@@ -1017,6 +1045,7 @@ textarea:focus-visible {
 }
 
 /* === Misc === */
+.text-right { text-align: right; }
 .text-mono { font-family: var(--font-mono); }
 .text-muted { color: var(--color-text-secondary); }
 .text-xs  { font-size: var(--text-xs); }

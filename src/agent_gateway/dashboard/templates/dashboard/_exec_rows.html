@@ -26,8 +26,8 @@
         <th>Status</th>
         <th>Message</th>
         <th>Session</th>
-        <th>Duration</th>
-        <th>Cost</th>
+        <th class="text-right">Duration</th>
+        <th class="text-right">Cost</th>
         <th>Time</th>
       </tr>
     </thead>
@@ -35,7 +35,7 @@
       {% for row in rows %}
       <tr class="{% if row.is_running %}status-running{% endif %}">
         <td>
-          <a href="/dashboard/executions/{{ row.id }}" class="table-link">
+          <a href="/dashboard/executions/{{ row.id }}" class="table-link copyable" data-copy="{{ row.id }}" title="Click to copy ID">
             {{ row.id_short }}
           </a>
         </td>
@@ -51,8 +51,8 @@
         <td class="text-mono text-xs text-muted">
           {% if row.session_id %}{{ row.session_id[:8] }}{% else %}—{% endif %}
         </td>
-        <td class="text-mono text-muted">{{ format_duration(row.duration_ms) }}</td>
-        <td class="text-mono text-muted">{{ format_cost(row.cost_usd) }}</td>
+        <td class="text-mono text-muted text-right">{{ format_duration(row.duration_ms) }}</td>
+        <td class="text-mono text-muted text-right">{{ format_cost(row.cost_usd) }}</td>
         <td class="text-muted text-xs">{{ relative_time(row.created_at) }}</td>
       </tr>
       {% endfor %}
@@ -61,19 +61,19 @@
 
   <!-- Pagination -->
   <div class="pagination">
-    <span class="pagination-info">
+    <span class="pagination-info text-xs">
       Page {{ page }} of {{ total_pages }}  ({{ total }} total)
     </span>
     <div class="pagination-controls">
       {% if page > 1 %}
       <a href="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page - 1 }}"
-         class="btn btn-secondary btn-sm">
+         class="btn btn-ghost btn-sm">
         ← Prev
       </a>
       {% endif %}
       {% if page < total_pages %}
       <a href="/dashboard/executions?status={{ status_filter }}&agent_id={{ agent_id_filter }}&page={{ page + 1 }}"
-         class="btn btn-secondary btn-sm">
+         class="btn btn-ghost btn-sm">
         Next →
       </a>
       {% endif %}

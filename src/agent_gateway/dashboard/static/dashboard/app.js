@@ -240,6 +240,20 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
+// --- Copy-on-click for execution IDs ---
+document.addEventListener('click', (e) => {
+  const copyable = e.target.closest('.copyable[data-copy]');
+  if (!copyable) return;
+  e.preventDefault();
+  navigator.clipboard.writeText(copyable.dataset.copy).then(() => {
+    const toast = document.createElement('span');
+    toast.className = 'copy-toast';
+    toast.textContent = 'Copied!';
+    copyable.appendChild(toast);
+    setTimeout(() => toast.remove(), 1300);
+  });
+});
+
 // --- Trace: toggle step detail panels ---
 document.addEventListener('click', (e) => {
   const header = e.target.closest('.trace-card-header');
