@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent_gateway.persistence.backends.sql.repository import (
@@ -223,7 +224,7 @@ async def test_cost_by_session(session_factory: async_sessionmaker[AsyncSession]
 
     result = await repo.cost_by_session("session-cost")
     assert result["execution_count"] == 2
-    assert float(result["total_cost_usd"]) >= 0.019  # ~0.02
+    assert float(result["total_cost_usd"]) == pytest.approx(0.02)
     assert int(result["total_input_tokens"]) == 200
     assert int(result["total_output_tokens"]) == 100
 

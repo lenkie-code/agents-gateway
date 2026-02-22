@@ -78,6 +78,14 @@ class NullExecutionRepository:
     ) -> int:
         return 0
 
+    async def list_conversations_summary(
+        self, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        return []
+
+    async def count_conversations(self) -> int:
+        return 0
+
     async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         return _EMPTY_ANALYTICS
 

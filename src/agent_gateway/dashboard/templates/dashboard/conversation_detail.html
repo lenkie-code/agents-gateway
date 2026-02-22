@@ -1,0 +1,115 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Conversation {{ conversation.session_id[:8] }} — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Conversation Trace{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 mb-6 text-sm text-muted">
+  <a href="/dashboard/conversations" class="text-muted" style="text-decoration:none;">Conversations</a>
+  <span style="color: var(--color-border);">/</span>
+  <span class="text-mono">{{ conversation.session_id[:8] }}</span>
+</div>
+
+<!-- Summary card -->
+<div class="card mb-6">
+  <div class="card-body">
+    <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: var(--space-4);">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="text-mono" style="font-size: var(--text-xs); color: var(--color-text-secondary);">{{ conversation.session_id }}</span>
+        </div>
+        <div class="mt-2" style="font-size: var(--text-base); font-weight: 600; color: var(--color-text);">
+          {{ agent_name }}
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="flex gap-6" style="flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Turns</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">{{ conversation.execution_count }}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Total Cost</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">{{ format_cost(conversation.total_cost_usd) }}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Input Tokens</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">{{ conversation.total_input_tokens | int }}</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="text-xs text-muted" style="text-transform:uppercase; letter-spacing:0.06em; font-weight:500; margin-bottom:4px;">Output Tokens</div>
+          <div class="text-mono" style="font-size: var(--text-lg); font-weight: 600;">{{ conversation.total_output_tokens | int }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Conversation timeline -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Conversation Timeline</span>
+    <span class="badge badge-gray">{{ conversation.execution_count }} turn{{ 's' if conversation.execution_count != 1 else '' }}</span>
+  </div>
+  <div class="card-body">
+
+    {% for row in conversation.executions %}
+    <div style="position:relative; padding-left:24px; padding-bottom:{% if not loop.last %}24px{% else %}0{% endif %};">
+      {# Timeline connector line #}
+      {% if not loop.last %}
+      <div style="position:absolute; left:7px; top:16px; bottom:0; width:2px; background:var(--color-border);"></div>
+      {% endif %}
+      {# Timeline dot #}
+      <div style="position:absolute; left:0; top:6px; width:16px; height:16px; border-radius:50%;
+        {% if row.status == 'completed' %}background: var(--color-success);
+        {% elif row.status == 'running' %}background: var(--color-accent); animation: pulse 2s infinite;
+        {% elif row.status == 'failed' %}background: var(--color-cfg-danger);
+        {% else %}background: var(--color-border);
+        {% endif %}">
+      </div>
+
+      <div class="card" style="margin:0; border-left:3px solid
+        {% if row.status == 'completed' %}var(--color-success)
+        {% elif row.status == 'running' %}var(--color-accent)
+        {% elif row.status == 'failed' %}var(--color-cfg-danger)
+        {% else %}var(--color-border)
+        {% endif %};">
+        <div class="card-body" style="padding: var(--space-3) var(--space-4);">
+          <div class="flex items-center justify-between" style="gap: var(--space-3); flex-wrap: wrap;">
+            <div style="flex:1; min-width:0;">
+              <div class="flex items-center gap-2">
+                <a href="/dashboard/executions/{{ row.id }}" class="table-link text-mono text-xs">{{ row.id_short }}</a>
+                {% if row.status == 'completed' %}
+                  <span class="badge badge-green"><span class="status-dot"></span>Completed</span>
+                {% elif row.status == 'running' %}
+                  <span class="badge badge-blue badge-pulse"><span class="status-dot"></span>Running</span>
+                {% elif row.status == 'failed' %}
+                  <span class="badge badge-red"><span class="status-dot"></span>Failed</span>
+                {% elif row.status == 'queued' %}
+                  <span class="badge badge-amber"><span class="status-dot"></span>Queued</span>
+                {% else %}
+                  <span class="badge badge-gray">{{ row.status }}</span>
+                {% endif %}
+              </div>
+              <div class="mt-1 text-muted text-sm" style="word-break: break-word;">
+                {{ row.message_preview }}{% if row.message_preview | length >= 80 %}…{% endif %}
+              </div>
+            </div>
+            <div class="flex gap-4 text-xs text-muted text-mono" style="flex-shrink:0;">
+              <span>{{ format_duration(row.duration_ms) }}</span>
+              <span>{{ format_cost(row.cost_usd) }}</span>
+              <span>{{ relative_time(row.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+{% endblock %}

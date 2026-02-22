@@ -23,6 +23,7 @@ from agent_gateway.dashboard.models import (
     AgentCard,
     AnalyticsSummary,
     ConversationDetail,
+    ConversationSummaryRow,
     ExecutionDetail,
     ExecutionRow,
     format_cost,
@@ -249,16 +250,23 @@ def register_dashboard(
 
         # Build conversation context if this execution is part of a session
         conversation: ConversationDetail | None = None
-        session_id = record.session_id
-        if session_id:
-            session_records = await repo.list_by_session(session_id)
-            cost_data = await repo.cost_by_session(session_id)
+        record_session_id = record.session_id
+        if record_session_id:
+            session_records = await repo.list_by_session(record_session_id)
+            total_cost = 0.0
+            total_in = 0
+            total_out = 0
+            for r in session_records:
+                if r.usage:
+                    total_cost += float(r.usage.get("cost_usd", 0) or 0)
+                    total_in += int(r.usage.get("input_tokens", 0) or 0)
+                    total_out += int(r.usage.get("output_tokens", 0) or 0)
             conversation = ConversationDetail(
-                session_id=session_id,
-                execution_count=int(cost_data.get("execution_count", 0)),
-                total_cost_usd=float(cost_data.get("total_cost_usd", 0)),
-                total_input_tokens=int(cost_data.get("total_input_tokens", 0)),
-                total_output_tokens=int(cost_data.get("total_output_tokens", 0)),
+                session_id=record_session_id,
+                execution_count=len(session_records),
+                total_cost_usd=total_cost,
+                total_input_tokens=total_in,
+                total_output_tokens=total_out,
                 executions=[ExecutionRow.from_record(r) for r in session_records],
             )
 
@@ -278,6 +286,89 @@ def register_dashboard(
                 "is_running": is_running,
                 "current_user": current_user,
                 "active_page": "executions",
+            },
+        )
+
+    @protected.get("/conversations", response_class=HTMLResponse)
+    async def conversations_page(
+        request: Request,
+        page: int = 1,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> HTMLResponse:
+        gw = request.app
+        repo = gw._execution_repo
+        offset = (page - 1) * _PAGE_SIZE
+
+        rows_raw = await repo.list_conversations_summary(limit=_PAGE_SIZE, offset=offset)
+        total = await repo.count_conversations()
+        rows = [ConversationSummaryRow.from_row(r) for r in rows_raw]
+
+        ws = gw.workspace
+        agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
+
+        total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/conversations.html",
+            context={
+                "rows": rows,
+                "agent_names": agent_names,
+                "page": page,
+                "total_pages": total_pages,
+                "total": total,
+                "current_user": current_user,
+                "active_page": "conversations",
+            },
+        )
+
+    @protected.get("/conversations/{session_id}", response_class=HTMLResponse)
+    async def conversation_detail_page(
+        request: Request,
+        session_id: str,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+    ) -> HTMLResponse:
+        gw = request.app
+        repo = gw._execution_repo
+
+        records = await repo.list_by_session(session_id, limit=200)
+        if not records:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        exec_rows = [ExecutionRow.from_record(r) for r in reversed(records)]  # oldest first
+
+        total_cost = 0.0
+        total_in = 0
+        total_out = 0
+        for r in records:
+            if r.usage:
+                total_cost += float(r.usage.get("cost_usd", 0) or 0)
+                total_in += int(r.usage.get("input_tokens", 0) or 0)
+                total_out += int(r.usage.get("output_tokens", 0) or 0)
+
+        ws = gw.workspace
+        agent_id = records[0].agent_id
+        agent = ws.agents.get(agent_id) if ws else None
+        agent_name = (agent.display_name or agent_id) if agent else agent_id
+
+        conversation = ConversationDetail(
+            session_id=session_id,
+            execution_count=len(records),
+            total_cost_usd=total_cost,
+            total_input_tokens=total_in,
+            total_output_tokens=total_out,
+            executions=exec_rows,
+        )
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/conversation_detail.html",
+            context={
+                "conversation": conversation,
+                "agent_name": agent_name,
+                "agent_id": agent_id,
+                "current_user": current_user,
+                "active_page": "conversations",
             },
         )
 

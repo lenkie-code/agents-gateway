@@ -63,7 +63,8 @@ class ExecutionRow:
         duration: int | None = None
         if record.started_at and record.completed_at:
             duration = int((record.completed_at - record.started_at).total_seconds() * 1000)
-        # Prefer direct session_id field, fall back to options for legacy data
+        # Prefer direct session_id field, fall back to options for legacy data.
+        # TODO: remove options fallback once all deployments have migrated.
         sid = record.session_id
         if sid is None:
             options = record.options or {}
@@ -142,6 +143,35 @@ class ExecutionDetail:
             total_output_tokens=usage.get("output_tokens"),
             duration_ms=duration,
             models_used=usage.get("models_used") or [],
+        )
+
+
+@dataclass
+class ConversationSummaryRow:
+    """Summary of a conversation for the conversations list page."""
+
+    session_id: str
+    session_id_short: str
+    agent_id: str
+    execution_count: int
+    total_cost_usd: float
+    total_input_tokens: int
+    total_output_tokens: int
+    first_activity: datetime | None
+    last_activity: datetime | None
+
+    @classmethod
+    def from_row(cls, row: dict[str, Any]) -> ConversationSummaryRow:
+        return cls(
+            session_id=row["session_id"],
+            session_id_short=row["session_id"][:8],
+            agent_id=row["agent_id"],
+            execution_count=int(row.get("execution_count", 0)),
+            total_cost_usd=float(row.get("total_cost_usd", 0)),
+            total_input_tokens=int(row.get("total_input_tokens", 0)),
+            total_output_tokens=int(row.get("total_output_tokens", 0)),
+            first_activity=row.get("first_activity"),
+            last_activity=row.get("last_activity"),
         )
 
 

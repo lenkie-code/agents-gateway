@@ -233,6 +233,46 @@ class ExecutionRepository:
             row = result.one()
             return _normalize_row(row._mapping)
 
+    async def list_conversations_summary(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List conversations grouped by session_id with aggregated stats."""
+        cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
+        inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
+        out = _json_field("usage", "output_tokens", is_postgres=self._pg)
+        async with self._session_factory() as session:
+            stmt = text(f"""
+                SELECT
+                    session_id,
+                    agent_id,
+                    COUNT(*) as execution_count,
+                    COALESCE(SUM({cost}), 0) as total_cost_usd,
+                    COALESCE(SUM({inp}), 0) as total_input_tokens,
+                    COALESCE(SUM({out}), 0) as total_output_tokens,
+                    MIN(created_at) as first_activity,
+                    MAX(created_at) as last_activity
+                FROM executions
+                WHERE session_id IS NOT NULL
+                GROUP BY session_id, agent_id
+                ORDER BY last_activity DESC
+                LIMIT :limit OFFSET :offset
+                """)
+            result = await session.execute(stmt, {"limit": limit, "offset": offset})
+            return [_normalize_row(row._mapping) for row in result]
+
+    async def count_conversations(self) -> int:
+        """Count distinct conversations (unique session_ids)."""
+        async with self._session_factory() as session:
+            stmt = text("""
+                SELECT COUNT(DISTINCT session_id) as cnt
+                FROM executions
+                WHERE session_id IS NOT NULL
+                """)
+            result = await session.execute(stmt)
+            return int(result.scalar_one())
+
     async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
         """Daily cost aggregation for the last N days."""
         since = datetime.now(UTC) - timedelta(days=days)
