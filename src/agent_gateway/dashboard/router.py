@@ -80,6 +80,7 @@ def register_dashboard(
     auth_method = "oauth2" if oauth2_config else "password"
     templates = _build_templates(dash_config)
     templates.env.globals["auth_method"] = auth_method
+    templates.env.globals["login_button_text"] = dash_config.auth.login_button_text
     get_dashboard_user = make_get_dashboard_user(dash_config.auth)
     login_handler = make_login_handler(dash_config.auth)
 

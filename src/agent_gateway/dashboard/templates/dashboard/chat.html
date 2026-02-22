@@ -40,9 +40,13 @@
       <div class="message-bubble">No agents available — add AGENT.md files to your workspace.</div>
     </div>
     {% else %}
+    {% set selected_name = namespace(val='') %}
+    {% for agent in agents %}
+      {% if agent.id == selected_agent_id %}{% set selected_name.val = agent.display_name %}{% endif %}
+    {% endfor %}
     <div class="message message-system">
       <div class="message-bubble">
-        Start a conversation with <strong>{{ agents[0].display_name if agents else '' }}</strong>.
+        Start a conversation with <strong>{{ selected_name.val or agents[0].display_name }}</strong>.
         Switch agents using the selector above.
       </div>
     </div>
