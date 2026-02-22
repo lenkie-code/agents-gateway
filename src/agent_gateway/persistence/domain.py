@@ -24,6 +24,7 @@ class ExecutionRecord:
     result: dict[str, Any] | None = None
     error: str | None = None
     usage: dict[str, Any] | None = None
+    session_id: str | None = None
     schedule_id: str | None = None
     schedule_name: str | None = None
     started_at: datetime | None = None

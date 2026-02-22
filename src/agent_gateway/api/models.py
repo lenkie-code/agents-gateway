@@ -89,6 +89,7 @@ class ExecutionResponse(BaseModel):
     result: dict[str, Any] | None = None
     error: str | None = None
     usage: dict[str, Any] | None = None
+    session_id: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime | None = None

@@ -79,12 +79,14 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("result", JSON),
         Column("error", Text),
         Column("usage", JSON),
+        Column("session_id", String, nullable=True),
         Column("schedule_id", String, nullable=True),
         Column("schedule_name", String, nullable=True),
         Column("started_at", DateTime(timezone=True)),
         Column("completed_at", DateTime(timezone=True)),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}executions_agent_id", "agent_id"),
+        Index(f"ix_{prefix}executions_session_id", "session_id"),
         Index(f"ix_{prefix}executions_schedule_id", "schedule_id"),
     )
 

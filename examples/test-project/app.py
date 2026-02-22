@@ -310,5 +310,32 @@ async def demo_send_email():
     return {"output": result.raw_text, "stop_reason": result.stop_reason.value}
 
 
+@gw.get("/api/demo/conversation-cost")
+async def demo_conversation_cost():
+    """Demonstrate conversation tracing — multi-turn chat with cost tracking."""
+    # Turn 1
+    session_id, result1 = await gw.chat(
+        "assistant",
+        "What is the capital of France?",
+    )
+
+    # Turn 2 — same session
+    _, result2 = await gw.chat(
+        "assistant",
+        "And what about Germany?",
+        session_id=session_id,
+    )
+
+    cost1 = result1.usage.cost_usd if result1.usage else 0
+    cost2 = result2.usage.cost_usd if result2.usage else 0
+    return {
+        "session_id": session_id,
+        "turns": 2,
+        "total_cost_usd": round(cost1 + cost2, 6),
+        "turn_1": result1.raw_text[:200],
+        "turn_2": result2.raw_text[:200],
+    }
+
+
 if __name__ == "__main__":
     gw.run(port=8000)

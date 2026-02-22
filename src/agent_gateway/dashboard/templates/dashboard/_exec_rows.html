@@ -52,7 +52,7 @@
           {{ row.message_preview }}{% if row.message_preview | length >= 80 %}…{% endif %}
         </td>
         <td class="text-mono text-xs text-muted">
-          {% if row.session_id %}{{ row.session_id[:8] }}{% else %}—{% endif %}
+          {% if row.session_id %}<a href="/dashboard/conversations/{{ row.session_id }}" class="table-link">{{ row.session_id[:8] }}</a>{% else %}—{% endif %}
         </td>
         <td class="text-mono text-muted text-right">{{ format_duration(row.duration_ms) }}</td>
         <td class="text-mono text-muted text-right">{{ format_cost(row.cost_usd) }}</td>

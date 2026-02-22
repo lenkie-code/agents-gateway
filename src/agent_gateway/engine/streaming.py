@@ -91,7 +91,8 @@ async def stream_chat_execution(
         agent_id=agent.id,
         status="running",
         message=next((m["content"] for m in reversed(messages) if m.get("role") == "user"), ""),
-        options={"session_id": session.session_id},
+        session_id=session.session_id,
+        options={},
         started_at=datetime.now(UTC),
     )
     await repo.create(record)
