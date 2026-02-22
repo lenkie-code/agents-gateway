@@ -1,7 +1,171 @@
-# agent-gateway
+# Agent Gateway
 
 [![PyPI version](https://img.shields.io/pypi/v/agent-gateway)](https://pypi.org/project/agent-gateway/)
-[![CI](https://github.com/vince-nyanga/agents-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/vince-nyanga/agents-gateway/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/vince-nyanga/agents-gateway/branch/main/graph/badge.svg)](https://codecov.io/gh/vince-nyanga/agents-gateway)
+[![Python](https://img.shields.io/pypi/pyversions/agent-gateway)](https://pypi.org/project/agent-gateway/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/honesdev/agent-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/honesdev/agent-gateway/actions/workflows/ci.yml)
 
-A FastAPI extension for building API-first AI agent services.
+A FastAPI extension for building API-first AI agent services. Define agents, tools, and skills as markdown files, then serve them as a production-ready API with authentication, persistence, scheduling, notifications, and more.
+
+## Quick Start
+
+```bash
+pip install agent-gateway[all]
+
+# Scaffold a new project
+agent-gateway init myproject
+cd myproject
+
+# Start the server
+agent-gateway serve
+```
+
+Your agent API is now running at `http://localhost:8000` with interactive docs at `/docs`.
+
+## Define an Agent
+
+Create a markdown file at `workspace/agents/assistant/AGENT.md`:
+
+```markdown
+---
+description: A helpful assistant that answers questions
+skills:
+  - general-tools
+memory:
+  enabled: true
+---
+
+You are a helpful assistant. Answer questions clearly and concisely.
+```
+
+That's it — the agent is now available via the API.
+
+## Add a Tool
+
+### File-based tool
+
+Create `workspace/tools/http-example/TOOL.md`:
+
+```markdown
+---
+name: http-example
+description: Make an HTTP GET request and return the response
+parameters:
+  url:
+    type: string
+    description: The URL to fetch
+    required: true
+---
+```
+
+Add a handler in `workspace/tools/http-example/handler.py`:
+
+```python
+import httpx
+
+async def handler(url: str) -> str:
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url)
+        return resp.text
+```
+
+### Code-based tool
+
+Register tools directly in Python:
+
+```python
+from agent_gateway import Gateway
+
+gw = Gateway(workspace="./workspace")
+
+@gw.tool(agent="assistant")
+def add_numbers(a: float, b: float) -> float:
+    """Add two numbers together."""
+    return a + b
+```
+
+## Use the API
+
+```bash
+# Invoke an agent (single-turn)
+curl -X POST http://localhost:8000/v1/agents/assistant/invoke \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"message": "What is 2 + 3?"}'
+
+# Chat with an agent (multi-turn)
+curl -X POST http://localhost:8000/v1/agents/assistant/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"message": "Hello!"}'
+```
+
+## Features
+
+- **Markdown-defined agents** — Define agents, tools, and skills as markdown files with YAML frontmatter
+- **Multi-LLM support** — Use any model supported by [LiteLLM](https://docs.litellm.ai/) (OpenAI, Gemini, Anthropic, Ollama, etc.)
+- **Built-in authentication** — API key and OAuth2/JWT auth out of the box
+- **Persistence** — SQLite or PostgreSQL storage for conversations, executions, and audit logs
+- **Dashboard** — Built-in web dashboard for monitoring agents, executions, and conversations
+- **Scheduling** — Cron-based agent scheduling via APScheduler
+- **Notifications** — Slack and webhook notification backends with per-agent rules
+- **Async execution** — Queue-based async processing with Redis or RabbitMQ
+- **Telemetry** — OpenTelemetry instrumentation with console or OTLP export
+- **Structured output** — Pydantic model or JSON Schema output validation
+- **Agent memory** — Automatic memory extraction and recall across conversations
+- **Streaming** — Server-sent events (SSE) for real-time chat responses
+- **Input/output schemas** — JSON Schema validation for agent inputs and outputs
+- **CLI** — Project scaffolding, agent listing, and dev server via `agent-gateway` CLI
+- **Lifecycle hooks** — `before_invoke`, `after_invoke`, `on_error` hooks for custom logic
+
+## Configuration
+
+Configure your gateway with `workspace/gateway.yaml`:
+
+```yaml
+server:
+  port: 8000
+
+model:
+  default: "gemini/gemini-2.0-flash"
+  temperature: 0.1
+
+memory:
+  enabled: true
+```
+
+Or configure programmatically:
+
+```python
+from agent_gateway import Gateway
+
+gw = Gateway(
+    workspace="./workspace",
+    title="My Agent Service",
+)
+
+# Fluent API for backends
+gw.use_api_key_auth(api_key="your-key")
+gw.use_sqlite("sqlite+aiosqlite:///data.db")
+gw.use_slack_notifications(bot_token="xoxb-...", default_channel="#alerts")
+```
+
+## Installation Extras
+
+Install only what you need:
+
+```bash
+pip install agent-gateway[sqlite]       # SQLite persistence
+pip install agent-gateway[postgres]     # PostgreSQL persistence
+pip install agent-gateway[redis]        # Redis queue backend
+pip install agent-gateway[rabbitmq]     # RabbitMQ queue backend
+pip install agent-gateway[oauth2]       # OAuth2/JWT authentication
+pip install agent-gateway[slack]        # Slack notifications
+pip install agent-gateway[dashboard]    # Web dashboard
+pip install agent-gateway[otlp]        # OTLP telemetry export
+pip install agent-gateway[all]          # Everything
+```
+
+## License
+
+MIT
