@@ -539,24 +539,17 @@ class Gateway(FastAPI):
             from starlette.middleware.cors import CORSMiddleware
 
             cors = self._config.cors
+            cors_kwargs: dict[str, Any] = {
+                "allow_origins": cors.allow_origins,
+                "allow_methods": cors.allow_methods,
+                "allow_headers": cors.allow_headers,
+                "allow_credentials": cors.allow_credentials,
+                "max_age": cors.max_age,
+            }
             if self.middleware_stack is not None:
-                self.middleware_stack = CORSMiddleware(
-                    app=self.middleware_stack,
-                    allow_origins=cors.allow_origins,
-                    allow_methods=cors.allow_methods,
-                    allow_headers=cors.allow_headers,
-                    allow_credentials=cors.allow_credentials,
-                    max_age=cors.max_age,
-                )
+                self.middleware_stack = CORSMiddleware(app=self.middleware_stack, **cors_kwargs)
             else:
-                self.add_middleware(
-                    CORSMiddleware,
-                    allow_origins=cors.allow_origins,
-                    allow_methods=cors.allow_methods,
-                    allow_headers=cors.allow_headers,
-                    allow_credentials=cors.allow_credentials,
-                    max_age=cors.max_age,
-                )
+                self.add_middleware(CORSMiddleware, **cors_kwargs)
 
         # 11. Wire auth middleware if enabled
         auth_provider = self._resolve_auth_provider()
@@ -1097,16 +1090,18 @@ class Gateway(FastAPI):
         """
         if self._started:
             raise RuntimeError("Cannot configure CORS after gateway has started")
-        from agent_gateway.config import CorsConfig
-
-        self._pending_cors_config = CorsConfig(
-            enabled=True,
-            allow_origins=allow_origins or ["*"],
-            allow_methods=allow_methods or ["GET", "POST", "DELETE", "OPTIONS"],
-            allow_headers=allow_headers or ["Authorization", "Content-Type"],
-            allow_credentials=allow_credentials,
-            max_age=max_age,
-        )
+        kwargs: dict[str, Any] = {
+            "enabled": True,
+            "allow_credentials": allow_credentials,
+            "max_age": max_age,
+        }
+        if allow_origins is not None:
+            kwargs["allow_origins"] = allow_origins
+        if allow_methods is not None:
+            kwargs["allow_methods"] = allow_methods
+        if allow_headers is not None:
+            kwargs["allow_headers"] = allow_headers
+        self._pending_cors_config = CorsConfig(**kwargs)
         return self
 
     # --- Dashboard configuration (fluent API) ---

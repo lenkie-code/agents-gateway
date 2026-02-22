@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from agent_gateway.config import CorsConfig
 from agent_gateway.gateway import Gateway
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -119,6 +120,21 @@ class TestUseCorsApi:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False)
         result = gw.use_cors()
         assert result is gw
+
+    def test_use_cors_defaults_from_config(self) -> None:
+        gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False)
+        gw.use_cors()
+        assert gw._pending_cors_config is not None
+        assert gw._pending_cors_config.allow_origins == ["*"]
+        assert gw._pending_cors_config.allow_methods == ["GET", "POST", "DELETE", "OPTIONS"]
+
+    def test_credentials_with_wildcard_rejected(self) -> None:
+        with pytest.raises(ValueError, match="allow_credentials=True cannot be used"):
+            CorsConfig(enabled=True, allow_credentials=True, allow_origins=["*"])
+
+    def test_credentials_with_explicit_origins_allowed(self) -> None:
+        cfg = CorsConfig(enabled=True, allow_credentials=True, allow_origins=["https://myapp.com"])
+        assert cfg.allow_credentials is True
 
     async def test_use_cors_after_start_raises(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False)

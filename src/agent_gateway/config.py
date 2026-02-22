@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
@@ -267,6 +267,15 @@ class CorsConfig(BaseModel):
     allow_headers: list[str] = Field(default_factory=lambda: ["Authorization", "Content-Type"])
     allow_credentials: bool = False
     max_age: int = 3600
+
+    @model_validator(mode="after")
+    def _reject_wildcard_with_credentials(self) -> CorsConfig:
+        if self.allow_credentials and "*" in self.allow_origins:
+            raise ValueError(
+                "allow_credentials=True cannot be used with allow_origins=['*']. "
+                "Specify explicit origins instead."
+            )
+        return self
 
 
 class GatewayConfig(BaseSettings):
