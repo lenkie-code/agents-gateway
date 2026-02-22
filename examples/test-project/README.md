@@ -70,6 +70,25 @@ docker compose -f examples/test-project/docker-compose.yml up -d
 docker compose -f examples/test-project/docker-compose.yml ps
 ```
 
+## Database Migrations
+
+Agent Gateway uses Alembic for database migrations. On first startup, migrations
+run automatically. When upgrading, apply new migrations:
+
+```bash
+# Apply all pending migrations
+agents-gateway db upgrade --workspace examples/test-project/workspace
+
+# Check current migration version
+agents-gateway db current --workspace examples/test-project/workspace
+
+# View migration history
+agents-gateway db history --workspace examples/test-project/workspace
+
+# Roll back one migration
+agents-gateway db downgrade --workspace examples/test-project/workspace
+```
+
 ## Run
 
 ```bash

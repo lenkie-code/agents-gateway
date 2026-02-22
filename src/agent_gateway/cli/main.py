@@ -4,6 +4,7 @@ import typer
 
 from agent_gateway.cli.chat import chat
 from agent_gateway.cli.check import check
+from agent_gateway.cli.db import db_app
 from agent_gateway.cli.init_cmd import init
 from agent_gateway.cli.invoke import invoke
 from agent_gateway.cli.list_cmd import agents, schedules, skills
@@ -32,3 +33,4 @@ app.command()(check)
 app.command(name="agents")(agents)
 app.command(name="skills")(skills)
 app.command(name="schedules")(schedules)
+app.add_typer(db_app, name="db")

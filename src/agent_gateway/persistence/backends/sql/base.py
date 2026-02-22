@@ -293,11 +293,13 @@ class SqlBackend:
         metadata: MetaData,
         mapper_registry: registry,
         tables: dict[str, Table],
+        table_prefix: str = "",
     ) -> None:
         self._engine = engine
         self._metadata = metadata
         self._mapper_registry = mapper_registry
         self._tables = tables
+        self._table_prefix = table_prefix
         self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             engine,
             class_=AsyncSession,
@@ -329,10 +331,26 @@ class SqlBackend:
         self._conversation_repo: ConversationRepository = ConvRepo(self._session_factory)
 
     async def initialize(self) -> None:
-        """Create all tables if they don't exist. Idempotent."""
-        async with self._engine.begin() as conn:
-            await conn.run_sync(self._metadata.create_all)
-        logger.info("Database tables initialized")
+        """Apply database migrations. Falls back to create_all for prefixed tables."""
+        if self._table_prefix or self._metadata.schema:
+            # Alembic migrations use hardcoded table names; use create_all for
+            # prefixed tables or custom schemas
+            async with self._engine.begin() as conn:
+                await conn.run_sync(self._metadata.create_all)
+            logger.info("Database tables initialized (prefix=%s)", self._table_prefix)
+            return
+
+        try:
+            from agent_gateway.persistence.migrations.runner import run_upgrade
+
+            async with self._engine.begin() as conn:
+                await conn.run_sync(run_upgrade)
+            logger.info("Database migrations applied")
+        except Exception:
+            logger.warning("Alembic migration failed, falling back to create_all", exc_info=True)
+            async with self._engine.begin() as conn:
+                await conn.run_sync(self._metadata.create_all)
+            logger.info("Database tables initialized via create_all fallback")
 
     async def dispose(self) -> None:
         """Clean up mapper registry and close the engine."""
