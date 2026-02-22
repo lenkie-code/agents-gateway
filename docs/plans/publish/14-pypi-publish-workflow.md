@@ -1,6 +1,6 @@
 ---
 title: "PyPI Publish Workflow"
-status: pending
+status: completed
 priority: P1
 category: CI/CD
 date: 2026-02-22
