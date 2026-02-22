@@ -24,6 +24,7 @@ from agent_gateway.auth.protocols import AuthProvider
 from agent_gateway.chat.session import ChatSession, SessionStore
 from agent_gateway.config import (
     ContextRetrievalConfig,
+    CorsConfig,
     GatewayConfig,
     NotificationsConfig,
     PersistenceConfig,
@@ -135,6 +136,7 @@ class Gateway(FastAPI):
         self._conversation_repo: ConversationRepository = NullConversationRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
+        self._pending_cors_config: CorsConfig | None = None  # fluent API
         self._pending_dashboard_overrides: dict[str, Any] = {}  # fluent API
         self._oauth2_issuer: str | None = None  # for OpenAPI security scheme
         self._extraction_cooldowns: dict[str, float] = {}
@@ -529,6 +531,25 @@ class Gateway(FastAPI):
                 engine=self._notification_engine,
             )
             await self._notification_worker.start()
+
+        # 10b. Wire CORS middleware if enabled
+        if self._pending_cors_config is not None:
+            self._config.cors = self._pending_cors_config
+        if self._config.cors.enabled:
+            from starlette.middleware.cors import CORSMiddleware
+
+            cors = self._config.cors
+            cors_kwargs: dict[str, Any] = {
+                "allow_origins": cors.allow_origins,
+                "allow_methods": cors.allow_methods,
+                "allow_headers": cors.allow_headers,
+                "allow_credentials": cors.allow_credentials,
+                "max_age": cors.max_age,
+            }
+            if self.middleware_stack is not None:
+                self.middleware_stack = CORSMiddleware(app=self.middleware_stack, **cors_kwargs)
+            else:
+                self.add_middleware(CORSMiddleware, **cors_kwargs)
 
         # 11. Wire auth middleware if enabled
         auth_provider = self._resolve_auth_provider()
@@ -1047,6 +1068,40 @@ class Gateway(FastAPI):
         self._pending_memory_backend = FileMemoryBackend(
             workspace_root=Path(self._workspace_path),
         )
+        return self
+
+    # --- CORS configuration (fluent API) ---
+
+    def use_cors(
+        self,
+        *,
+        allow_origins: list[str] | None = None,
+        allow_methods: list[str] | None = None,
+        allow_headers: list[str] | None = None,
+        allow_credentials: bool = False,
+        max_age: int = 3600,
+    ) -> Gateway:
+        """Enable CORS with the given settings.
+
+        Example::
+
+            gw = Gateway(workspace="workspace/")
+            gw.use_cors(allow_origins=["https://myapp.com"])
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure CORS after gateway has started")
+        kwargs: dict[str, Any] = {
+            "enabled": True,
+            "allow_credentials": allow_credentials,
+            "max_age": max_age,
+        }
+        if allow_origins is not None:
+            kwargs["allow_origins"] = allow_origins
+        if allow_methods is not None:
+            kwargs["allow_methods"] = allow_methods
+        if allow_headers is not None:
+            kwargs["allow_headers"] = allow_headers
+        self._pending_cors_config = CorsConfig(**kwargs)
         return self
 
     # --- Dashboard configuration (fluent API) ---

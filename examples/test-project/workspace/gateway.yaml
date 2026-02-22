@@ -13,6 +13,10 @@ memory:
     max_memories_per_scope: 100
     compact_ratio: 0.5
 
+cors:
+  enabled: true
+  # allow_origins: ["https://your-app.com"]  # restrict in production
+
 telemetry:
   enabled: true
   exporter: console

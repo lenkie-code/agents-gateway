@@ -1,6 +1,6 @@
 ---
 title: "CORS Middleware"
-status: pending
+status: completed
 priority: P0
 category: Security
 date: 2026-02-22
