@@ -1103,9 +1103,9 @@ class Gateway(FastAPI):
         if auth_password is not None:
             self._pending_dashboard_overrides.setdefault("auth", {})["password"] = auth_password
         if login_button_text is not None:
-            self._pending_dashboard_overrides.setdefault("auth", {})[
-                "login_button_text"
-            ] = login_button_text
+            self._pending_dashboard_overrides.setdefault("auth", {})["login_button_text"] = (
+                login_button_text
+            )
         if theme is not None:
             self._pending_dashboard_overrides.setdefault("theme", {})["mode"] = theme
         if accent_color is not None:
