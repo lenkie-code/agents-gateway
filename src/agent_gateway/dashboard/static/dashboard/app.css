@@ -223,16 +223,22 @@ code, pre {
 }
 
 .agent-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-accent-muted);
+  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--color-accent) 16%, var(--color-border));
 }
 
-.agent-card-header {
-  padding: var(--space-4);
+.agent-card-inner {
+  padding: var(--space-4) var(--space-5);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agent-card-top {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .agent-avatar {
@@ -264,33 +270,26 @@ code, pre {
   font-family: var(--font-mono);
 }
 
-.agent-card-body {
-  padding: var(--space-3) var(--space-4);
-  flex: 1;
-}
-
 .agent-description {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
   line-height: var(--leading-normal);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-tags {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-  margin-top: var(--space-2);
 }
 
-.agent-card-footer {
-  padding: var(--space-3) var(--space-4);
+.agent-card-actions {
+  padding: var(--space-2) var(--space-5);
   border-top: 1px solid var(--color-border-subtle);
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 /* === Badges === */
