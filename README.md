@@ -1,23 +1,23 @@
 # Agent Gateway
 
-[![PyPI version](https://img.shields.io/pypi/v/agent-gateway)](https://pypi.org/project/agent-gateway/)
-[![Python](https://img.shields.io/pypi/pyversions/agent-gateway)](https://pypi.org/project/agent-gateway/)
+[![PyPI version](https://img.shields.io/pypi/v/agents-gateway)](https://pypi.org/project/agents-gateway/)
+[![Python](https://img.shields.io/pypi/pyversions/agents-gateway)](https://pypi.org/project/agents-gateway/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/honesdev/agent-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/honesdev/agent-gateway/actions/workflows/ci.yml)
+[![CI](https://github.com/honesdev/agents-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/honesdev/agents-gateway/actions/workflows/ci.yml)
 
 A FastAPI extension for building API-first AI agent services. Define agents, tools, and skills as markdown files, then serve them as a production-ready API with authentication, persistence, scheduling, notifications, and more.
 
 ## Quick Start
 
 ```bash
-pip install agent-gateway[all]
+pip install agents-gateway[all]
 
 # Scaffold a new project
-agent-gateway init myproject
+agents-gateway init myproject
 cd myproject
 
 # Start the server
-agent-gateway serve
+agents-gateway serve
 ```
 
 Your agent API is now running at `http://localhost:8000` with interactive docs at `/docs`.
@@ -115,7 +115,7 @@ curl -X POST http://localhost:8000/v1/agents/assistant/chat \
 - **Agent memory** — Automatic memory extraction and recall across conversations
 - **Streaming** — Server-sent events (SSE) for real-time chat responses
 - **Input/output schemas** — JSON Schema validation for agent inputs and outputs
-- **CLI** — Project scaffolding, agent listing, and dev server via `agent-gateway` CLI
+- **CLI** — Project scaffolding, agent listing, and dev server via `agents-gateway` CLI
 - **Lifecycle hooks** — `before_invoke`, `after_invoke`, `on_error` hooks for custom logic
 
 ## Configuration
@@ -155,15 +155,15 @@ gw.use_slack_notifications(bot_token="xoxb-...", default_channel="#alerts")
 Install only what you need:
 
 ```bash
-pip install agent-gateway[sqlite]       # SQLite persistence
-pip install agent-gateway[postgres]     # PostgreSQL persistence
-pip install agent-gateway[redis]        # Redis queue backend
-pip install agent-gateway[rabbitmq]     # RabbitMQ queue backend
-pip install agent-gateway[oauth2]       # OAuth2/JWT authentication
-pip install agent-gateway[slack]        # Slack notifications
-pip install agent-gateway[dashboard]    # Web dashboard
-pip install agent-gateway[otlp]        # OTLP telemetry export
-pip install agent-gateway[all]          # Everything
+pip install agents-gateway[sqlite]       # SQLite persistence
+pip install agents-gateway[postgres]     # PostgreSQL persistence
+pip install agents-gateway[redis]        # Redis queue backend
+pip install agents-gateway[rabbitmq]     # RabbitMQ queue backend
+pip install agents-gateway[oauth2]       # OAuth2/JWT authentication
+pip install agents-gateway[slack]        # Slack notifications
+pip install agents-gateway[dashboard]    # Web dashboard
+pip install agents-gateway[otlp]        # OTLP telemetry export
+pip install agents-gateway[all]          # Everything
 ```
 
 ## License
