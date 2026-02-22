@@ -113,10 +113,6 @@ version-file = "src/agent_gateway/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_gateway"]
 
-[tool.hatch.build.targets.wheel.force-include]
-# Include dashboard templates and static assets in the wheel
-"src/agent_gateway/dashboard/templates" = "agent_gateway/dashboard/templates"
-"src/agent_gateway/dashboard/static" = "agent_gateway/dashboard/static"
 
 [tool.uv.workspace]
 members = ["examples/test-project"]
