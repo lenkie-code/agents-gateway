@@ -51,14 +51,18 @@ from agent_gateway.persistence.null import (
     NullConversationRepository,
     NullExecutionRepository,
     NullScheduleRepository,
+    NullUserAgentConfigRepository,
     NullUserRepository,
+    NullUserScheduleRepository,
 )
 from agent_gateway.persistence.protocols import (
     AuditRepository,
     ConversationRepository,
     ExecutionRepository,
     ScheduleRepository,
+    UserAgentConfigRepository,
     UserRepository,
+    UserScheduleRepository,
 )
 from agent_gateway.queue.null import NullQueue
 from agent_gateway.queue.protocol import ExecutionQueue
@@ -134,6 +138,8 @@ class Gateway(FastAPI):
         self._schedule_repo: ScheduleRepository = NullScheduleRepository()
         self._user_repo: UserRepository = NullUserRepository()
         self._conversation_repo: ConversationRepository = NullConversationRepository()
+        self._user_agent_config_repo: UserAgentConfigRepository = NullUserAgentConfigRepository()
+        self._user_schedule_repo: UserScheduleRepository = NullUserScheduleRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_cors_config: CorsConfig | None = None  # fluent API
@@ -322,6 +328,8 @@ class Gateway(FastAPI):
                 self._schedule_repo = backend.schedule_repo
                 self._user_repo = backend.user_repo
                 self._conversation_repo = backend.conversation_repo
+                self._user_agent_config_repo = backend.user_agent_config_repo
+                self._user_schedule_repo = backend.user_schedule_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -1598,6 +1606,7 @@ class Gateway(FastAPI):
         from agent_gateway.api.routes.introspection import router as introspection_router
         from agent_gateway.api.routes.invoke import router as invoke_router
         from agent_gateway.api.routes.schedules import router as schedules_router
+        from agent_gateway.api.routes.user_config import router as user_config_router
 
         v1 = APIRouter(prefix="/v1", route_class=GatewayAPIRoute)
         v1.include_router(health_router)
@@ -1606,6 +1615,7 @@ class Gateway(FastAPI):
         v1.include_router(executions_router)
         v1.include_router(introspection_router)
         v1.include_router(schedules_router)
+        v1.include_router(user_config_router)
 
         self.include_router(v1)
 
@@ -1767,6 +1777,21 @@ class Gateway(FastAPI):
             return getattr(auth, "subject", None)
         return None
 
+    @staticmethod
+    def _decrypt_user_secrets(encrypted_secrets: dict[str, Any]) -> dict[str, str]:
+        """Decrypt user secrets from a UserAgentConfig."""
+        if not encrypted_secrets:
+            return {}
+        from agent_gateway.secrets import decrypt_value
+
+        result: dict[str, str] = {}
+        for key, ciphertext in encrypted_secrets.items():
+            try:
+                result[key] = decrypt_value(str(ciphertext))
+            except ValueError:
+                logger.warning("Failed to decrypt secret '%s', skipping", key)
+        return result
+
     async def _ensure_user_profile(self, auth: Any | None) -> None:
         """Auto-create or update user profile from auth claims."""
         if auth is None or not getattr(auth, "authenticated", False):
@@ -1926,6 +1951,7 @@ class Gateway(FastAPI):
         message: str,
         input: dict[str, Any] | None = None,
         options: ExecutionOptions | None = None,
+        auth: Any | None = None,
     ) -> ExecutionResult:
         """Invoke an agent programmatically (bypasses HTTP).
 
@@ -1934,6 +1960,7 @@ class Gateway(FastAPI):
             message: The user message.
             input: Optional input dict.
             options: Optional execution options.
+            auth: Optional AuthResult from the request (for user-scoped operations).
 
         Returns:
             ExecutionResult with output, usage, and stop reason.
@@ -1964,6 +1991,25 @@ class Gateway(FastAPI):
                     errors=errors,
                 )
 
+        # Load per-user agent config for personal agents
+        user_id = self._derive_user_id(auth) if auth else None
+        user_instructions: str | None = None
+        user_secrets: dict[str, str] = {}
+        user_config_values: dict[str, Any] = {}
+
+        if agent.scope == "personal" and user_id:
+            user_agent_config = await self._user_agent_config_repo.get(user_id, agent_id)
+            if user_agent_config is None or not user_agent_config.setup_completed:
+                raise ValueError(
+                    f"Agent '{agent_id}' requires setup. "
+                    f"Configure via POST /v1/agents/{agent_id}/config"
+                )
+            user_instructions = user_agent_config.instructions
+            user_config_values = user_agent_config.config_values
+            user_secrets = self._decrypt_user_secrets(user_agent_config.encrypted_secrets)
+        elif agent.scope == "personal" and not user_id:
+            raise ValueError(f"Agent '{agent_id}' is a personal agent and requires authentication")
+
         memory_block = await self._get_memory_block(agent_id, message, agent.memory_config)
 
         execution_id = str(uuid.uuid4())
@@ -1980,6 +2026,10 @@ class Gateway(FastAPI):
                 handle=handle,
                 tool_executor=execute_tool,
                 memory_block=memory_block,
+                user_instructions=user_instructions,
+                caller_identity=user_id,
+                user_secrets=user_secrets,
+                user_config=user_config_values,
             )
 
             # Fire notifications
@@ -1993,6 +2043,22 @@ class Gateway(FastAPI):
                 usage=result.usage.to_dict() if result.usage else None,
                 input=input,
             )
+
+            # Fire user-schedule notifications (embedded in input by scheduler)
+            if input and input.get("_notify_config"):
+                from agent_gateway.notifications.models import AgentNotificationConfig
+
+                user_notify = AgentNotificationConfig.from_dict(input["_notify_config"])
+                self.fire_notifications(
+                    execution_id=execution_id,
+                    agent_id=agent_id,
+                    status=result.stop_reason.value,
+                    message=message,
+                    config=user_notify,
+                    result=result.to_dict() if result.raw_text else None,
+                    usage=result.usage.to_dict() if result.usage else None,
+                    input=input,
+                )
 
             return result
         finally:
@@ -2049,6 +2115,24 @@ class Gateway(FastAPI):
             self._background_tasks.add(profile_task)
             profile_task.add_done_callback(self._background_tasks.discard)
 
+        # Load per-user agent config for personal agents
+        user_instructions: str | None = None
+        user_secrets: dict[str, str] = {}
+        user_config_values: dict[str, Any] = {}
+
+        if agent.scope == "personal" and user_id:
+            user_agent_config = await self._user_agent_config_repo.get(user_id, agent_id)
+            if user_agent_config is None or not user_agent_config.setup_completed:
+                raise ValueError(
+                    f"Agent '{agent_id}' requires setup. "
+                    f"Configure via POST /v1/agents/{agent_id}/config"
+                )
+            user_instructions = user_agent_config.instructions
+            user_config_values = user_agent_config.config_values
+            user_secrets = self._decrypt_user_secrets(user_agent_config.encrypted_secrets)
+        elif agent.scope == "personal" and not user_id:
+            raise ValueError(f"Agent '{agent_id}' is a personal agent and requires authentication")
+
         # Get or create session
         if session_id:
             session = self._session_store.get_session(session_id)
@@ -2086,6 +2170,7 @@ class Gateway(FastAPI):
                 context_retrieval_config=snapshot.context_retrieval_config,
                 memory_block=memory_block,
                 chat_mode=True,
+                user_instructions=user_instructions,
             )
             messages: list[dict[str, Any]] = [
                 {"role": "system", "content": system_prompt},
@@ -2108,6 +2193,8 @@ class Gateway(FastAPI):
                     tool_executor=execute_tool,
                     message_history=messages,
                     caller_identity=user_id,
+                    user_secrets=user_secrets,
+                    user_config=user_config_values,
                 )
             finally:
                 self._execution_handles.pop(execution_id, None)

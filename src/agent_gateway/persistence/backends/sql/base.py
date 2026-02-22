@@ -36,7 +36,9 @@ from agent_gateway.persistence.domain import (
     ExecutionRecord,
     ExecutionStep,
     ScheduleRecord,
+    UserAgentConfig,
     UserProfile,
+    UserScheduleRecord,
 )
 
 if TYPE_CHECKING:
@@ -45,7 +47,9 @@ if TYPE_CHECKING:
         ConversationRepository,
         ExecutionRepository,
         ScheduleRepository,
+        UserAgentConfigRepository,
         UserRepository,
+        UserScheduleRepository,
     )
 
 logger = logging.getLogger(__name__)
@@ -207,6 +211,41 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Index(f"ix_{prefix}memories_agent_id", "agent_id"),
     )
 
+    user_agent_configs = Table(
+        f"{prefix}user_agent_configs",
+        metadata,
+        Column("user_id", String, nullable=False, primary_key=True),
+        Column("agent_id", String, nullable=False, primary_key=True),
+        Column("instructions", Text, nullable=True),
+        Column("config_values", JSON, nullable=False, server_default="{}"),
+        Column("encrypted_secrets", JSON, nullable=False, server_default="{}"),
+        Column("setup_completed", Boolean, nullable=False, default=False),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Column("updated_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Index(f"ix_{prefix}user_agent_configs_user_id", "user_id"),
+        Index(f"ix_{prefix}user_agent_configs_agent_id", "agent_id"),
+    )
+
+    user_schedules = Table(
+        f"{prefix}user_schedules",
+        metadata,
+        Column("id", String, primary_key=True),
+        Column("user_id", String, nullable=False),
+        Column("agent_id", String, nullable=False),
+        Column("name", String, nullable=False),
+        Column("cron_expr", String, nullable=False),
+        Column("message", Text, nullable=False),
+        Column("input", JSON),
+        Column("enabled", Boolean, default=True),
+        Column("timezone", String, default="UTC"),
+        Column("notify", JSON, nullable=True),
+        Column("last_run_at", DateTime(timezone=True)),
+        Column("next_run_at", DateTime(timezone=True)),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Index(f"ix_{prefix}user_schedules_user_id", "user_id"),
+        Index(f"ix_{prefix}user_schedules_user_agent", "user_id", "agent_id"),
+    )
+
     return {
         "executions": executions,
         "execution_steps": execution_steps,
@@ -216,6 +255,8 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         "conversations": conversations,
         "conversation_messages": conversation_messages,
         "memories": memories,
+        "user_agent_configs": user_agent_configs,
+        "user_schedules": user_schedules,
     }
 
 
@@ -279,6 +320,10 @@ def configure_mappers(mapper_registry: registry, tables: dict[str, Table]) -> No
 
     mapper_registry.map_imperatively(MemoryRecord, tables["memories"])
 
+    mapper_registry.map_imperatively(UserAgentConfig, tables["user_agent_configs"])
+
+    mapper_registry.map_imperatively(UserScheduleRecord, tables["user_schedules"])
+
 
 class SqlBackend:
     """Base class for SQL persistence backends.
@@ -321,7 +366,13 @@ class SqlBackend:
             ScheduleRepository as SchedRepo,
         )
         from agent_gateway.persistence.backends.sql.repository import (
+            UserAgentConfigRepository as UserAgentConfigRepo,
+        )
+        from agent_gateway.persistence.backends.sql.repository import (
             UserRepository as UserRepo,
+        )
+        from agent_gateway.persistence.backends.sql.repository import (
+            UserScheduleRepository as UserSchedRepo,
         )
 
         self._execution_repo: ExecutionRepository = ExecRepo(self._session_factory)
@@ -329,6 +380,10 @@ class SqlBackend:
         self._schedule_repo: ScheduleRepository = SchedRepo(self._session_factory)
         self._user_repo: UserRepository = UserRepo(self._session_factory)
         self._conversation_repo: ConversationRepository = ConvRepo(self._session_factory)
+        self._user_agent_config_repo: UserAgentConfigRepository = UserAgentConfigRepo(
+            self._session_factory
+        )
+        self._user_schedule_repo: UserScheduleRepository = UserSchedRepo(self._session_factory)
 
     async def initialize(self) -> None:
         """Apply database migrations. Falls back to create_all for prefixed tables."""
@@ -376,3 +431,11 @@ class SqlBackend:
     @property
     def conversation_repo(self) -> ConversationRepository:
         return self._conversation_repo
+
+    @property
+    def user_agent_config_repo(self) -> UserAgentConfigRepository:
+        return self._user_agent_config_repo
+
+    @property
+    def user_schedule_repo(self) -> UserScheduleRepository:
+        return self._user_schedule_repo
