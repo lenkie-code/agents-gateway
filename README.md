@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agents-gateway)](https://pypi.org/project/agents-gateway/)
 [![Python](https://img.shields.io/pypi/pyversions/agents-gateway)](https://pypi.org/project/agents-gateway/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/honesdev/agents-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/honesdev/agents-gateway/actions/workflows/ci.yml)
+[![CI](https://github.com/vince-nyanga/agents-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/vince-nyanga/agents-gateway/actions/workflows/ci.yml)
 
 A FastAPI extension for building API-first AI agent services. Define agents, tools, and skills as markdown files, then serve them as a production-ready API with authentication, persistence, scheduling, notifications, and more.
 
