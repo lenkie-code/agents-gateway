@@ -13,7 +13,7 @@ def test_version_command() -> None:
     """version command prints the version."""
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "agent-gateway" in result.output
+    assert "agents-gateway" in result.output
 
 
 def test_help() -> None:

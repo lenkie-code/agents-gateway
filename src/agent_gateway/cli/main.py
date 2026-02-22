@@ -10,7 +10,7 @@ from agent_gateway.cli.list_cmd import agents, schedules, skills
 from agent_gateway.cli.serve import serve
 
 app = typer.Typer(
-    name="agent-gateway",
+    name="agents-gateway",
     help="A FastAPI extension for building API-first AI agent services.",
     no_args_is_help=True,
 )
@@ -18,10 +18,10 @@ app = typer.Typer(
 
 @app.command()
 def version() -> None:
-    """Show the agent-gateway version."""
+    """Show the agents-gateway version."""
     from agent_gateway import __version__
 
-    typer.echo(f"agent-gateway {__version__}")
+    typer.echo(f"agents-gateway {__version__}")
 
 
 app.command()(init)

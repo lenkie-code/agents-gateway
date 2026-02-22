@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agent-gateway"
+name = "agents-gateway"
 dynamic = ["version"]
 description = "A FastAPI extension for building API-first AI agent services"
 readme = "README.md"
@@ -53,7 +53,7 @@ dependencies = [
 [project.optional-dependencies]
 sqlite = ["aiosqlite>=0.20"]
 postgres = ["asyncpg>=0.29"]
-postgresql = ["agent-gateway[postgres]"]  # backward-compat alias
+postgresql = ["agents-gateway[postgres]"]  # backward-compat alias
 otlp = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.24",
     "opentelemetry-exporter-otlp-proto-http>=1.24",
@@ -89,16 +89,16 @@ dev = [
     "python-multipart>=0.0.9",
     "itsdangerous>=2.2",
 ]
-all = ["agent-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq,dashboard]"]
+all = ["agents-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq,dashboard]"]
 
 [project.scripts]
-agent-gateway = "agent_gateway.cli.main:app"
+agents-gateway = "agent_gateway.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/honesdev/agent-gateway"
-Repository = "https://github.com/honesdev/agent-gateway"
-Issues = "https://github.com/honesdev/agent-gateway/issues"
-Changelog = "https://github.com/honesdev/agent-gateway/releases"
+Homepage = "https://github.com/honesdev/agents-gateway"
+Repository = "https://github.com/honesdev/agents-gateway"
+Issues = "https://github.com/honesdev/agents-gateway/issues"
+Changelog = "https://github.com/honesdev/agents-gateway/releases"
 
 [tool.hatch.version]
 source = "vcs"
