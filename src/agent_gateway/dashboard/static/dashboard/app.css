@@ -580,6 +580,8 @@ tbody tr {
   padding: var(--space-3);
   border-top: 1px solid var(--color-border);
   background: var(--color-surface-2);
+  overflow: hidden;
+  transition: max-height var(--transition-slow);
 }
 
 .trace-card-body.hidden { display: none; }
@@ -876,16 +878,17 @@ tbody tr {
   align-items: center;
   justify-content: center;
   background: var(--color-bg);
+  background-image: radial-gradient(ellipse at top, color-mix(in srgb, var(--color-accent) 3%, transparent), transparent 60%);
   padding: var(--space-6);
 }
 
 .login-card {
   width: 100%;
-  max-width: 21rem;
+  max-width: 22rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   padding: var(--space-8);
 }
 
