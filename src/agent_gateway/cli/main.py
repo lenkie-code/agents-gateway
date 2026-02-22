@@ -11,7 +11,7 @@ from agent_gateway.cli.serve import serve
 
 app = typer.Typer(
     name="agent-gateway",
-    help="An opinionated FastAPI extension for building API-first AI agent services.",
+    help="A FastAPI extension for building API-first AI agent services.",
     no_args_is_help=True,
 )
 

@@ -84,7 +84,7 @@ class WorkspaceSnapshot:
 
 
 class Gateway(FastAPI):
-    """An opinionated FastAPI extension for building API-first AI agent services.
+    """A FastAPI extension for building API-first AI agent services.
 
     Subclasses FastAPI directly. Everything you can do with a FastAPI app,
     you can do with a Gateway.

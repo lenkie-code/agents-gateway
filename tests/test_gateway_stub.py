@@ -37,7 +37,7 @@ class TestGatewayStub:
         assert gw.title == "Test"
 
     def test_version(self) -> None:
-        # __version__ is "0.0.0" at dev time, replaced by GitVersion at build time
+        # __version__ is derived from git tags via hatch-vcs
         assert isinstance(__version__, str)
         assert len(__version__.split(".")) >= 3
 
