@@ -1,6 +1,11 @@
-"""Agent Gateway - an opinionated FastAPI extension for AI agent services."""
+"""Agent Gateway - a FastAPI extension for AI agent services."""
 
-__version__ = "0.0.0"  # Replaced at build time by GitVersion
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("agent-gateway")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"
 
 from agent_gateway.context.protocol import ContextRetriever
 from agent_gateway.gateway import Gateway

@@ -1,6 +1,6 @@
 ---
 title: "Version Management (Build Pipeline)"
-status: pending
+status: completed
 priority: P0
 category: Packaging
 date: 2026-02-22

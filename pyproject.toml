@@ -1,11 +1,11 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "agent-gateway"
-version = "0.0.0"
-description = "An opinionated FastAPI extension for building API-first AI agent services"
+dynamic = ["version"]
+description = "A FastAPI extension for building API-first AI agent services"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -91,6 +91,16 @@ agent-gateway = "agent_gateway.cli.main:app"
 Homepage = "https://github.com/honesdev/agent-gateway"
 Repository = "https://github.com/honesdev/agent-gateway"
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/agent_gateway/_version.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_gateway"]
 
@@ -105,6 +115,7 @@ members = ["examples/test-project"]
 [tool.ruff]
 target-version = "py311"
 line-length = 99
+exclude = ["src/agent_gateway/_version.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
