@@ -240,6 +240,20 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
+// --- Copy-on-click for execution IDs ---
+document.addEventListener('click', (e) => {
+  const copyable = e.target.closest('.copyable[data-copy]');
+  if (!copyable) return;
+  e.preventDefault();
+  navigator.clipboard.writeText(copyable.dataset.copy).then(() => {
+    const toast = document.createElement('span');
+    toast.className = 'copy-toast';
+    toast.textContent = 'Copied!';
+    copyable.appendChild(toast);
+    setTimeout(() => toast.remove(), 1300);
+  });
+});
+
 // --- Trace: toggle step detail panels ---
 document.addEventListener('click', (e) => {
   const header = e.target.closest('.trace-card-header');
@@ -249,6 +263,30 @@ document.addEventListener('click', (e) => {
     body.classList.toggle('hidden');
     const chevron = header.querySelector('.chevron');
     if (chevron) chevron.style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
+  }
+});
+
+// --- Mobile sidebar toggle ---
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (sidebarToggle && sidebar) {
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      sidebarToggle.setAttribute('aria-expanded', sidebar.classList.contains('open'));
+    });
+    overlay?.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      sidebarToggle.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        sidebarToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
   }
 });
 

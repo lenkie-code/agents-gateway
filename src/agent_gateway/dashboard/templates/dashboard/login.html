@@ -52,7 +52,7 @@
 
     {% if auth_method == "oauth2" %}
     <a href="/dashboard/oauth2/authorize" class="btn btn-primary w-full" style="justify-content:center; margin-top: var(--space-2); text-decoration: none;">
-      Sign in with SSO
+      {{ login_button_text }}
     </a>
     {% else %}
     <form action="/dashboard/login" method="post">

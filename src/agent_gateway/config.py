@@ -209,6 +209,7 @@ class DashboardAuthConfig(BaseModel):
     enabled: bool = True
     username: str = "admin"
     password: str = ""  # empty = no password (warned at startup)
+    login_button_text: str = "Sign in with SSO"
     session_secret: str = ""  # auto-generated if empty
     oauth2: DashboardOAuth2Config | None = None
 

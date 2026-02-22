@@ -89,6 +89,7 @@ if use_keycloak_dashboard:
         ),
         primary_color="#2563eb",
         sidebar_color="#0f172a",
+        login_button_text="Sign in with Keycloak",
     )
 else:
     gw.use_dashboard(

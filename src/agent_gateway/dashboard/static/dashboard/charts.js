@@ -48,8 +48,8 @@ function applyChartDefaults() {
   Chart.defaults.plugins.tooltip.bodyColor = '#cbd5e1';
   Chart.defaults.plugins.tooltip.borderColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
   Chart.defaults.plugins.tooltip.borderWidth = 1;
-  Chart.defaults.plugins.tooltip.cornerRadius = 8;
-  Chart.defaults.plugins.tooltip.padding = { top: 8, bottom: 8, left: 12, right: 12 };
+  Chart.defaults.plugins.tooltip.cornerRadius = 6;
+  Chart.defaults.plugins.tooltip.padding = { top: 6, bottom: 6, left: 10, right: 10 };
   Chart.defaults.plugins.tooltip.displayColors = true;
   Chart.defaults.plugins.tooltip.boxPadding = 4;
   Chart.defaults.plugins.tooltip.titleFont = { size: 11, weight: 600 };
@@ -125,11 +125,11 @@ function initCostChart(canvasId, labels, values) {
         label: 'Cost (USD)',
         data: values,
         borderColor: c.accent,
-        backgroundColor: makeGradient(ctx, c.accent, 0.18, 0.01),
-        borderWidth: 2.5,
+        backgroundColor: makeGradient(ctx, c.accent, 0.10, 0.01),
+        borderWidth: 1.5,
         pointRadius: 0,
-        pointHoverRadius: 5,
-        pointHoverBorderWidth: 2.5,
+        pointHoverRadius: 4,
+        pointHoverBorderWidth: 2,
         pointHoverBorderColor: c.accent,
         pointHoverBackgroundColor: c.surface,
         fill: true,
@@ -169,21 +169,21 @@ function initExecutionsChart(canvasId, labels, successData, failedData) {
         {
           label: 'Completed',
           data: successData,
-          backgroundColor: hexToRgba(c.success, 0.75),
+          backgroundColor: hexToRgba(c.success, 0.65),
           hoverBackgroundColor: c.success,
-          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 4, bottomRight: 4 },
+          borderRadius: 4,
           borderSkipped: false,
-          barPercentage: 0.65,
+          barPercentage: 0.6,
           categoryPercentage: 0.7,
         },
         {
           label: 'Failed',
           data: failedData,
-          backgroundColor: hexToRgba(c.danger, 0.7),
+          backgroundColor: hexToRgba(c.danger, 0.6),
           hoverBackgroundColor: c.danger,
-          borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 4, bottomRight: 4 },
+          borderRadius: 4,
           borderSkipped: false,
-          barPercentage: 0.65,
+          barPercentage: 0.6,
           categoryPercentage: 0.7,
         },
       ],
@@ -194,13 +194,14 @@ function initExecutionsChart(canvasId, labels, successData, failedData) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
-          position: 'bottom',
+          position: 'top',
+          align: 'end',
           labels: {
             boxWidth: 8,
             boxHeight: 8,
-            borderRadius: 2,
+            borderRadius: 4,
             useBorderRadius: true,
-            padding: 16,
+            padding: 12,
             font: { size: 11, weight: 500 },
           },
         },
@@ -278,8 +279,8 @@ function initTokenChart(canvasId, labels, inputData, outputData) {
           label: 'Input tokens',
           data: inputData,
           borderColor: c.info,
-          backgroundColor: makeGradient(ctx, c.info, 0.15, 0.01),
-          borderWidth: 2,
+          backgroundColor: makeGradient(ctx, c.info, 0.08, 0.01),
+          borderWidth: 1.5,
           pointRadius: 0,
           pointHoverRadius: 4,
           pointHoverBorderWidth: 2,
@@ -293,8 +294,8 @@ function initTokenChart(canvasId, labels, inputData, outputData) {
           label: 'Output tokens',
           data: outputData,
           borderColor: c.warning,
-          backgroundColor: makeGradient(ctx, c.warning, 0.12, 0.01),
-          borderWidth: 2,
+          backgroundColor: makeGradient(ctx, c.warning, 0.06, 0.01),
+          borderWidth: 1.5,
           pointRadius: 0,
           pointHoverRadius: 4,
           pointHoverBorderWidth: 2,
@@ -312,13 +313,14 @@ function initTokenChart(canvasId, labels, inputData, outputData) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
-          position: 'bottom',
+          position: 'top',
+          align: 'end',
           labels: {
             boxWidth: 8,
             boxHeight: 8,
-            borderRadius: 2,
+            borderRadius: 4,
             useBorderRadius: true,
-            padding: 16,
+            padding: 12,
             font: { size: 11, weight: 500 },
           },
         },
@@ -342,13 +344,73 @@ function initTokenChart(canvasId, labels, inputData, outputData) {
   });
 }
 
+// Update existing chart instances when theme changes (without needing data re-supply)
+function updateChartTheme() {
+  if (typeof Chart === 'undefined') return;
+  applyChartDefaults();
+  const c = getChartColors();
+  const dark = isDark();
+  const gridColor = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  const chartIds = ['chart-cost', 'chart-executions', 'chart-agent-cost', 'chart-tokens'];
+
+  chartIds.forEach(function(id) {
+    var chart = Chart.getChart(id);
+    if (!chart) return;
+
+    // Update scale colors
+    Object.values(chart.options.scales || {}).forEach(function(scale) {
+      if (scale.grid) scale.grid.color = gridColor;
+      if (scale.ticks) scale.ticks.color = c.textTertiary;
+    });
+
+    // Update tooltip colors
+    if (chart.options.plugins && chart.options.plugins.tooltip) {
+      chart.options.plugins.tooltip.backgroundColor = dark ? '#1e293b' : '#0f172a';
+    }
+
+    // Update dataset colors based on chart type
+    if (id === 'chart-cost') {
+      var ctx = chart.canvas.getContext('2d');
+      chart.data.datasets[0].borderColor = c.accent;
+      chart.data.datasets[0].backgroundColor = makeGradient(ctx, c.accent, 0.10, 0.01);
+      chart.data.datasets[0].pointHoverBorderColor = c.accent;
+      chart.data.datasets[0].pointHoverBackgroundColor = c.surface;
+    } else if (id === 'chart-executions') {
+      chart.data.datasets[0].backgroundColor = hexToRgba(c.success, 0.65);
+      chart.data.datasets[0].hoverBackgroundColor = c.success;
+      chart.data.datasets[1].backgroundColor = hexToRgba(c.danger, 0.6);
+      chart.data.datasets[1].hoverBackgroundColor = c.danger;
+    } else if (id === 'chart-agent-cost') {
+      var palette = [c.accent, c.info, c.success, c.warning, c.danger, '#8b5cf6', '#ec4899', '#14b8a6'];
+      chart.data.datasets[0].backgroundColor = chart.data.datasets[0].data.map(function(_, i) {
+        return hexToRgba(palette[i % palette.length], 0.7);
+      });
+      chart.data.datasets[0].hoverBackgroundColor = chart.data.datasets[0].data.map(function(_, i) {
+        return palette[i % palette.length];
+      });
+    } else if (id === 'chart-tokens') {
+      var ctx2 = chart.canvas.getContext('2d');
+      chart.data.datasets[0].borderColor = c.info;
+      chart.data.datasets[0].backgroundColor = makeGradient(ctx2, c.info, 0.08, 0.01);
+      chart.data.datasets[0].pointHoverBorderColor = c.info;
+      chart.data.datasets[0].pointHoverBackgroundColor = c.surface;
+      chart.data.datasets[1].borderColor = c.warning;
+      chart.data.datasets[1].backgroundColor = makeGradient(ctx2, c.warning, 0.06, 0.01);
+      chart.data.datasets[1].pointHoverBorderColor = c.warning;
+      chart.data.datasets[1].pointHoverBackgroundColor = c.surface;
+    }
+
+    chart.update();
+  });
+}
+
 // Init all charts on page load
 document.addEventListener('DOMContentLoaded', () => {
   if (typeof Chart === 'undefined') return;
   applyChartDefaults();
 
-  // Re-apply defaults when theme toggles
+  // Update chart colors when theme toggles
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
-    setTimeout(applyChartDefaults, 50);
+    setTimeout(updateChartTheme, 50);
   });
 });
