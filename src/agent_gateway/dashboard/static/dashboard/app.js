@@ -252,6 +252,30 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// --- Mobile sidebar toggle ---
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (sidebarToggle && sidebar) {
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      sidebarToggle.setAttribute('aria-expanded', sidebar.classList.contains('open'));
+    });
+    overlay?.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      sidebarToggle.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        sidebarToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+});
+
 // --- Agent selector in chat: update hidden input and reload page ---
 document.addEventListener('change', (e) => {
   if (e.target && e.target.id === 'agent-selector') {
