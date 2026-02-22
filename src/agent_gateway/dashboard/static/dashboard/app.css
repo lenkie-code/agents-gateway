@@ -861,7 +861,12 @@ tbody tr:hover { background: var(--color-surface-2); }
 
 .chart-container {
   position: relative;
-  height: 16rem;
+  height: 18rem;
+  min-height: 18rem;
+}
+
+#analytics-content {
+  min-height: 24rem;
 }
 
 /* === Empty state === */

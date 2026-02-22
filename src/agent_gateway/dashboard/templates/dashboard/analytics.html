@@ -24,7 +24,7 @@
         class="tab {% if days == d %}active{% endif %}"
         hx-get="/dashboard/analytics?days={{ d }}"
         hx-target="#analytics-content"
-        hx-swap="outerHTML"
+        hx-swap="innerHTML"
       >{{ label }}</button>
       {% endfor %}
     </div>
@@ -42,6 +42,8 @@
 </div>
 {% endif %}
 
+<div id="analytics-content">
 {% include "dashboard/_analytics_charts.html" %}
+</div>
 
 {% endblock %}

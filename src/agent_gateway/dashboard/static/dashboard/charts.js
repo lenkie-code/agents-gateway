@@ -342,13 +342,73 @@ function initTokenChart(canvasId, labels, inputData, outputData) {
   });
 }
 
+// Update existing chart instances when theme changes (without needing data re-supply)
+function updateChartTheme() {
+  if (typeof Chart === 'undefined') return;
+  applyChartDefaults();
+  const c = getChartColors();
+  const dark = isDark();
+  const gridColor = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  const chartIds = ['chart-cost', 'chart-executions', 'chart-agent-cost', 'chart-tokens'];
+
+  chartIds.forEach(function(id) {
+    var chart = Chart.getChart(id);
+    if (!chart) return;
+
+    // Update scale colors
+    Object.values(chart.options.scales || {}).forEach(function(scale) {
+      if (scale.grid) scale.grid.color = gridColor;
+      if (scale.ticks) scale.ticks.color = c.textTertiary;
+    });
+
+    // Update tooltip colors
+    if (chart.options.plugins && chart.options.plugins.tooltip) {
+      chart.options.plugins.tooltip.backgroundColor = dark ? '#1e293b' : '#0f172a';
+    }
+
+    // Update dataset colors based on chart type
+    if (id === 'chart-cost') {
+      var ctx = chart.canvas.getContext('2d');
+      chart.data.datasets[0].borderColor = c.accent;
+      chart.data.datasets[0].backgroundColor = makeGradient(ctx, c.accent, 0.18, 0.01);
+      chart.data.datasets[0].pointHoverBorderColor = c.accent;
+      chart.data.datasets[0].pointHoverBackgroundColor = c.surface;
+    } else if (id === 'chart-executions') {
+      chart.data.datasets[0].backgroundColor = hexToRgba(c.success, 0.75);
+      chart.data.datasets[0].hoverBackgroundColor = c.success;
+      chart.data.datasets[1].backgroundColor = hexToRgba(c.danger, 0.7);
+      chart.data.datasets[1].hoverBackgroundColor = c.danger;
+    } else if (id === 'chart-agent-cost') {
+      var palette = [c.accent, c.info, c.success, c.warning, c.danger, '#8b5cf6', '#ec4899', '#14b8a6'];
+      chart.data.datasets[0].backgroundColor = chart.data.datasets[0].data.map(function(_, i) {
+        return hexToRgba(palette[i % palette.length], 0.7);
+      });
+      chart.data.datasets[0].hoverBackgroundColor = chart.data.datasets[0].data.map(function(_, i) {
+        return palette[i % palette.length];
+      });
+    } else if (id === 'chart-tokens') {
+      var ctx2 = chart.canvas.getContext('2d');
+      chart.data.datasets[0].borderColor = c.info;
+      chart.data.datasets[0].backgroundColor = makeGradient(ctx2, c.info, 0.15, 0.01);
+      chart.data.datasets[0].pointHoverBorderColor = c.info;
+      chart.data.datasets[0].pointHoverBackgroundColor = c.surface;
+      chart.data.datasets[1].borderColor = c.warning;
+      chart.data.datasets[1].backgroundColor = makeGradient(ctx2, c.warning, 0.12, 0.01);
+      chart.data.datasets[1].pointHoverBorderColor = c.warning;
+      chart.data.datasets[1].pointHoverBackgroundColor = c.surface;
+    }
+
+    chart.update();
+  });
+}
+
 // Init all charts on page load
 document.addEventListener('DOMContentLoaded', () => {
   if (typeof Chart === 'undefined') return;
   applyChartDefaults();
 
-  // Re-apply defaults when theme toggles
+  // Update chart colors when theme toggles
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
-    setTimeout(applyChartDefaults, 50);
+    setTimeout(updateChartTheme, 50);
   });
 });
