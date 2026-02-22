@@ -41,4 +41,4 @@ class PostgresBackend(SqlBackend):
         mapper_reg = registry(metadata=metadata)
         tables = build_tables(metadata, prefix=table_prefix)
 
-        super().__init__(engine, metadata, mapper_reg, tables)
+        super().__init__(engine, metadata, mapper_reg, tables, table_prefix=table_prefix)
