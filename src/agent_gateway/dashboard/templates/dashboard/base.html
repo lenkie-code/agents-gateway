@@ -32,7 +32,7 @@
               dark: '#0d7ff2',
             },
             background: {
-              dark: '#0b0f1a',
+              dark: '#101922',
               surface: '#161b26',
             },
             border: {
@@ -86,11 +86,7 @@
       </div>
     </div>
 
-    <nav class="flex-1 px-4 space-y-1.5 sidebar-nav">
-      <div class="px-3 mt-6 mb-2">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 opacity-50">Monitor</p>
-      </div>
-
+    <nav class="flex-1 px-4 space-y-1 sidebar-nav pt-4">
       <a href="/dashboard/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'agents' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'agents' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">smart_toy</span>
         <span class="text-sm font-semibold">Agents</span>
@@ -116,10 +112,6 @@
         <span class="text-sm font-semibold">Analytics</span>
       </a>
 
-      <div class="px-3 mt-8 mb-2">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 opacity-50">Personal</p>
-      </div>
-
       <a href="/dashboard/chat" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'chat' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'chat' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">chat_bubble</span>
         <span class="text-sm font-semibold">Chat</span>
@@ -141,7 +133,7 @@
 
   <!-- Main Area -->
   <main class="main flex-1 flex flex-col overflow-hidden bg-background-dark/50">
-    <div class="topbar h-16 border-b border-border-dark/30 flex items-center justify-between px-8 bg-white/50 dark:bg-background-dark/50 backdrop-blur-xl z-20">
+    <div class="topbar h-16 border-b border-border-dark/30 flex items-center justify-between px-8 bg-background-dark backdrop-blur-xl z-20">
       <div class="flex items-center gap-4">
         <button class="sidebar-toggle md:hidden" id="sidebar-toggle" aria-label="Toggle navigation">
           <span class="material-symbols-outlined">menu</span>
@@ -177,6 +169,9 @@
             <span class="material-symbols-outlined theme-icon-moon hidden">dark_mode</span>
           </button>
 
+          {% if current_user and current_user.is_admin %}
+          <span class="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-primary/20 text-primary border border-primary/30">Admin</span>
+          {% endif %}
           <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-purple-600 p-[1px]">
             <div class="h-full w-full rounded-xl bg-background-dark flex items-center justify-center overflow-hidden">
                <img src="https://ui-avatars.com/api/?name={{ current_user.username if current_user else 'Admin' }}&background=0b0f1a&color=fff" alt="User Profile" />

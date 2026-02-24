@@ -77,7 +77,7 @@ class ServerConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    default: str = "gpt-4o-mini"
+    default: str = "gemini/gemini-2.5-flash"
     temperature: float = 0.1
     max_tokens: int = 4096
     fallback: str | None = None
@@ -210,6 +210,8 @@ class DashboardAuthConfig(BaseModel):
     enabled: bool = True
     username: str = "admin"
     password: str = ""  # empty = no password (warned at startup)
+    admin_username: str | None = None
+    admin_password: str | None = None
     login_button_text: str = "Sign in with SSO"
     session_secret: str = ""  # auto-generated if empty
     oauth2: DashboardOAuth2Config | None = None
@@ -275,11 +277,15 @@ class SecurityConfig(BaseModel):
     strict_transport_security: str = "max-age=31536000; includeSubDomains"
     content_security_policy: str = "default-src 'self'"
     referrer_policy: str = "strict-origin-when-cross-origin"
-    # Relaxed CSP for dashboard paths (needs inline styles/scripts)
+    # Relaxed CSP for dashboard paths (needs CDN resources: Tailwind, HTMX, Google Fonts, avatars)
     dashboard_content_security_policy: str = (
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-        "font-src 'self' data:"
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+        "https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "img-src 'self' data: https://ui-avatars.com; "
+        "connect-src 'self'"
     )
 
 
