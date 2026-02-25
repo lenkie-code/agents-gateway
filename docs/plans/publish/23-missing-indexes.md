@@ -1,6 +1,6 @@
 ---
 title: "Missing Database Indexes"
-status: pending
+status: completed
 priority: P2
 category: Performance
 date: 2026-02-22
