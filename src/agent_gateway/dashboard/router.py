@@ -1304,5 +1304,94 @@ def register_dashboard(
             },
         )
 
+    # --- Notification delivery log ---
+
+    @protected.get("/notifications", response_class=HTMLResponse)
+    async def notifications_page(
+        request: Request,
+        current_user: DashboardUser = Depends(get_dashboard_user),
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        offset: int = 0,
+    ) -> HTMLResponse:
+        gw: FastAPI = request.app
+        repo = gw._notification_repo  # type: ignore[attr-defined]
+        page_size = _PAGE_SIZE
+
+        records = await repo.list_recent(
+            limit=page_size,
+            offset=offset,
+            status=status or None,
+            agent_id=agent_id or None,
+            channel=channel or None,
+        )
+        total = await repo.count(
+            status=status or None,
+            agent_id=agent_id or None,
+            channel=channel or None,
+        )
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/notifications.html",
+            context={
+                "records": records,
+                "total": total,
+                "offset": offset,
+                "page_size": page_size,
+                "filter_status": status,
+                "filter_agent_id": agent_id,
+                "filter_channel": channel,
+                "current_user": current_user,
+                "is_admin": current_user.is_admin,
+                "active_page": "notifications",
+            },
+        )
+
+    @protected.post("/notifications/{record_id}/retry")
+    async def retry_notification(
+        request: Request,
+        record_id: int,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> RedirectResponse:
+        gw: FastAPI = request.app
+        repo = gw._notification_repo  # type: ignore[attr-defined]
+        record = await repo.get(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Notification record not found")
+
+        # Re-fire notification via gateway
+        from agent_gateway.notifications.models import (
+            AgentNotificationConfig,
+            NotificationTarget,
+        )
+
+        target = NotificationTarget(channel=record.channel, target=record.target)
+        config = AgentNotificationConfig(
+            **{
+                "on_complete": [target] if "completed" in record.event_type else [],
+                "on_error": [target] if "failed" in record.event_type else [],
+                "on_timeout": [target] if "timeout" in record.event_type else [],
+            }
+        )
+        # Derive status from event_type
+        status_map = {
+            "execution.completed": "completed",
+            "execution.failed": "failed",
+            "execution.timeout": "timeout",
+        }
+        exec_status = status_map.get(record.event_type, "failed")
+
+        gw.fire_notifications(  # type: ignore[attr-defined]
+            execution_id=record.execution_id,
+            agent_id=record.agent_id,
+            status=exec_status,
+            message="",
+            config=config,
+        )
+
+        return RedirectResponse(url="/dashboard/notifications", status_code=303)
+
     app.include_router(public)
     app.include_router(protected)

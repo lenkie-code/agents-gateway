@@ -269,6 +269,22 @@ class ScheduleInfo(BaseModel):
     created_at: datetime | None = Field(None, description="When the schedule was created.")
 
 
+class NotificationDeliveryResponse(BaseModel):
+    """Response for GET /v1/notifications."""
+
+    id: int = Field(..., description="Unique delivery record ID.")
+    execution_id: str = Field(..., description="Related execution ID.")
+    agent_id: str = Field(..., description="Agent that triggered the notification.")
+    event_type: str = Field(..., description="Event type (e.g. execution.completed).")
+    channel: str = Field(..., description="Notification channel (slack, webhook, etc.).")
+    target: str = Field("", description="Sanitized delivery target.")
+    status: str = Field(..., description="Delivery status (pending, delivered, failed).")
+    attempts: int = Field(0, description="Number of delivery attempts.")
+    last_error: str | None = Field(None, description="Last error message, if any.")
+    created_at: datetime | None = Field(None, description="When the record was created.")
+    delivered_at: datetime | None = Field(None, description="When delivery succeeded.")
+
+
 class ScheduleDetailInfo(ScheduleInfo):
     """Schedule detail with message and input."""
 

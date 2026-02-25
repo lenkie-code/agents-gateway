@@ -117,6 +117,8 @@ else:
 # gw.use_security_headers(x_frame_options="SAMEORIGIN")
 
 # --- Notifications (optional — configure via env vars) ---
+# Delivery tracking: all notification dispatches are logged to the notification_log table.
+# View delivery status at GET /v1/notifications or in the dashboard Notifications page.
 
 slack_token = os.environ.get("SLACK_BOT_TOKEN")
 if slack_token:

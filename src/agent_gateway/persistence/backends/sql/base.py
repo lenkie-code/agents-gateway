@@ -35,6 +35,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
         AuditRepository,
         ConversationRepository,
         ExecutionRepository,
+        NotificationRepository,
         ScheduleRepository,
         UserAgentConfigRepository,
         UserRepository,
@@ -251,6 +253,25 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Index(f"ix_{prefix}user_schedules_user_agent", "user_id", "agent_id"),
     )
 
+    notification_log = Table(
+        f"{prefix}notification_log",
+        metadata,
+        Column("id", Integer, primary_key=True, autoincrement=True),
+        Column("execution_id", String, nullable=False),
+        Column("agent_id", String, nullable=False),
+        Column("event_type", String, nullable=False),
+        Column("channel", String, nullable=False),
+        Column("target", String, nullable=False, default=""),
+        Column("status", String, nullable=False, default="pending"),
+        Column("attempts", Integer, nullable=False, default=0),
+        Column("last_error", Text, nullable=True),
+        Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+        Column("delivered_at", DateTime(timezone=True), nullable=True),
+        Index(f"ix_{prefix}notification_log_execution_id", "execution_id"),
+        Index(f"ix_{prefix}notification_log_agent_id", "agent_id"),
+        Index(f"ix_{prefix}notification_log_status", "status"),
+    )
+
     return {
         "executions": executions,
         "execution_steps": execution_steps,
@@ -262,6 +283,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         "memories": memories,
         "user_agent_configs": user_agent_configs,
         "user_schedules": user_schedules,
+        "notification_log": notification_log,
     }
 
 
@@ -329,6 +351,8 @@ def configure_mappers(mapper_registry: registry, tables: dict[str, Table]) -> No
 
     mapper_registry.map_imperatively(UserScheduleRecord, tables["user_schedules"])
 
+    mapper_registry.map_imperatively(NotificationDeliveryRecord, tables["notification_log"])
+
 
 class SqlBackend:
     """Base class for SQL persistence backends.
@@ -368,6 +392,9 @@ class SqlBackend:
             ExecutionRepository as ExecRepo,
         )
         from agent_gateway.persistence.backends.sql.repository import (
+            NotificationRepository as NotifRepo,
+        )
+        from agent_gateway.persistence.backends.sql.repository import (
             ScheduleRepository as SchedRepo,
         )
         from agent_gateway.persistence.backends.sql.repository import (
@@ -389,6 +416,7 @@ class SqlBackend:
             self._session_factory
         )
         self._user_schedule_repo: UserScheduleRepository = UserSchedRepo(self._session_factory)
+        self._notification_repo: NotificationRepository = NotifRepo(self._session_factory)
 
     async def initialize(self) -> None:
         """Apply database migrations. Falls back to create_all for prefixed tables."""
@@ -444,3 +472,7 @@ class SqlBackend:
     @property
     def user_schedule_repo(self) -> UserScheduleRepository:
         return self._user_schedule_repo
+
+    @property
+    def notification_repo(self) -> NotificationRepository:
+        return self._notification_repo
