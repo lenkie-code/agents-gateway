@@ -1,6 +1,6 @@
 ---
 title: "CLI Output Formats"
-status: pending
+status: completed
 priority: P2
 category: DX
 date: 2026-02-22

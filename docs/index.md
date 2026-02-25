@@ -43,7 +43,7 @@ Your agent API is now running at `http://localhost:8000` with interactive docs a
 | [Context Retrieval](guides/context-retrieval.md) | RAG integration via pluggable retrievers |
 | [CORS](guides/cors.md) | CORS middleware for browser clients |
 | [Streaming](guides/agents.md) | SSE for real-time chat responses |
-| [CLI](getting-started/quickstart.md) | Project scaffolding, dev server, agent management |
+| [CLI](guides/cli.md) | Project scaffolding, dev server, agent management, output formats |
 
 ## Next Steps
 
