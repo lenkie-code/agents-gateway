@@ -272,7 +272,7 @@ Response shape:
 
 ### Dashboard
 
-The built-in dashboard exposes a **Notifications** page at `/dashboard/notifications`. It lists all delivery records and provides a **Retry** button for failed deliveries, which re-dispatches the notification immediately outside of any scheduled cadence.
+The built-in dashboard exposes a **Notifications** page at `/dashboard/notifications`. It lists all delivery records and provides a **Retry** button for failed deliveries, which re-dispatches the notification immediately outside of any scheduled cadence. The retry looks up the original execution record and passes its message to the re-fired notification, so the content is identical to the initial delivery attempt.
 
 !!! note
     Delivery tracking is only available when a persistence backend (SQLite or PostgreSQL) is configured. Without persistence the `GET /v1/notifications` endpoint returns an empty result set and the dashboard notifications page will be empty.
