@@ -206,8 +206,6 @@ persistence:
   backend: sqlite  # sqlite | postgres
   url: "sqlite+aiosqlite:///data.db"
 
-Session rehydration: when persistence is enabled, chat sessions survive server restarts. If an in-memory session is not found (cache miss), it is automatically rehydrated from the conversations table. TTL is respected — expired sessions are not restored. Metadata and tool-call messages are not restored.
-
 memory:
   enabled: true
   auto_extract: true
@@ -251,6 +249,8 @@ scheduler:
     key_prefix: "ag:sched-lock:"
     lock_ttl_seconds: 300
 ```
+
+Session rehydration: when persistence is enabled, chat sessions survive server restarts. If an in-memory session is not found (cache miss), it is automatically rehydrated from the `conversations` table. TTL is respected — expired sessions are not restored. Session metadata and tool-call messages are not restored on rehydration.
 
 Distributed scheduler locking: when `scheduler.distributed_lock.enabled: true`, only one gateway instance fires each scheduled job. The `backend: auto` setting selects Redis (via `SET NX EX`) when a Redis queue is configured, or PostgreSQL (`pg_try_advisory_lock`) when a PostgreSQL persistence backend is in use. The lock expires after `lock_ttl_seconds` so a crashed instance cannot permanently block a schedule. Manual triggers via the API are not affected by the lock.
 

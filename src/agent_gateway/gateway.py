@@ -2670,12 +2670,17 @@ class Gateway(FastAPI):
 
         # Deduplicate concurrent rehydrations
         if session_id in self._rehydration_tasks:
-            return await self._rehydration_tasks[session_id]
+            try:
+                return await self._rehydration_tasks[session_id]
+            except asyncio.CancelledError:
+                return None
 
         task = asyncio.create_task(self._rehydrate_session(session_id))
         self._rehydration_tasks[session_id] = task
         try:
             return await task
+        except asyncio.CancelledError:
+            return None
         finally:
             self._rehydration_tasks.pop(session_id, None)
 
@@ -2694,12 +2699,13 @@ class Gateway(FastAPI):
         if conv_record is None:
             return None
 
-        assert self._session_store is not None  # caller checks
+        if self._session_store is None:
+            return None
+
+        from datetime import UTC, datetime
 
         # Check TTL before rehydrating
         if conv_record.updated_at is not None:
-            from datetime import UTC, datetime
-
             age_seconds = (datetime.now(UTC) - conv_record.updated_at).total_seconds()
             if age_seconds > self._session_store._ttl_seconds:
                 logger.debug(
@@ -2709,9 +2715,14 @@ class Gateway(FastAPI):
                 )
                 return None
 
+        # Fetch the most recent messages by computing offset from message_count
+        max_history = self._session_store._max_history
+        msg_count = conv_record.message_count or 0
+        offset = max(0, msg_count - max_history)
+
         try:
             db_messages = await self._conversation_repo.get_messages(
-                session_id, limit=self._session_store._max_history
+                session_id, limit=max_history, offset=offset
             )
         except Exception:
             logger.warning(
@@ -2721,11 +2732,14 @@ class Gateway(FastAPI):
             )
             return None
 
-        # Reconstruct message list (only user/assistant roles)
+        # Reconstruct message list: only user/assistant with non-empty content
+        # (assistant turns that were tool-only have no persisted text content)
         messages: list[dict[str, Any]] = []
         for m in db_messages:
-            if m.role in ("user", "assistant"):
-                messages.append({"role": m.role, "content": m.content})
+            if m.role == "user":
+                messages.append({"role": "user", "content": m.content})
+            elif m.role == "assistant" and m.content:
+                messages.append({"role": "assistant", "content": m.content})
 
         # Drop dangling user message at tail (assistant response wasn't persisted)
         if messages and messages[-1]["role"] == "user":
@@ -2734,8 +2748,6 @@ class Gateway(FastAPI):
         # Reconstruct _last_active from updated_at to preserve TTL
         now_mono = time.monotonic()
         if conv_record.updated_at is not None:
-            from datetime import UTC, datetime
-
             age_seconds = (datetime.now(UTC) - conv_record.updated_at).total_seconds()
             last_active = now_mono - age_seconds
         else:

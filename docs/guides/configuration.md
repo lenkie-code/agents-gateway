@@ -76,7 +76,7 @@ See [Authentication](authentication.md) for the full authentication guide.
 
 ### persistence
 
-Database storage for execution records and audit logs:
+Database storage for conversations, execution records, audit logs, schedules, and memories. When enabled, chat sessions also survive server restarts via [session rehydration](persistence.md#session-rehydration).
 
 ```yaml
 persistence:

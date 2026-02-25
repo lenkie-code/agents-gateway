@@ -7,8 +7,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
-import pytest
-
 from agent_gateway.chat.session import ChatSession, SessionStore
 from agent_gateway.persistence.domain import ConversationMessage, ConversationRecord
 from agent_gateway.persistence.null import NullConversationRepository
@@ -24,12 +22,14 @@ def _make_conv_record(
     user_id: str | None = "user1",
     created_at: datetime | None = None,
     updated_at: datetime | None = None,
+    message_count: int = 4,
 ) -> ConversationRecord:
     now = datetime.now(UTC)
     return ConversationRecord(
         conversation_id=conversation_id,
         agent_id=agent_id,
         user_id=user_id,
+        message_count=message_count,
         created_at=created_at or now,
         updated_at=updated_at or now,
     )
@@ -86,7 +86,6 @@ class _FakeGateway:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_rehydration_from_persistence() -> None:
     """Rehydration loads conversation + messages from DB into session cache."""
     repo = AsyncMock()
@@ -111,7 +110,6 @@ async def test_rehydration_from_persistence() -> None:
     assert cached is session
 
 
-@pytest.mark.asyncio
 async def test_cache_hit_no_db_call() -> None:
     """When session is in cache, DB is not queried."""
     repo = AsyncMock()
@@ -125,7 +123,6 @@ async def test_cache_hit_no_db_call() -> None:
     repo.get.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_returns_none_when_not_in_db() -> None:
     """Unknown session_id returns None without error."""
     repo = AsyncMock()
@@ -136,7 +133,6 @@ async def test_returns_none_when_not_in_db() -> None:
     assert session is None
 
 
-@pytest.mark.asyncio
 async def test_null_repo_returns_none() -> None:
     """NullConversationRepository gracefully returns None."""
     gw = _FakeGateway(conversation_repo=NullConversationRepository())
@@ -144,7 +140,6 @@ async def test_null_repo_returns_none() -> None:
     assert session is None
 
 
-@pytest.mark.asyncio
 async def test_rehydrated_session_ttl() -> None:
     """_last_active is set based on updated_at, not current time."""
     age = 120.0  # 2 minutes old
@@ -156,6 +151,7 @@ async def test_rehydrated_session_ttl() -> None:
     repo.get_messages = AsyncMock(return_value=_make_conv_messages(pairs=1))
 
     store = SessionStore(ttl_seconds=600)
+    record.message_count = 2
     gw = _FakeGateway(session_store=store, conversation_repo=repo)
 
     session = await gw._get_or_restore_session("sess_abc")
@@ -166,7 +162,6 @@ async def test_rehydrated_session_ttl() -> None:
     assert elapsed >= age - 2  # allow small timing tolerance
 
 
-@pytest.mark.asyncio
 async def test_expired_session_not_rehydrated() -> None:
     """Session older than TTL is not rehydrated."""
     ttl = 300  # 5 minutes
@@ -184,7 +179,6 @@ async def test_expired_session_not_rehydrated() -> None:
     repo.get_messages.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_dangling_user_message_dropped() -> None:
     """If last DB message is role=user, it's dropped."""
     msgs = _make_conv_messages(pairs=1)
@@ -200,7 +194,7 @@ async def test_dangling_user_message_dropped() -> None:
     )
 
     repo = AsyncMock()
-    repo.get = AsyncMock(return_value=_make_conv_record())
+    repo.get = AsyncMock(return_value=_make_conv_record(message_count=3))
     repo.get_messages = AsyncMock(return_value=msgs)
 
     gw = _FakeGateway()
@@ -213,7 +207,6 @@ async def test_dangling_user_message_dropped() -> None:
     assert session.messages[-1]["role"] == "assistant"
 
 
-@pytest.mark.asyncio
 async def test_lru_eviction_during_restore() -> None:
     """Fill store to max, restore triggers eviction of oldest."""
     store = SessionStore(max_sessions=2)
