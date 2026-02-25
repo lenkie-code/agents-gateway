@@ -117,7 +117,7 @@ else:
 # gw.use_security_headers(x_frame_options="SAMEORIGIN")
 
 # --- Notifications (optional — configure via env vars) ---
-# Delivery tracking: all notification dispatches are logged to the notification_log table.
+# Delivery tracking is automatic when persistence + notifications are configured.
 # View delivery status at GET /v1/notifications or in the dashboard Notifications page.
 
 slack_token = os.environ.get("SLACK_BOT_TOKEN")
@@ -352,6 +352,28 @@ async def demo_conversation_cost():
         "total_cost_usd": round(cost1 + cost2, 6),
         "turn_1": result1.raw_text[:200],
         "turn_2": result2.raw_text[:200],
+    }
+
+
+@gw.get("/api/demo/notification-deliveries")
+async def demo_notification_deliveries():
+    """Query recent notification delivery records to verify tracking."""
+    records = await gw._notification_repo.list_recent(limit=10)
+    total = await gw._notification_repo.count()
+    failed = await gw._notification_repo.count(status="failed")
+    return {
+        "total_deliveries": total,
+        "failed_deliveries": failed,
+        "recent": [
+            {
+                "id": r.id,
+                "agent_id": r.agent_id,
+                "channel": r.channel,
+                "status": r.status,
+                "attempts": r.attempts,
+            }
+            for r in records
+        ],
     }
 
 

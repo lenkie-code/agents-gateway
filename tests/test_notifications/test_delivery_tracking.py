@@ -99,3 +99,6 @@ class TestNullNotificationRepository:
     async def test_count_with_filters(self, repo: NullNotificationRepository) -> None:
         result = await repo.count(status="delivered", agent_id="a")
         assert result == 0
+
+    async def test_update_status_noop(self, repo: NullNotificationRepository) -> None:
+        await repo.update_status(1, status="delivered", attempts=1)  # Should not raise

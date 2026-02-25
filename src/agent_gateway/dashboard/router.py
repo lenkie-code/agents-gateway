@@ -1383,11 +1383,15 @@ def register_dashboard(
         }
         exec_status = status_map.get(record.event_type, "failed")
 
+        # Look up original execution to preserve message context
+        exec_record = await gw._execution_repo.get(record.execution_id)  # type: ignore[attr-defined]
+        message = exec_record.message if exec_record and exec_record.message else ""
+
         gw.fire_notifications(  # type: ignore[attr-defined]
             execution_id=record.execution_id,
             agent_id=record.agent_id,
             status=exec_status,
-            message="",
+            message=message,
             config=config,
         )
 
