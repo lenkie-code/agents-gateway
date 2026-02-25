@@ -14,6 +14,16 @@ Agent Gateway stores conversations, executions, audit logs, schedules, and memor
 
 Executions are linked to conversations via `session_id`, so you can trace a full user session across multiple agent runs.
 
+### Session Rehydration
+
+When persistence is enabled, chat sessions survive server restarts. If an in-memory session expires or the server restarts, requesting a session by its ID automatically rehydrates it from the `conversations` table — no client-side changes needed. The rehydrated session respects the configured session TTL, so sessions that are older than the TTL are not restored.
+
+**Known limitations:**
+
+- Session **metadata** is not restored on rehydration (only messages are recovered).
+- **Tool-call messages** (role `tool`) are excluded — only `user` and `assistant` messages are restored.
+- If the last persisted message is a `user` message without a corresponding assistant reply, it is dropped to avoid sending an incomplete turn to the LLM.
+
 ## SQLite
 
 SQLite is the easiest option for single-process deployments, local development, and small-scale production workloads.

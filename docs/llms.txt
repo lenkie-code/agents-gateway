@@ -206,6 +206,8 @@ persistence:
   backend: sqlite  # sqlite | postgres
   url: "sqlite+aiosqlite:///data.db"
 
+Session rehydration: when persistence is enabled, chat sessions survive server restarts. If an in-memory session is not found (cache miss), it is automatically rehydrated from the conversations table. TTL is respected — expired sessions are not restored. Metadata and tool-call messages are not restored.
+
 memory:
   enabled: true
   auto_extract: true
