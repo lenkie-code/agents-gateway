@@ -285,11 +285,11 @@ async with Gateway(workspace="./workspace") as gw:
 |---------|-------------|
 | `agents-gateway init <name>` | Scaffold project |
 | `agents-gateway serve` | Start server |
-| `agents-gateway invoke <agent> <msg>` | Invoke agent |
+| `agents-gateway invoke <agent> <msg> [-f table\|json]` | Invoke agent |
 | `agents-gateway chat <agent>` | Interactive chat |
-| `agents-gateway agents` | List agents |
-| `agents-gateway skills` | List skills |
-| `agents-gateway schedules` | List schedules |
+| `agents-gateway agents [-f table\|json\|csv]` | List agents |
+| `agents-gateway skills [-f table\|json\|csv]` | List skills |
+| `agents-gateway schedules [-f table\|json\|csv]` | List schedules |
 | `agents-gateway check` | Validate workspace |
 | `agents-gateway db upgrade` | Run migrations |
 | `agents-gateway db downgrade` | Rollback migration |

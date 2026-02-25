@@ -101,6 +101,28 @@ uv run --directory examples/test-project python app.py
 
 The server starts at `http://localhost:8000`. OpenAPI docs are at `http://localhost:8000/docs`.
 
+## CLI Output Formats
+
+The `agents`, `skills`, and `schedules` commands support `--format` (`-f`) to
+output as `table` (default), `json`, or `csv`:
+
+```bash
+# JSON output for scripting
+agents-gateway agents -w workspace --format json
+
+# CSV for spreadsheets
+agents-gateway skills -w workspace --format csv
+
+# Table (default)
+agents-gateway schedules -w workspace --format table
+```
+
+The `invoke` command supports `--format json` (or the legacy `--json` flag):
+
+```bash
+agents-gateway invoke assistant "Hello" -w workspace --format json
+```
+
 ## Try It
 
 All `/v1/` endpoints require an API key via the `Authorization` header.

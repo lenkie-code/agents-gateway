@@ -7,6 +7,8 @@ import json
 
 import typer
 
+from agent_gateway.cli.formatting import OutputFormat
+
 
 def invoke(
     agent_id: str = typer.Argument(help="Agent ID to invoke"),
@@ -14,10 +16,30 @@ def invoke(
     workspace: str | None = typer.Option(
         None, "--workspace", "-w", help="Path to workspace directory"
     ),
-    output_json: bool = typer.Option(False, "--json", help="Output raw JSON"),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output raw JSON (use --format json instead)"
+    ),
+    fmt: OutputFormat = typer.Option(
+        OutputFormat.table, "--format", "-f", help="Output format: table, json"
+    ),
 ) -> None:
     """Invoke an agent and print the result."""
     from agent_gateway.workspace.loader import load_workspace
+
+    # Resolve format conflicts
+    if output_json and fmt not in (OutputFormat.table, OutputFormat.json):
+        typer.echo(
+            "Error: cannot use both --json and --format. Use --format json instead.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if fmt == OutputFormat.csv:
+        typer.echo(
+            "Error: CSV format is not supported for invoke. Use --format json or table.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    effective_fmt = OutputFormat.json if output_json else fmt
 
     ws_path = workspace or "./workspace"
     state = load_workspace(ws_path)
@@ -35,7 +57,7 @@ def invoke(
     # Run the invocation
     result = asyncio.run(_invoke_agent(ws_path, agent_id, message))
 
-    if output_json:
+    if effective_fmt == OutputFormat.json:
         typer.echo(json.dumps(result, indent=2))
     else:
         # Human-friendly output

@@ -44,3 +44,22 @@ def test_skills_command() -> None:
     result = runner.invoke(app, ["skills", "--workspace", EXAMPLE_WORKSPACE])
     assert result.exit_code == 0
     assert "math-workflow" in result.output
+
+
+def test_agents_json_format() -> None:
+    """agent-gateway agents --format json outputs valid JSON."""
+    import json
+
+    result = runner.invoke(app, ["agents", "--workspace", EXAMPLE_WORKSPACE, "--format", "json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert any(a["id"] == "assistant" for a in data)
+
+
+def test_skills_csv_format() -> None:
+    """agent-gateway skills --format csv outputs CSV with header."""
+    result = runner.invoke(app, ["skills", "--workspace", EXAMPLE_WORKSPACE, "--format", "csv"])
+    assert result.exit_code == 0
+    assert "id," in result.output
+    assert "math-workflow" in result.output
