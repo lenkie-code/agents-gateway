@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any, overload
 from fastapi import APIRouter, FastAPI
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from agent_gateway.memory.manager import MemoryManager
     from agent_gateway.memory.protocols import MemoryBackend
     from agent_gateway.scheduler.engine import SchedulerEngine
@@ -678,6 +680,7 @@ class Gateway(FastAPI):
             self._notification_worker = NotificationWorker(
                 queue=self._notification_queue,
                 engine=self._notification_engine,
+                notification_repo=self._notification_repo,
             )
             await self._notification_worker.start()
 
@@ -1996,18 +1999,7 @@ class Gateway(FastAPI):
             task = asyncio.create_task(self._notification_queue.enqueue(job))
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
-            # Log delivery records for queued path (status will be "pending")
-            for t in targets:
-                self._log_notification_delivery(
-                    execution_id=execution_id,
-                    agent_id=agent_id,
-                    event_type=f"execution.{status}",
-                    channel=t.channel,
-                    target=sanitize_target(t.target or t.url or ""),
-                    delivery_status="pending",
-                    attempts=0,
-                    last_error=None,
-                )
+            # Delivery records are created by NotificationWorker after processing
         else:
             # Fire-and-forget fallback (no queue configured)
             event = build_notification_event(
@@ -2054,6 +2046,12 @@ class Gateway(FastAPI):
                     delivered_at=datetime.now(UTC),
                 )
         except Exception as exc:
+            logger.warning(
+                "Notification delivery failed for execution %s: %s",
+                execution_id,
+                exc,
+                exc_info=True,
+            )
             for t in targets:
                 self._log_notification_delivery(
                     execution_id=execution_id,
@@ -2077,7 +2075,7 @@ class Gateway(FastAPI):
         delivery_status: str,
         attempts: int,
         last_error: str | None,
-        delivered_at: Any | None = None,
+        delivered_at: datetime | None = None,
     ) -> None:
         """Create a background task to persist a notification delivery record."""
         record = NotificationDeliveryRecord(

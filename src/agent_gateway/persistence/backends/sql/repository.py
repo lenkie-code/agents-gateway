@@ -953,6 +953,25 @@ class NotificationRepository:
         async with self._session_factory() as session:
             return await session.get(NotificationDeliveryRecord, record_id)
 
+    async def update_status(
+        self,
+        record_id: int,
+        *,
+        status: str,
+        attempts: int,
+        last_error: str | None = None,
+        delivered_at: datetime | None = None,
+    ) -> None:
+        """Update the status of a notification delivery record."""
+        async with self._session_factory() as session:
+            record = await session.get(NotificationDeliveryRecord, record_id)
+            if record is not None:
+                record.status = status
+                record.attempts = attempts
+                record.last_error = last_error
+                record.delivered_at = delivered_at
+                await session.commit()
+
     @staticmethod
     def _apply_filters(
         stmt: Any,

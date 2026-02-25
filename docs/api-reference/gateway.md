@@ -28,7 +28,7 @@ Gateway(
 
 Any `lifespan` passed in `fastapi_kwargs` is composed with the Gateway's own lifespan, not replaced.
 
-**OpenAPI tags:** The Gateway automatically registers OpenAPI tag groups (Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Admin). If you pass `openapi_tags` in `fastapi_kwargs`, your tags are appended after the defaults.
+**OpenAPI tags:** The Gateway automatically registers OpenAPI tag groups (Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Notifications, Admin). If you pass `openapi_tags` in `fastapi_kwargs`, your tags are appended after the defaults.
 
 **Example:**
 
@@ -433,6 +433,68 @@ def use_notifications(backend: NotificationBackend | None) -> Gateway
 ```
 
 Register a custom `NotificationBackend`. Pass `None` to clear all registered backends.
+
+---
+
+### Notification Delivery API
+
+#### `GET /v1/notifications`
+
+Query the notification delivery log. Requires persistence to be configured. Returns a paginated list of `NotificationDeliveryResponse` objects.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `status` | `str \| None` | `None` | Filter by delivery status: `delivered` or `failed`. |
+| `agent_id` | `str \| None` | `None` | Filter to a specific agent. |
+| `channel` | `str \| None` | `None` | Filter by channel: `slack` or `webhook`. |
+| `execution_id` | `str \| None` | `None` | Filter to records for a specific execution. |
+| `limit` | `int` | `50` | Maximum number of records to return. |
+| `offset` | `int` | `0` | Number of records to skip (for pagination). |
+
+**Response: `NotificationDeliveryListResponse`**
+
+```json
+{
+  "items": [
+    {
+      "id": "01J...",
+      "execution_id": "abc-123",
+      "agent_id": "report-agent",
+      "event_type": "on_error",
+      "channel": "slack",
+      "target": "#alerts",
+      "status": "failed",
+      "attempts": 3,
+      "last_error": "channel_not_found",
+      "created_at": "2026-02-25T09:00:00Z",
+      "delivered_at": null
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**`NotificationDeliveryResponse` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `str` | Unique delivery record ID. |
+| `execution_id` | `str` | The execution that triggered the notification. |
+| `agent_id` | `str` | Agent that produced the event. |
+| `event_type` | `str` | `on_complete`, `on_error`, or `on_timeout`. |
+| `channel` | `str` | `slack` or `webhook`. |
+| `target` | `str` | Slack channel name or webhook name. |
+| `status` | `str` | `delivered` or `failed`. |
+| `attempts` | `int` | Number of dispatch attempts made. |
+| `last_error` | `str \| None` | Error message from the most recent failed attempt, if any. |
+| `created_at` | `str` | ISO-8601 timestamp when the record was created. |
+| `delivered_at` | `str \| None` | ISO-8601 timestamp of successful delivery, or `null`. |
+
+Delivery records are written automatically whenever a notification is dispatched — for both direct (in-process) and queue-based delivery paths. No additional configuration is required beyond having persistence enabled.
 
 ---
 

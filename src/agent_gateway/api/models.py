@@ -285,6 +285,17 @@ class NotificationDeliveryResponse(BaseModel):
     delivered_at: datetime | None = Field(None, description="When delivery succeeded.")
 
 
+class NotificationDeliveryListResponse(BaseModel):
+    """Paginated list of notification deliveries."""
+
+    items: list[NotificationDeliveryResponse] = Field(
+        default_factory=list, description="Delivery records."
+    )
+    total: int = Field(0, description="Total matching records.")
+    limit: int = Field(50, description="Page size.")
+    offset: int = Field(0, description="Page offset.")
+
+
 class ScheduleDetailInfo(ScheduleInfo):
     """Schedule detail with message and input."""
 

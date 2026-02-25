@@ -232,6 +232,16 @@ class NotificationRepository(Protocol):
 
     async def get(self, record_id: int) -> NotificationDeliveryRecord | None: ...
 
+    async def update_status(
+        self,
+        record_id: int,
+        *,
+        status: str,
+        attempts: int,
+        last_error: str | None = None,
+        delivered_at: datetime | None = None,
+    ) -> None: ...
+
 
 @runtime_checkable
 class UserScheduleRepository(Protocol):

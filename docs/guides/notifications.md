@@ -203,3 +203,76 @@ notifications:
 `target` for Slack is a channel name (with or without `#`). `target` for webhooks is the `name` of the webhook entry in your config.
 
 If no per-agent rules are defined, the gateway-level defaults apply (`default_channel` for Slack, all configured webhooks for webhook events).
+
+---
+
+## Delivery Tracking
+
+When persistence is configured, Agent Gateway automatically records the outcome of every notification dispatch in a `notification_log` table. This works for both direct (in-process) and queue-based delivery paths — no additional configuration is required.
+
+### Delivery record fields
+
+Each record captures:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `str` | Unique delivery record ID |
+| `execution_id` | `str` | The execution that triggered the notification |
+| `agent_id` | `str` | Agent that produced the event |
+| `event_type` | `str` | `on_complete`, `on_error`, or `on_timeout` |
+| `channel` | `str` | `slack` or `webhook` |
+| `target` | `str` | Slack channel name or webhook name |
+| `status` | `str` | `delivered` or `failed` |
+| `attempts` | `int` | Number of dispatch attempts made |
+| `last_error` | `str \| None` | Error message from the most recent failed attempt |
+| `created_at` | `str` | ISO-8601 timestamp when the record was created |
+| `delivered_at` | `str \| None` | ISO-8601 timestamp of successful delivery |
+
+### Querying delivery records
+
+Use `GET /v1/notifications` to query the log. All parameters are optional:
+
+```
+GET /v1/notifications?status=failed&agent_id=report-agent&limit=50
+```
+
+| Query parameter | Description |
+|-----------------|-------------|
+| `status` | Filter by `delivered` or `failed` |
+| `agent_id` | Filter by agent |
+| `channel` | Filter by `slack` or `webhook` |
+| `execution_id` | Filter to a specific execution |
+| `limit` | Page size (default: 50) |
+| `offset` | Pagination offset (default: 0) |
+
+Response shape:
+
+```json
+{
+  "items": [
+    {
+      "id": "01J...",
+      "execution_id": "abc-123",
+      "agent_id": "report-agent",
+      "event_type": "on_error",
+      "channel": "slack",
+      "target": "#alerts",
+      "status": "failed",
+      "attempts": 3,
+      "last_error": "channel_not_found",
+      "created_at": "2026-02-25T09:00:00Z",
+      "delivered_at": null
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### Dashboard
+
+The built-in dashboard exposes a **Notifications** page at `/dashboard/notifications`. It lists all delivery records and provides a **Retry** button for failed deliveries, which re-dispatches the notification immediately outside of any scheduled cadence.
+
+!!! note
+    Delivery tracking is only available when a persistence backend (SQLite or PostgreSQL) is configured. Without persistence the `GET /v1/notifications` endpoint returns an empty result set and the dashboard notifications page will be empty.

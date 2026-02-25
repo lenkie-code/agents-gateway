@@ -304,6 +304,17 @@ class NullNotificationRepository:
     async def get(self, record_id: int) -> NotificationDeliveryRecord | None:
         return None
 
+    async def update_status(
+        self,
+        record_id: int,
+        *,
+        status: str,
+        attempts: int,
+        last_error: str | None = None,
+        delivered_at: datetime | None = None,
+    ) -> None:
+        pass
+
 
 class NullUserScheduleRepository:
     """No-op user schedule repository — used when persistence is disabled."""

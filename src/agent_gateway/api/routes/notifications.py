@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse
 
-from agent_gateway.api.models import NotificationDeliveryResponse
+from agent_gateway.api.models import (
+    NotificationDeliveryListResponse,
+    NotificationDeliveryResponse,
+)
 from agent_gateway.api.routes.base import GatewayAPIRoute
 from agent_gateway.auth.scopes import RequireScope
 
@@ -19,7 +21,7 @@ router = APIRouter(route_class=GatewayAPIRoute)
 
 @router.get(
     "/notifications",
-    response_model=list[NotificationDeliveryResponse],
+    response_model=NotificationDeliveryListResponse,
     summary="List notification deliveries",
     description="List notification delivery records with optional filtering.",
     tags=["Notifications"],
@@ -33,7 +35,7 @@ async def list_notifications(
     execution_id: str | None = Query(None, description="Filter by execution ID."),
     limit: int = Query(50, ge=1, le=200, description="Max records to return."),
     offset: int = Query(0, ge=0, description="Offset for pagination."),
-) -> JSONResponse:
+) -> NotificationDeliveryListResponse:
     gw: Gateway = request.app
     repo = gw._notification_repo
 
@@ -65,8 +67,8 @@ async def list_notifications(
             last_error=r.last_error,
             created_at=r.created_at,
             delivered_at=r.delivered_at,
-        ).model_dump(mode="json")
+        )
         for r in records
     ]
 
-    return JSONResponse(content={"items": items, "total": total, "limit": limit, "offset": offset})
+    return NotificationDeliveryListResponse(items=items, total=total, limit=limit, offset=offset)
