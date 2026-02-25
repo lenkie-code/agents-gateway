@@ -15,6 +15,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
@@ -898,3 +899,93 @@ class UserScheduleRepository:
             await session.delete(record)
             await session.commit()
             return True
+
+
+class NotificationRepository:
+    """CRUD operations for notification delivery records."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def create(self, record: NotificationDeliveryRecord) -> None:
+        """Insert a new notification delivery record."""
+        async with self._session_factory() as session:
+            session.add(record)
+            await session.commit()
+
+    async def list_recent(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        execution_id: str | None = None,
+    ) -> list[NotificationDeliveryRecord]:
+        """List notification records with optional filters, most recent first."""
+        async with self._session_factory() as session:
+            stmt = select(NotificationDeliveryRecord).order_by(
+                NotificationDeliveryRecord.created_at.desc()  # type: ignore[union-attr]
+            )
+            stmt = self._apply_filters(stmt, status, agent_id, channel, execution_id)
+            stmt = stmt.limit(limit).offset(offset)
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def count(
+        self,
+        *,
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        execution_id: str | None = None,
+    ) -> int:
+        """Count notification records matching filters."""
+        async with self._session_factory() as session:
+            stmt = select(func.count()).select_from(NotificationDeliveryRecord)
+            stmt = self._apply_filters(stmt, status, agent_id, channel, execution_id)
+            result = await session.execute(stmt)
+            return int(result.scalar_one())
+
+    async def get(self, record_id: int) -> NotificationDeliveryRecord | None:
+        """Fetch a single notification delivery record by ID."""
+        async with self._session_factory() as session:
+            return await session.get(NotificationDeliveryRecord, record_id)
+
+    async def update_status(
+        self,
+        record_id: int,
+        *,
+        status: str,
+        attempts: int,
+        last_error: str | None = None,
+        delivered_at: datetime | None = None,
+    ) -> None:
+        """Update the status of a notification delivery record."""
+        async with self._session_factory() as session:
+            record = await session.get(NotificationDeliveryRecord, record_id)
+            if record is not None:
+                record.status = status
+                record.attempts = attempts
+                record.last_error = last_error
+                record.delivered_at = delivered_at
+                await session.commit()
+
+    @staticmethod
+    def _apply_filters(
+        stmt: Any,
+        status: str | None,
+        agent_id: str | None,
+        channel: str | None,
+        execution_id: str | None,
+    ) -> Any:
+        if status is not None:
+            stmt = stmt.where(NotificationDeliveryRecord.status == status)
+        if agent_id is not None:
+            stmt = stmt.where(NotificationDeliveryRecord.agent_id == agent_id)
+        if channel is not None:
+            stmt = stmt.where(NotificationDeliveryRecord.channel == channel)
+        if execution_id is not None:
+            stmt = stmt.where(NotificationDeliveryRecord.execution_id == execution_id)
+        return stmt

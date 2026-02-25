@@ -132,7 +132,7 @@ Composable workflow units grouping tools with optional sequential/parallel steps
 
 ## OpenAPI Documentation
 
-Interactive API docs are available at `/docs` (Swagger UI) and `/redoc` out of the box. All built-in endpoints have summaries, descriptions, tags, and error response schemas. Routes are organised into 11 tag groups: Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Admin.
+Interactive API docs are available at `/docs` (Swagger UI) and `/redoc` out of the box. All built-in endpoints have summaries, descriptions, tags, and error response schemas. Routes are organised into 12 tag groups: Health, Agents, Chat, Sessions, Conversations, Executions, Schedules, Tools, Skills, User Config, Notifications, Admin.
 
 Add custom tag groups via the `openapi_tags` constructor kwarg — they are merged with the built-in tags (de-duplicated by name).
 
@@ -182,6 +182,7 @@ All endpoints include OpenAPI summaries, descriptions, and error response docume
 | POST | /v1/agents/{id}/config | User Config | Save user config |
 | GET | /v1/agents/{id}/config | User Config | Get user config |
 | DELETE | /v1/agents/{id}/config | User Config | Delete user config |
+| GET | /v1/notifications | Notifications | List notification delivery records |
 | POST | /v1/agents/{id}/memory/compact | Admin | Compact agent memory |
 | POST | /v1/reload | Admin | Reload workspace |
 
@@ -250,6 +251,8 @@ scheduler:
 ```
 
 Distributed scheduler locking: when `scheduler.distributed_lock.enabled: true`, only one gateway instance fires each scheduled job. The `backend: auto` setting selects Redis (via `SET NX EX`) when a Redis queue is configured, or PostgreSQL (`pg_try_advisory_lock`) when a PostgreSQL persistence backend is in use. The lock expires after `lock_ttl_seconds` so a crashed instance cannot permanently block a schedule. Manual triggers via the API are not affected by the lock.
+
+Notification delivery tracking: when persistence is configured, Agent Gateway automatically records every notification dispatch in a `notification_log` table (`NotificationDeliveryRecord`). Each record captures the channel, target, status (`delivered`/`failed`), attempt count, error message, and timestamps. Query records via `GET /v1/notifications` (filterable by `status`, `agent_id`, `channel`, `execution_id`; paginated with `limit`/`offset`). Failed deliveries can be retried from the dashboard notifications page at `/dashboard/notifications`; the retry preserves the original execution message so the re-fired notification is identical to the initial attempt.
 
 Environment variable overrides use prefix `AGENT_GATEWAY_` with `__` nesting:
 `AGENT_GATEWAY_SERVER__PORT=9000`

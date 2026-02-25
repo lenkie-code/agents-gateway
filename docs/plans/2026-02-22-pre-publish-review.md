@@ -37,7 +37,7 @@ After a thorough review of the entire codebase, here are all items that need add
 - [x] **#18** [CLI output formats](publish/18-cli-output-formats.md) — DX
 - [x] **#19** [Streaming engine tests](publish/19-streaming-tests.md) — Testing
 - [x] **#20** [Dashboard test coverage](publish/20-dashboard-tests.md) — Testing
-- [ ] **#21** [Notification delivery confirmation](publish/21-notification-delivery.md) — Reliability
+- [x] **#21** [Notification delivery confirmation](publish/21-notification-delivery.md) — Reliability
 - [ ] **#22** [Session persistence](publish/22-session-persistence.md) — Infrastructure
 - [ ] **#23** [Missing database indexes](publish/23-missing-indexes.md) — Performance
 

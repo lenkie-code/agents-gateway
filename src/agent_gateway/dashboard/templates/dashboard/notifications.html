@@ -1,0 +1,122 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Notifications - {{ dashboard_title }}{% endblock %}
+
+{% block page_heading %}Notifications{% endblock %}
+
+{% block content %}
+<div class="p-8 space-y-6 overflow-y-auto h-full">
+
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-4 items-end">
+    <form method="get" action="/dashboard/notifications" class="flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
+        <select name="status" class="bg-background-surface border border-border-dark rounded-lg px-3 py-2 text-sm text-slate-200">
+          <option value="">All</option>
+          <option value="delivered" {% if filter_status == 'delivered' %}selected{% endif %}>Delivered</option>
+          <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Failed</option>
+          <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">Agent</label>
+        <input name="agent_id" value="{{ filter_agent_id or '' }}" placeholder="agent-id" class="bg-background-surface border border-border-dark rounded-lg px-3 py-2 text-sm text-slate-200 w-40" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">Channel</label>
+        <input name="channel" value="{{ filter_channel or '' }}" placeholder="slack, webhook..." class="bg-background-surface border border-border-dark rounded-lg px-3 py-2 text-sm text-slate-200 w-36" />
+      </div>
+      <button type="submit" class="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/80 transition-colors">
+        Filter
+      </button>
+    </form>
+  </div>
+
+  <!-- Results -->
+  <div class="bg-background-surface border border-border-dark/50 rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-border-dark/50 text-slate-500 text-xs uppercase tracking-wider">
+          <th class="px-6 py-3 text-left">Status</th>
+          <th class="px-6 py-3 text-left">Agent</th>
+          <th class="px-6 py-3 text-left">Event</th>
+          <th class="px-6 py-3 text-left">Channel</th>
+          <th class="px-6 py-3 text-left">Target</th>
+          <th class="px-6 py-3 text-left">Attempts</th>
+          <th class="px-6 py-3 text-left">Time</th>
+          {% if is_admin %}
+          <th class="px-6 py-3 text-left">Actions</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border-dark/30">
+        {% for record in records %}
+        <tr class="hover:bg-white/[0.02] transition-colors">
+          <td class="px-6 py-3">
+            {% if record.status == 'delivered' %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="material-symbols-outlined text-sm">check_circle</span>
+              Delivered
+            </span>
+            {% elif record.status == 'failed' %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+              <span class="material-symbols-outlined text-sm">error</span>
+              Failed
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span class="material-symbols-outlined text-sm">pending</span>
+              Pending
+            </span>
+            {% endif %}
+          </td>
+          <td class="px-6 py-3 text-slate-300 font-mono text-xs">{{ record.agent_id }}</td>
+          <td class="px-6 py-3 text-slate-400 text-xs">{{ record.event_type }}</td>
+          <td class="px-6 py-3 text-slate-400">{{ record.channel }}</td>
+          <td class="px-6 py-3 text-slate-400 text-xs truncate max-w-[200px]" title="{{ record.target }}">{{ record.target }}</td>
+          <td class="px-6 py-3 text-slate-400">{{ record.attempts }}</td>
+          <td class="px-6 py-3 text-slate-500 text-xs">{{ format_datetime(record.created_at) if record.created_at else '-' }}</td>
+          {% if is_admin %}
+          <td class="px-6 py-3">
+            {% if record.status == 'failed' %}
+            <form method="post" action="/dashboard/notifications/{{ record.id }}/retry" class="inline">
+              <button type="submit" class="px-2 py-1 bg-primary/10 text-primary text-xs font-semibold rounded hover:bg-primary/20 transition-colors border border-primary/20">
+                Retry
+              </button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+        {% if not records %}
+        <tr>
+          <td colspan="{{ 8 if is_admin else 7 }}" class="px-6 py-12 text-center text-slate-500">
+            No notification records found.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if total > page_size %}
+  <div class="flex justify-between items-center text-sm text-slate-400">
+    <span>Showing {{ offset + 1 }}-{{ [offset + page_size, total] | min }} of {{ total }}</span>
+    <div class="flex gap-2">
+      {% if offset > 0 %}
+      <a href="?offset={{ offset - page_size }}&status={{ filter_status or '' }}&agent_id={{ filter_agent_id or '' }}&channel={{ filter_channel or '' }}"
+         class="px-3 py-1 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Previous</a>
+      {% endif %}
+      {% if offset + page_size < total %}
+      <a href="?offset={{ offset + page_size }}&status={{ filter_status or '' }}&agent_id={{ filter_agent_id or '' }}&channel={{ filter_channel or '' }}"
+         class="px-3 py-1 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Next</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

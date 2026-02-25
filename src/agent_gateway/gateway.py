@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any, overload
 from fastapi import APIRouter, FastAPI
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from agent_gateway.memory.manager import MemoryManager
     from agent_gateway.memory.protocols import MemoryBackend
     from agent_gateway.scheduler.engine import SchedulerEngine
@@ -45,13 +47,16 @@ from agent_gateway.notifications import NotificationEngine
 from agent_gateway.notifications.models import (
     build_notification_event,
     build_notification_job,
+    sanitize_target,
 )
 from agent_gateway.notifications.protocols import NotificationBackend
 from agent_gateway.persistence.backend import PersistenceBackend
+from agent_gateway.persistence.domain import NotificationDeliveryRecord
 from agent_gateway.persistence.null import (
     NullAuditRepository,
     NullConversationRepository,
     NullExecutionRepository,
+    NullNotificationRepository,
     NullScheduleRepository,
     NullUserAgentConfigRepository,
     NullUserRepository,
@@ -61,6 +66,7 @@ from agent_gateway.persistence.protocols import (
     AuditRepository,
     ConversationRepository,
     ExecutionRepository,
+    NotificationRepository,
     ScheduleRepository,
     UserAgentConfigRepository,
     UserRepository,
@@ -89,6 +95,7 @@ _GATEWAY_OPENAPI_TAGS: list[dict[str, str]] = [
     {"name": "Tools", "description": "Tool registry introspection."},
     {"name": "Skills", "description": "Skill registry introspection."},
     {"name": "User Config", "description": "Per-user agent configuration (personal agents)."},
+    {"name": "Notifications", "description": "Notification delivery log and status."},
     {"name": "Admin", "description": "Administrative operations."},
 ]
 
@@ -156,6 +163,7 @@ class Gateway(FastAPI):
         self._conversation_repo: ConversationRepository = NullConversationRepository()
         self._user_agent_config_repo: UserAgentConfigRepository = NullUserAgentConfigRepository()
         self._user_schedule_repo: UserScheduleRepository = NullUserScheduleRepository()
+        self._notification_repo: NotificationRepository = NullNotificationRepository()
         self._pending_memory_backend: MemoryBackend | None = None  # fluent API
         self._memory_manager: MemoryManager | None = None
         self._pending_cors_config: CorsConfig | None = None  # fluent API
@@ -354,6 +362,7 @@ class Gateway(FastAPI):
                 self._conversation_repo = backend.conversation_repo
                 self._user_agent_config_repo = backend.user_agent_config_repo
                 self._user_schedule_repo = backend.user_schedule_repo
+                self._notification_repo = backend.notification_repo
             except ImportError:
                 raise  # Don't swallow missing driver errors
             except Exception:
@@ -671,6 +680,7 @@ class Gateway(FastAPI):
             self._notification_worker = NotificationWorker(
                 queue=self._notification_queue,
                 engine=self._notification_engine,
+                notification_repo=self._notification_repo,
             )
             await self._notification_worker.start()
 
@@ -1852,6 +1862,7 @@ class Gateway(FastAPI):
         from agent_gateway.api.routes.health import router as health_router
         from agent_gateway.api.routes.introspection import router as introspection_router
         from agent_gateway.api.routes.invoke import router as invoke_router
+        from agent_gateway.api.routes.notifications import router as notifications_router
         from agent_gateway.api.routes.schedules import router as schedules_router
         from agent_gateway.api.routes.user_config import router as user_config_router
 
@@ -1863,6 +1874,7 @@ class Gateway(FastAPI):
         v1.include_router(introspection_router)
         v1.include_router(schedules_router)
         v1.include_router(user_config_router)
+        v1.include_router(notifications_router)
 
         self.include_router(v1)
 
@@ -1945,9 +1957,29 @@ class Gateway(FastAPI):
         """Fire notifications via queue (if available) or as a background task.
 
         Never raises — errors are logged and swallowed.
+        Delivery results are persisted to the notification_log table.
         """
         if not self._notification_engine.has_backends or not config:
             return
+
+        from agent_gateway.notifications.models import (
+            AgentNotificationConfig,
+            NotificationTarget,
+        )
+
+        # Determine which targets will be notified for logging purposes
+        _event_routing: dict[str, str] = {
+            "completed": "on_complete",
+            "failed": "on_error",
+            "timeout": "on_timeout",
+            "error": "on_error",
+            "cancelled": "on_error",
+        }
+        attr_name = _event_routing.get(status)
+        if isinstance(config, AgentNotificationConfig):
+            targets: list[NotificationTarget] = getattr(config, attr_name, []) if attr_name else []
+        else:
+            targets = []
 
         if self._notification_queue is not None:
             # Enqueue for durable delivery via NotificationWorker
@@ -1967,6 +1999,7 @@ class Gateway(FastAPI):
             task = asyncio.create_task(self._notification_queue.enqueue(job))
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
+            # Delivery records are created by NotificationWorker after processing
         else:
             # Fire-and-forget fallback (no queue configured)
             event = build_notification_event(
@@ -1980,9 +2013,96 @@ class Gateway(FastAPI):
                 duration_ms=duration_ms,
                 input=input,
             )
-            task = asyncio.create_task(self._notification_engine.notify(event, config))
+            task = asyncio.create_task(
+                self._notify_and_log(event, config, execution_id, agent_id, targets)
+            )
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
+
+    async def _notify_and_log(
+        self,
+        event: Any,
+        config: Any,
+        execution_id: str,
+        agent_id: str,
+        targets: list[Any],
+    ) -> None:
+        """Dispatch notifications and log delivery results."""
+        from datetime import UTC, datetime
+
+        try:
+            await self._notification_engine.notify(event, config)
+            # If notify() returns without error, all targets were attempted
+            for t in targets:
+                self._log_notification_delivery(
+                    execution_id=execution_id,
+                    agent_id=agent_id,
+                    event_type=event.type,
+                    channel=t.channel,
+                    target=sanitize_target(t.target or t.url or ""),
+                    delivery_status="delivered",
+                    attempts=1,
+                    last_error=None,
+                    delivered_at=datetime.now(UTC),
+                )
+        except Exception as exc:
+            logger.warning(
+                "Notification delivery failed for execution %s: %s",
+                execution_id,
+                exc,
+                exc_info=True,
+            )
+            for t in targets:
+                self._log_notification_delivery(
+                    execution_id=execution_id,
+                    agent_id=agent_id,
+                    event_type=event.type,
+                    channel=t.channel,
+                    target=sanitize_target(t.target or t.url or ""),
+                    delivery_status="failed",
+                    attempts=1,
+                    last_error=str(exc),
+                )
+
+    def _log_notification_delivery(
+        self,
+        *,
+        execution_id: str,
+        agent_id: str,
+        event_type: str,
+        channel: str,
+        target: str,
+        delivery_status: str,
+        attempts: int,
+        last_error: str | None,
+        delivered_at: datetime | None = None,
+    ) -> None:
+        """Create a background task to persist a notification delivery record."""
+        record = NotificationDeliveryRecord(
+            execution_id=execution_id,
+            agent_id=agent_id,
+            event_type=event_type,
+            channel=channel,
+            target=target,
+            status=delivery_status,
+            attempts=attempts,
+            last_error=last_error,
+            delivered_at=delivered_at,
+        )
+        task = asyncio.create_task(self._persist_notification_record(record))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _persist_notification_record(self, record: NotificationDeliveryRecord) -> None:
+        """Persist a notification delivery record. Never raises."""
+        try:
+            await self._notification_repo.create(record)
+        except Exception:
+            logger.warning(
+                "Failed to persist notification delivery record for execution %s",
+                record.execution_id,
+                exc_info=True,
+            )
 
     async def _get_memory_block(
         self, agent_id: str, message: str, memory_config: Any, user_id: str | None = None

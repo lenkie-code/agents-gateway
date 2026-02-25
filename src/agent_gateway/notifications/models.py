@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 
 @dataclass(frozen=True)
@@ -179,6 +180,17 @@ def build_notification_job(
         input=input,
         enqueued_at=enqueued_at,
     )
+
+
+def sanitize_target(target: str) -> str:
+    """Strip query parameters from URLs used as notification targets.
+
+    Non-URL targets (e.g. Slack channel names) are returned unchanged.
+    """
+    if not target or not target.startswith(("http://", "https://")):
+        return target
+    parsed = urlparse(target)
+    return urlunparse(parsed._replace(query="", fragment=""))
 
 
 _EVENT_TYPE_MAP: dict[str, str] = {

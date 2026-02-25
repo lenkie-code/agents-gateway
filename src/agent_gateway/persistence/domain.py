@@ -127,6 +127,23 @@ class UserScheduleRecord:
 
 
 @dataclass
+class NotificationDeliveryRecord:
+    """Tracks notification delivery attempts and outcomes."""
+
+    id: int | None = None  # auto-increment
+    execution_id: str = ""
+    agent_id: str = ""
+    event_type: str = ""
+    channel: str = ""
+    target: str = ""  # sanitized — no query params on URLs
+    status: str = "pending"  # delivered | failed
+    attempts: int = 0
+    last_error: str | None = None
+    created_at: datetime | None = None
+    delivered_at: datetime | None = None
+
+
+@dataclass
 class ConversationRecord:
     """A persisted conversation between a user and an agent."""
 

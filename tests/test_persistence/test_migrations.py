@@ -46,6 +46,7 @@ def test_upgrade_creates_all_tables(tmp_db) -> None:
         "memories",
         "user_agent_configs",
         "user_schedules",
+        "notification_log",
     }
     assert expected.issubset(tables), f"Missing tables: {expected - tables}"
 
@@ -58,7 +59,7 @@ def test_current_revision_after_upgrade(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "005"
+    assert rev == "006"
 
 
 def test_downgrade_removes_tables(tmp_db) -> None:
@@ -88,7 +89,7 @@ def test_upgrade_is_idempotent(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "005"
+    assert rev == "006"
 
 
 def test_current_revision_on_empty_db(tmp_db) -> None:

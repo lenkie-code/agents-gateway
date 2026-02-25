@@ -14,6 +14,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
@@ -270,6 +271,49 @@ class NullUserAgentConfigRepository:
 
     async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]:
         return []
+
+
+class NullNotificationRepository:
+    """No-op notification repository — used when persistence is disabled."""
+
+    async def create(self, record: NotificationDeliveryRecord) -> None:
+        pass
+
+    async def list_recent(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        execution_id: str | None = None,
+    ) -> list[NotificationDeliveryRecord]:
+        return []
+
+    async def count(
+        self,
+        *,
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        execution_id: str | None = None,
+    ) -> int:
+        return 0
+
+    async def get(self, record_id: int) -> NotificationDeliveryRecord | None:
+        return None
+
+    async def update_status(
+        self,
+        record_id: int,
+        *,
+        status: str,
+        attempts: int,
+        last_error: str | None = None,
+        delivered_at: datetime | None = None,
+    ) -> None:
+        pass
 
 
 class NullUserScheduleRepository:

@@ -11,6 +11,7 @@ from agent_gateway.persistence.domain import (
     ConversationRecord,
     ExecutionRecord,
     ExecutionStep,
+    NotificationDeliveryRecord,
     ScheduleRecord,
     UserAgentConfig,
     UserProfile,
@@ -201,6 +202,45 @@ class UserAgentConfigRepository(Protocol):
     async def list_by_user(self, user_id: str) -> list[UserAgentConfig]: ...
 
     async def list_by_agent(self, agent_id: str) -> list[UserAgentConfig]: ...
+
+
+@runtime_checkable
+class NotificationRepository(Protocol):
+    """Interface for notification delivery log persistence."""
+
+    async def create(self, record: NotificationDeliveryRecord) -> None: ...
+
+    async def list_recent(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        execution_id: str | None = None,
+    ) -> list[NotificationDeliveryRecord]: ...
+
+    async def count(
+        self,
+        *,
+        status: str | None = None,
+        agent_id: str | None = None,
+        channel: str | None = None,
+        execution_id: str | None = None,
+    ) -> int: ...
+
+    async def get(self, record_id: int) -> NotificationDeliveryRecord | None: ...
+
+    async def update_status(
+        self,
+        record_id: int,
+        *,
+        status: str,
+        attempts: int,
+        last_error: str | None = None,
+        delivered_at: datetime | None = None,
+    ) -> None: ...
 
 
 @runtime_checkable
