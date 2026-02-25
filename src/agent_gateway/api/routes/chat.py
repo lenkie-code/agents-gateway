@@ -103,7 +103,7 @@ async def chat_with_agent(
     usage = result.usage
 
     # Get turn count from session
-    session = gw._session_store.get_session(session_id) if gw._session_store else None
+    session = await gw._get_or_restore_session(session_id) if gw._session_store else None
     turn_count = session.turn_count if session else 0
 
     return ChatResponse(
@@ -154,7 +154,7 @@ def _create_streaming_response(
 
         # Get or create session
         if body.session_id:
-            session = session_store.get_session(body.session_id)
+            session = await gw._get_or_restore_session(body.session_id)
             if session is None:
                 return
             if session.agent_id != agent_id:
@@ -237,7 +237,7 @@ async def get_session(
     if gw._session_store is None:
         return error_response(503, "sessions_unavailable", "Session store not initialized")
 
-    session = gw._session_store.get_session(session_id)
+    session = await gw._get_or_restore_session(session_id)
     if session is None:
         return error_response(404, "session_not_found", f"Session '{session_id}' not found")
 
@@ -276,7 +276,7 @@ async def delete_session(
         return error_response(503, "sessions_unavailable", "Session store not initialized")
 
     # Check ownership before deleting
-    session = gw._session_store.get_session(session_id)
+    session = await gw._get_or_restore_session(session_id)
     if session is None:
         return error_response(404, "session_not_found", f"Session '{session_id}' not found")
 

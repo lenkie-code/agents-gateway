@@ -903,7 +903,7 @@ def register_dashboard(
                     return
 
                 if session_id:
-                    session = session_store.get_session(session_id)
+                    session = await gw._get_or_restore_session(session_id)
                     if session is None or session.agent_id != agent_id:
                         session = session_store.create_session(agent_id, user_id=user_id)
                 else:
