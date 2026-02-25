@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 from agent_gateway.config import GatewayConfig
 from agent_gateway.engine.executor import ExecutionEngine
 from agent_gateway.engine.llm import LLMResponse
 from agent_gateway.engine.models import ToolCall, ToolContext
+from agent_gateway.gateway import WorkspaceSnapshot
 from agent_gateway.hooks import HookRegistry
 from agent_gateway.workspace.agent import AgentDefinition, AgentModelConfig
 from agent_gateway.workspace.loader import WorkspaceState
@@ -94,10 +99,42 @@ def make_tool_call(
 class MockLLMClient:
     """Mock LLM client that returns pre-configured responses."""
 
-    def __init__(self, responses: list[LLMResponse]) -> None:
-        self._responses = list(responses)
+    def __init__(
+        self,
+        responses: list[LLMResponse] | None = None,
+        stream_chunks: list[list[dict[str, Any]]] | None = None,
+    ) -> None:
+        self._responses = list(responses or [])
+        self._stream_chunks = list(stream_chunks or [])
         self._call_count = 0
+        self._stream_call_count = 0
         self.calls: list[dict[str, Any]] = []
+
+    async def stream_completion(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Yield pre-configured stream chunks."""
+        self.calls.append(
+            {
+                "messages": messages,
+                "tools": tools,
+                "model": model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True,
+            }
+        )
+        if self._stream_call_count >= len(self._stream_chunks):
+            raise RuntimeError("No more mock stream chunks configured")
+        chunks = self._stream_chunks[self._stream_call_count]
+        self._stream_call_count += 1
+        for chunk in chunks:
+            yield chunk
 
     async def completion(
         self,
@@ -194,3 +231,72 @@ async def simple_tool_executor(
     if tool.code_tool:
         return await tool.code_tool.fn(**arguments)
     return {"error": "no handler"}
+
+
+class _Unset:
+    """Sentinel class for unset parameters."""
+
+
+@dataclass
+class MockGateway:
+    """Lightweight stand-in for Gateway used in streaming tests."""
+
+    _snapshot: WorkspaceSnapshot | None
+    _execution_repo: Any
+    _execution_semaphore: asyncio.Semaphore | None
+    _config: GatewayConfig = field(default_factory=GatewayConfig)
+
+
+def make_mock_gateway(
+    stream_chunks: list[list[dict[str, Any]]],
+    tools: list[ResolvedTool] | None = None,
+    config: GatewayConfig | None = None,
+    snapshot: WorkspaceSnapshot | None | type[_Unset] = _Unset,
+) -> tuple[MockGateway, MockLLMClient]:
+    """Create a mock gateway suitable for stream_chat_execution tests.
+
+    Returns the mock gateway and the mock LLM client for assertion.
+    """
+    mock_llm = MockLLMClient(stream_chunks=stream_chunks)
+    cfg = config or GatewayConfig()
+    registry = ToolRegistry()
+
+    if tools:
+        for tool in tools:
+            if tool.code_tool:
+                registry.register_code_tool(tool.code_tool)
+
+    engine = ExecutionEngine(
+        llm_client=mock_llm,  # type: ignore[arg-type]
+        tool_registry=registry,
+        config=cfg,
+    )
+
+    agent = make_agent()
+    workspace = make_workspace(agents={agent.id: agent})
+
+    resolved_snapshot: WorkspaceSnapshot | None
+    if snapshot is _Unset:
+        resolved_snapshot = WorkspaceSnapshot(
+            workspace=workspace,
+            tool_registry=registry,
+            engine=engine,
+        )
+    elif isinstance(snapshot, WorkspaceSnapshot):
+        resolved_snapshot = snapshot
+    else:
+        resolved_snapshot = None
+
+    repo = AsyncMock()
+    repo.create = AsyncMock()
+    repo.add_step = AsyncMock()
+    repo.update_status = AsyncMock()
+    repo.update_result = AsyncMock()
+
+    gw = MockGateway(
+        _snapshot=resolved_snapshot,
+        _execution_repo=repo,
+        _execution_semaphore=asyncio.Semaphore(1),
+        _config=cfg,
+    )
+    return gw, mock_llm
