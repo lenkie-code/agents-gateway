@@ -174,6 +174,7 @@ class Gateway(FastAPI):
         self._extraction_cooldowns: dict[str, float] = {}
         _EXTRACTION_DEBOUNCE_SECONDS = 30.0
         self._extraction_debounce = _EXTRACTION_DEBOUNCE_SECONDS
+        self._rehydration_tasks: dict[str, asyncio.Task[ChatSession | None]] = {}
 
         # Merge default OpenAPI tags with any caller-supplied tags (de-duplicate by name)
         caller_tags = fastapi_kwargs.pop("openapi_tags", None) or []
@@ -2547,7 +2548,7 @@ class Gateway(FastAPI):
 
         # Get or create session
         if session_id:
-            session = self._session_store.get_session(session_id)
+            session = await self._get_or_restore_session(session_id)
             if session is None:
                 raise ValueError(f"Session '{session_id}' not found")
             if session.agent_id != agent_id:
@@ -2656,6 +2657,121 @@ class Gateway(FastAPI):
         if self._session_store is None:
             return None
         return self._session_store.get_session(session_id)
+
+    async def _get_or_restore_session(self, session_id: str) -> ChatSession | None:
+        """Get session from cache, falling back to DB rehydration."""
+        if self._session_store is None:
+            return None
+
+        # Fast path: cache hit
+        session = self._session_store.get_session(session_id)
+        if session is not None:
+            return session
+
+        # Deduplicate concurrent rehydrations
+        if session_id in self._rehydration_tasks:
+            try:
+                return await self._rehydration_tasks[session_id]
+            except asyncio.CancelledError:
+                return None
+
+        task = asyncio.create_task(self._rehydrate_session(session_id))
+        self._rehydration_tasks[session_id] = task
+        try:
+            return await task
+        except asyncio.CancelledError:
+            return None
+        finally:
+            self._rehydration_tasks.pop(session_id, None)
+
+    async def _rehydrate_session(self, session_id: str) -> ChatSession | None:
+        """Load session from conversation persistence and restore to cache."""
+        try:
+            conv_record = await self._conversation_repo.get(session_id)
+        except Exception:
+            logger.warning(
+                "Failed to load conversation %s for rehydration",
+                session_id,
+                exc_info=True,
+            )
+            return None
+
+        if conv_record is None:
+            return None
+
+        if self._session_store is None:
+            return None
+
+        from datetime import UTC, datetime
+
+        # Check TTL before rehydrating
+        if conv_record.updated_at is not None:
+            age_seconds = (datetime.now(UTC) - conv_record.updated_at).total_seconds()
+            if age_seconds > self._session_store._ttl_seconds:
+                logger.debug(
+                    "Session %s expired (%.0fs old), skipping rehydration",
+                    session_id,
+                    age_seconds,
+                )
+                return None
+
+        # Fetch the most recent messages by computing offset from message_count
+        max_history = self._session_store._max_history
+        msg_count = conv_record.message_count or 0
+        offset = max(0, msg_count - max_history)
+
+        try:
+            db_messages = await self._conversation_repo.get_messages(
+                session_id, limit=max_history, offset=offset
+            )
+        except Exception:
+            logger.warning(
+                "Failed to load messages for session %s",
+                session_id,
+                exc_info=True,
+            )
+            return None
+
+        # Reconstruct message list: only user/assistant with non-empty content
+        # (assistant turns that were tool-only have no persisted text content)
+        messages: list[dict[str, Any]] = []
+        for m in db_messages:
+            if m.role == "user":
+                messages.append({"role": "user", "content": m.content})
+            elif m.role == "assistant" and m.content:
+                messages.append({"role": "assistant", "content": m.content})
+
+        # Drop dangling user message at tail (assistant response wasn't persisted)
+        if messages and messages[-1]["role"] == "user":
+            messages.pop()
+
+        # Reconstruct _last_active from updated_at to preserve TTL
+        now_mono = time.monotonic()
+        if conv_record.updated_at is not None:
+            age_seconds = (datetime.now(UTC) - conv_record.updated_at).total_seconds()
+            last_active = now_mono - age_seconds
+        else:
+            last_active = now_mono
+
+        now_ts = time.time()
+        session = ChatSession(
+            session_id=session_id,
+            agent_id=conv_record.agent_id,
+            user_id=conv_record.user_id,
+            messages=messages,
+            created_at=(conv_record.created_at.timestamp() if conv_record.created_at else now_ts),
+            updated_at=(conv_record.updated_at.timestamp() if conv_record.updated_at else now_ts),
+        )
+        # Set _last_active for correct TTL behavior
+        session._last_active = last_active
+
+        self._session_store.restore_session(session)
+        logger.info(
+            "Rehydrated session %s from persistence (%d messages)",
+            session_id,
+            len(messages),
+        )
+        return session
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a session. Returns True if it existed."""

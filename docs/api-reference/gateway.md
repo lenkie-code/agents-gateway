@@ -168,7 +168,7 @@ async def chat(
 ) -> tuple[str, ExecutionResult]
 ```
 
-Send a multi-turn chat message programmatically. Maintains conversation history in an in-memory session store. Persists messages to the database if persistence is enabled.
+Send a multi-turn chat message programmatically. Maintains conversation history in an in-memory session store. Persists messages to the database if persistence is enabled. If a `session_id` is provided but the session is no longer in memory (e.g. after a server restart), the session is automatically rehydrated from the `conversations` table — see [Session Rehydration](../guides/persistence.md#session-rehydration).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

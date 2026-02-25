@@ -250,6 +250,8 @@ scheduler:
     lock_ttl_seconds: 300
 ```
 
+Session rehydration: when persistence is enabled, chat sessions survive server restarts. If an in-memory session is not found (cache miss), it is automatically rehydrated from the `conversations` table. TTL is respected — expired sessions are not restored. Session metadata and tool-call messages are not restored on rehydration.
+
 Distributed scheduler locking: when `scheduler.distributed_lock.enabled: true`, only one gateway instance fires each scheduled job. The `backend: auto` setting selects Redis (via `SET NX EX`) when a Redis queue is configured, or PostgreSQL (`pg_try_advisory_lock`) when a PostgreSQL persistence backend is in use. The lock expires after `lock_ttl_seconds` so a crashed instance cannot permanently block a schedule. Manual triggers via the API are not affected by the lock.
 
 Notification delivery tracking: when persistence is configured, Agent Gateway automatically records every notification dispatch in a `notification_log` table (`NotificationDeliveryRecord`). Each record captures the channel, target, status (`delivered`/`failed`), attempt count, error message, and timestamps. Query records via `GET /v1/notifications` (filterable by `status`, `agent_id`, `channel`, `execution_id`; paginated with `limit`/`offset`). Failed deliveries can be retried from the dashboard notifications page at `/dashboard/notifications`; the retry preserves the original execution message so the re-fired notification is identical to the initial attempt.

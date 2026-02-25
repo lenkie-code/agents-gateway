@@ -155,6 +155,12 @@ curl -X POST http://localhost:8000/v1/agents/assistant/chat \
   -d '{"message": "What can you do?", "session_id": "sess_..."}'
 ```
 
+> **Session persistence:** When PostgreSQL persistence is enabled, chat sessions
+> survive server restarts. If a session is not in the in-memory cache (e.g., after
+> a restart), it is automatically rehydrated from the `conversations` table. Session
+> metadata and tool-call messages are **not** restored on rehydration.
+
+
 ### Async Execution
 
 The `data-processor` agent runs asynchronously via RabbitMQ. Invoking it

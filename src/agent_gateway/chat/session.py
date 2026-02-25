@@ -199,5 +199,15 @@ class SessionStore:
             logger.info("Cleaned up %d expired sessions", len(expired))
         return len(expired)
 
+    def restore_session(self, session: ChatSession) -> None:
+        """Restore a previously persisted session into the in-memory cache.
+
+        Handles LRU eviction if at capacity. Does not generate a new session_id.
+        """
+        while len(self._sessions) >= self._max_sessions:
+            evicted_id, _ = self._sessions.popitem(last=False)
+            logger.info("Evicted LRU session: %s", evicted_id)
+        self._sessions[session.session_id] = session
+
     def _is_expired(self, session: ChatSession) -> bool:
         return (time.monotonic() - session._last_active) > self._ttl_seconds

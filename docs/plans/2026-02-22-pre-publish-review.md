@@ -38,7 +38,7 @@ After a thorough review of the entire codebase, here are all items that need add
 - [x] **#19** [Streaming engine tests](publish/19-streaming-tests.md) — Testing
 - [x] **#20** [Dashboard test coverage](publish/20-dashboard-tests.md) — Testing
 - [x] **#21** [Notification delivery confirmation](publish/21-notification-delivery.md) — Reliability
-- [ ] **#22** [Session persistence](publish/22-session-persistence.md) — Infrastructure
+- [x] **#22** [Session persistence](publish/22-session-persistence.md) — Infrastructure
 - [ ] **#23** [Missing database indexes](publish/23-missing-indexes.md) — Performance
 
 ---
