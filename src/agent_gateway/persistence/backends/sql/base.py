@@ -99,6 +99,8 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Index(f"ix_{prefix}executions_schedule_id", "schedule_id"),
         Index(f"ix_{prefix}executions_parent_execution_id", "parent_execution_id"),
         Index(f"ix_{prefix}executions_root_execution_id", "root_execution_id"),
+        Index(f"ix_{prefix}executions_created_at", "created_at"),
+        Index(f"ix_{prefix}executions_status", "status"),
     )
 
     execution_steps = Table(
@@ -131,6 +133,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("ip_address", String),
         Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
         Index(f"ix_{prefix}audit_log_event_type", "event_type"),
+        Index(f"ix_{prefix}audit_log_created_at", "created_at"),
     )
 
     schedules = Table(
@@ -181,6 +184,7 @@ def build_tables(metadata: MetaData, prefix: str = "") -> dict[str, Table]:
         Column("ended_at", DateTime(timezone=True)),
         Index(f"ix_{prefix}conversations_user_agent", "user_id", "agent_id"),
         Index(f"ix_{prefix}conversations_user", "user_id"),
+        Index(f"ix_{prefix}conversations_created_at", "created_at"),
     )
 
     conversation_messages = Table(

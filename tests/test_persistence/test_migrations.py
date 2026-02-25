@@ -52,14 +52,14 @@ def test_upgrade_creates_all_tables(tmp_db) -> None:
 
 
 def test_current_revision_after_upgrade(tmp_db) -> None:
-    """After upgrade head, current revision is '002'."""
+    """After upgrade head, current revision is '007'."""
     with tmp_db.connect() as conn:
         run_upgrade(conn, "head")
         conn.commit()
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "006"
+    assert rev == "007"
 
 
 def test_downgrade_removes_tables(tmp_db) -> None:
@@ -89,7 +89,7 @@ def test_upgrade_is_idempotent(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "006"
+    assert rev == "007"
 
 
 def test_current_revision_on_empty_db(tmp_db) -> None:
@@ -97,6 +97,25 @@ def test_current_revision_on_empty_db(tmp_db) -> None:
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
     assert rev is None
+
+
+def test_upgrade_creates_indexes(tmp_db) -> None:
+    """Migration 007 creates the four missing indexes."""
+    with tmp_db.connect() as conn:
+        run_upgrade(conn, "head")
+        conn.commit()
+
+    inspector = inspect(tmp_db)
+
+    exec_indexes = {idx["name"] for idx in inspector.get_indexes("executions")}
+    assert "ix_executions_created_at" in exec_indexes
+    assert "ix_executions_status" in exec_indexes
+
+    conv_indexes = {idx["name"] for idx in inspector.get_indexes("conversations")}
+    assert "ix_conversations_created_at" in conv_indexes
+
+    audit_indexes = {idx["name"] for idx in inspector.get_indexes("audit_log")}
+    assert "ix_audit_log_created_at" in audit_indexes
 
 
 class TestDbCliCommands:
