@@ -14,6 +14,7 @@ from fastapi.responses import RedirectResponse
 class AdminRequiredError(Exception):
     """Raised when a non-admin user attempts to access an admin-only dashboard page."""
 
+
 if TYPE_CHECKING:
     from agent_gateway.config import DashboardAuthConfig
 
