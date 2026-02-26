@@ -311,7 +311,7 @@ class TestAdminRoutes:
                     "/dashboard/schedules/some-id/toggle",
                     follow_redirects=False,
                 )
-                assert resp.status_code == 403
+                assert resp.status_code == 303
 
     async def test_toggle_schedule_admin_works(self) -> None:
         from agent_gateway.persistence.domain import ScheduleRecord

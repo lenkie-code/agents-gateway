@@ -61,6 +61,9 @@ async def chat_with_agent(
     if agent is None:
         return error_response(404, "agent_not_found", f"Agent '{agent_id}' not found")
 
+    if not agent.enabled:
+        return error_response(503, "agent_disabled", f"Agent '{agent_id}' is currently disabled")
+
     if snapshot.engine is None:
         return error_response(503, "engine_unavailable", "Execution engine not initialized")
 

@@ -82,6 +82,9 @@ class AgentDefinition:
     # Memory
     memory_config: AgentMemoryConfig = field(default_factory=AgentMemoryConfig)
 
+    # Runtime control
+    enabled: bool = True
+
     @classmethod
     def load(cls, agent_dir: Path) -> AgentDefinition | None:
         """Load an agent from a directory.
@@ -197,6 +200,11 @@ class AgentDefinition:
 
         setup_schema = _parse_setup_schema(agent_meta.get("setup_schema"), agent_dir)
 
+        enabled = agent_meta.get("enabled", True)
+        if not isinstance(enabled, bool):
+            logger.warning("Agent '%s': 'enabled' must be a bool, defaulting to True", agent_id)
+            enabled = True
+
         return cls(
             id=agent_id,
             path=agent_dir,
@@ -218,6 +226,7 @@ class AgentDefinition:
             delegates_to=delegates_to,
             scope=scope,
             setup_schema=setup_schema,
+            enabled=enabled,
         )
 
 

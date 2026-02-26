@@ -1,6 +1,6 @@
 {% if agents %}
 {% for agent in agents %}
-<div class="group flex flex-col bg-surface border border-border-dark rounded-xl hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
+<div class="group flex flex-col bg-surface border border-border-dark rounded-xl hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 {% if not agent.enabled %}opacity-60{% endif %}">
   <div class="p-5 flex flex-col flex-1">
     <div class="flex items-start justify-between mb-4">
       <div class="w-12 h-12 rounded-xl bg-surface-2 border border-border-dark flex items-center justify-center text-primary font-bold overflow-hidden text-lg">
@@ -10,7 +10,12 @@
         {{ agent.initials }}
         {% endif %}
       </div>
-      {% if agent.status == 'setup_required' %}
+      {% if not agent.enabled %}
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-500/10 border border-slate-500/20 text-slate-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+        Disabled
+      </span>
+      {% elif agent.status == 'setup_required' %}
       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400">
         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
         Setup Required
@@ -28,7 +33,11 @@
       {% endif %}
     </div>
 
+    {% if current_user and current_user.is_admin %}
+    <a href="/dashboard/agents/{{ agent.id }}/detail" class="text-base font-bold text-white group-hover:text-primary transition-colors hover:underline">{{ agent.display_name }}</a>
+    {% else %}
     <h4 class="text-base font-bold text-white group-hover:text-primary transition-colors">{{ agent.display_name }}</h4>
+    {% endif %}
     <p class="text-xs text-slate-500 mb-2">{{ agent.model }}</p>
 
     {% if agent.description %}
@@ -63,11 +72,26 @@
       </a>
       {% endif %}
     </div>
-    {% if agent.is_personal and agent.status != 'setup_required' %}
-    <a href="/dashboard/agents/{{ agent.id }}/setup" class="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Configuration">
-      <span class="material-symbols-outlined text-base">settings</span>
-    </a>
-    {% endif %}
+    <div class="flex items-center gap-1">
+      {% if agent.is_personal and agent.status != 'setup_required' %}
+      <a href="/dashboard/agents/{{ agent.id }}/setup" class="p-1.5 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Configuration">
+        <span class="material-symbols-outlined text-base">settings</span>
+      </a>
+      {% endif %}
+      {% if current_user and current_user.is_admin %}
+      <form method="POST" action="/dashboard/agents/{{ agent.id }}/toggle" class="inline">
+        {% if agent.enabled %}
+        <button type="submit" class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all" title="Disable Agent">
+          <span class="material-symbols-outlined text-base">block</span>
+        </button>
+        {% else %}
+        <button type="submit" class="p-1.5 text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all" title="Enable Agent">
+          <span class="material-symbols-outlined text-base">check_circle</span>
+        </button>
+        {% endif %}
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endfor %}

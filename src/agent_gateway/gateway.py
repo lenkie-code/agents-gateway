@@ -250,6 +250,13 @@ class Gateway(FastAPI):
         """The memory manager, if memory is enabled."""
         return self._memory_manager
 
+    def is_agent_enabled(self, agent_id: str) -> bool:
+        """Check if an agent is enabled (from AGENT.md frontmatter)."""
+        agent = self.agents.get(agent_id)
+        if agent is None:
+            return False
+        return bool(agent.enabled)
+
     def health(self) -> dict[str, Any]:
         """Return gateway health info (programmatic equivalent of GET /v1/health)."""
         ws = self.workspace
@@ -2825,6 +2832,25 @@ class Gateway(FastAPI):
         if self._scheduler is None:
             return None
         return await self._scheduler.trigger(schedule_id)
+
+    async def update_schedule(
+        self,
+        schedule_id: str,
+        cron_expr: str | None = None,
+        message: str | None = None,
+        timezone: str | None = None,
+        enabled: bool | None = None,
+    ) -> bool:
+        """Update a schedule's configuration at runtime. Admin operation."""
+        if self._scheduler is None:
+            return False
+        return await self._scheduler.update_schedule(
+            schedule_id,
+            cron_expr=cron_expr,
+            message=message,
+            timezone=timezone,
+            enabled=enabled,
+        )
 
     # --- Execution management ---
 

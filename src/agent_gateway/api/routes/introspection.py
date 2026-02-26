@@ -82,6 +82,7 @@ async def list_agents(request: Request) -> list[AgentInfo]:
             retrievers=agent.retrievers,
             context_file_count=len(agent.context_content),
             memory_enabled=bool(agent.memory_config and agent.memory_config.enabled),
+            enabled=agent.enabled,
         )
         for agent in ws.agents.values()
     ]
@@ -125,6 +126,7 @@ async def get_agent(
         input_schema=agent.input_schema,
         retrievers=agent.retrievers,
         context_file_count=len(agent.context_content),
+        enabled=agent.enabled,
     )
 
 

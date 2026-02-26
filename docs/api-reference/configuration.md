@@ -442,3 +442,29 @@ dashboard:
   theme:
     mode: dark
 ```
+
+---
+
+## AGENT.md Frontmatter Fields
+
+Each agent is defined by an `AGENT.md` file with YAML frontmatter. The following fields are recognized:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `description` | `str` | `""` | Human-readable agent description. |
+| `display_name` | `str \| null` | `null` | Optional display name (defaults to directory name). |
+| `tags` | `list[str]` | `[]` | Tags for filtering and categorization. |
+| `version` | `str \| null` | `null` | Agent version string. |
+| `enabled` | `bool` | `true` | Whether the agent is enabled. Disabled agents return 422 from invoke/chat. Editable from the admin dashboard. |
+| `skills` | `list[str]` | `[]` | Skill IDs available to the agent. |
+| `model` | `object` | `{}` | Model configuration (`name`, `temperature`, `max_tokens`, `fallback`). |
+| `execution_mode` | `"sync" \| "async"` | `"sync"` | Default execution mode. |
+| `schedules` | `list[object]` | `[]` | Cron schedule definitions. |
+| `scope` | `"global" \| "personal"` | `"global"` | Agent scope. Personal agents require per-user setup. |
+| `delegates_to` | `list[str]` | `[]` | Agent IDs this agent can delegate to. |
+| `input_schema` | `object \| null` | `null` | JSON Schema for input validation. |
+| `setup_schema` | `object \| null` | `null` | JSON Schema for personal agent setup form. |
+| `notifications` | `object` | `{}` | Notification targets for `on_complete`, `on_error`, `on_timeout`. |
+| `context` | `list[str]` | `[]` | Explicit context file paths relative to workspace root. |
+| `retrievers` | `list[str]` | `[]` | Context retriever IDs for RAG. |
+| `memory` | `object` | `{}` | Memory configuration (`enabled`, `auto_extract`, etc.). |

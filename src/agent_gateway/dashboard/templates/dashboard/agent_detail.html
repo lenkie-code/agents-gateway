@@ -1,0 +1,172 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ card.display_name }} — {{ dashboard_title }}{% endblock %}
+{% block page_title %}Agent Detail{% endblock %}
+
+{% block content %}
+<div class="px-8 py-6 max-w-3xl">
+
+  <!-- Back + Header -->
+  <div class="mb-6">
+    <a href="/dashboard/agents" class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-white transition-colors mb-3">
+      <span class="material-symbols-outlined text-sm">arrow_back</span>
+      Back to Agents
+    </a>
+
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-xl bg-surface-2 border border-border-dark flex items-center justify-center text-primary font-bold text-xl flex-shrink-0">
+        {{ card.initials }}
+      </div>
+      <div class="flex-1">
+        <h1 class="text-2xl font-bold text-white tracking-tight">{{ card.display_name }}</h1>
+        <p class="text-xs text-slate-500">Agent ID: <span class="font-mono text-slate-400">{{ agent.id }}</span></p>
+      </div>
+      {% if card.enabled %}
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        Online
+      </span>
+      {% else %}
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-500/10 border border-slate-500/20 text-slate-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+        Disabled
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Toggle enable/disable -->
+  <div class="mb-5">
+    <form method="POST" action="/dashboard/agents/{{ agent.id }}/toggle">
+      {% if card.enabled %}
+      <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold hover:bg-rose-500/20 transition-colors">
+        <span class="material-symbols-outlined text-sm">block</span>
+        Disable Agent
+      </button>
+      {% else %}
+      <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors">
+        <span class="material-symbols-outlined text-sm">check_circle</span>
+        Enable Agent
+      </button>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if error %}
+  <div class="p-4 mb-5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex gap-3">
+    <span class="material-symbols-outlined text-rose-500 flex-shrink-0">error</span>
+    <span class="text-sm">{{ error }}</span>
+  </div>
+  {% endif %}
+
+  <!-- Edit Form -->
+  <form method="POST" action="/dashboard/agents/{{ agent.id }}/edit">
+    <div class="bg-surface border border-border-dark rounded-xl p-5 mb-5">
+      <h2 class="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Edit Configuration</h2>
+      <div class="space-y-4">
+
+        <div>
+          <label for="description" class="block text-sm font-medium text-slate-300 mb-1">Description</label>
+          <textarea id="description" name="description" rows="3"
+            class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50">{{ agent.description or '' }}</textarea>
+        </div>
+
+        <div>
+          <label for="display_name" class="block text-sm font-medium text-slate-300 mb-1">Display Name</label>
+          <input type="text" id="display_name" name="display_name" value="{{ agent.display_name or '' }}"
+            class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+            placeholder="Optional display name">
+        </div>
+
+        <div>
+          <label for="tags" class="block text-sm font-medium text-slate-300 mb-1">Tags</label>
+          <input type="text" id="tags" name="tags" value="{{ agent.tags | join(', ') }}"
+            class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+            placeholder="Comma-separated tags">
+          <p class="text-[10px] text-slate-500 mt-1">Separate multiple tags with commas</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="model_name" class="block text-sm font-medium text-slate-300 mb-1">Model Name</label>
+            <input type="text" id="model_name" name="model_name" value="{{ agent.model.name or '' }}"
+              class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+              placeholder="e.g. gpt-4o">
+          </div>
+
+          <div>
+            <label for="model_temperature" class="block text-sm font-medium text-slate-300 mb-1">Temperature</label>
+            <input type="number" id="model_temperature" name="model_temperature"
+              value="{{ agent.model.temperature if agent.model.temperature is not none else '' }}"
+              step="0.1" min="0" max="2"
+              class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+              placeholder="0.0 - 2.0">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="model_max_tokens" class="block text-sm font-medium text-slate-300 mb-1">Max Tokens</label>
+            <input type="number" id="model_max_tokens" name="model_max_tokens"
+              value="{{ agent.model.max_tokens if agent.model.max_tokens is not none else '' }}"
+              class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+              placeholder="Optional">
+          </div>
+
+          <div>
+            <label for="execution_mode" class="block text-sm font-medium text-slate-300 mb-1">Execution Mode</label>
+            <select id="execution_mode" name="execution_mode"
+              class="w-full px-3 py-2 bg-surface-2 border border-border-dark rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50">
+              <option value="sync" {% if agent.execution_mode == 'sync' %}selected{% endif %}>Synchronous</option>
+              <option value="async" {% if agent.execution_mode == 'async' %}selected{% endif %}>Asynchronous</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- Read-only info -->
+  <div class="bg-surface border border-border-dark rounded-xl p-5">
+    <h2 class="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Agent Info (Read-only)</h2>
+    <div class="space-y-3 text-sm">
+      {% if agent.skills %}
+      <div>
+        <span class="text-slate-500">Skills:</span>
+        <span class="text-slate-300">{{ agent.skills | join(', ') }}</span>
+      </div>
+      {% endif %}
+      {% if agent.schedules %}
+      <div>
+        <span class="text-slate-500">Schedules:</span>
+        {% for s in agent.schedules %}
+        <a href="/dashboard/schedules/{{ agent.id }}:{{ s.name }}/detail"
+           class="text-primary hover:underline">{{ s.name }}</a>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if agent.delegates_to %}
+      <div>
+        <span class="text-slate-500">Delegates to:</span>
+        <span class="text-slate-300">{{ agent.delegates_to | join(', ') }}</span>
+      </div>
+      {% endif %}
+      <div>
+        <span class="text-slate-500">Scope:</span>
+        <span class="text-slate-300">{{ agent.scope }}</span>
+      </div>
+      <div>
+        <span class="text-slate-500">Memory:</span>
+        <span class="text-slate-300">{{ 'Enabled' if agent.memory_config.enabled else 'Disabled' }}</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -274,6 +274,28 @@ async def trigger_schedule(schedule_id: str) -> str | None
 
 Manually trigger a schedule outside its normal cron cadence. Returns the `execution_id` of the triggered run, or `None` if the schedule was not found.
 
+### `update_schedule`
+
+```python
+async def update_schedule(
+    schedule_id: str,
+    cron_expr: str | None = None,
+    message: str | None = None,
+    timezone: str | None = None,
+    enabled: bool | None = None,
+) -> bool
+```
+
+Update a schedule's configuration at runtime. Only provided fields are changed. Updates both APScheduler and the persistence record. Returns `True` if the schedule was found and updated. Note: runtime schedule edits do NOT update AGENT.md.
+
+### `is_agent_enabled`
+
+```python
+def is_agent_enabled(agent_id: str) -> bool
+```
+
+Check if an agent is enabled (from AGENT.md frontmatter). Returns `False` if the agent does not exist or has `enabled: false`.
+
 ---
 
 ## Fluent Configuration

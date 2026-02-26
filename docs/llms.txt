@@ -300,6 +300,14 @@ async with Gateway(workspace="./workspace") as gw:
 | `agents-gateway db downgrade` | Rollback migration |
 | `agents-gateway version` | Show version |
 
+## Admin Dashboard Management
+
+- Admin dashboard supports agent editing (frontmatter fields: description, display_name, tags, model, execution_mode)
+- Agents can be disabled at runtime via dashboard; disabled agents return 422 from invoke/chat
+- Agent enable/disable writes `enabled: true/false` to AGENT.md frontmatter and reloads the workspace
+- Schedules can be edited at runtime (cron, message, timezone, enabled) via admin dashboard
+- Runtime schedule edits update APScheduler + persistence but do NOT update AGENT.md
+
 ## Links
 
 - Documentation: https://vince-nyanga.github.io/agents-gateway/

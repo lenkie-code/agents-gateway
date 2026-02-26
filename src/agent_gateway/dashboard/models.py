@@ -25,6 +25,7 @@ class AgentCard:
     scope: str = "global"
     is_personal: bool = False
     user_configured: bool = False
+    enabled: bool = True
     status: str = "online"  # "online" | "busy" | "setup_required"
 
     @classmethod
@@ -51,6 +52,7 @@ class AgentCard:
             scope=agent.scope,
             is_personal=is_personal,
             user_configured=user_config.setup_completed if user_config else False,
+            enabled=agent.enabled,
         )
 
 

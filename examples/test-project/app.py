@@ -112,6 +112,13 @@ else:
         sidebar_color="#0f172a",
     )
 
+# Admin Dashboard Management (requires login as admin):
+# 1. Agents page: click agent name -> detail/edit page (admin only)
+# 2. Edit description, model, tags -> saves to AGENT.md and reloads
+# 3. Disable/enable agent toggle -> disabled agents return 422 on invoke
+# 4. Schedules page: click edit icon -> schedule detail/edit page (admin only)
+# 5. Edit cron expression, message, timezone -> updates APScheduler live
+
 # --- Security headers ---
 # Enabled by default. Customize if needed:
 # gw.use_security_headers(x_frame_options="SAMEORIGIN")

@@ -108,9 +108,17 @@
               </div>
             </td>
             <td class="px-5 py-4 whitespace-nowrap text-right">
+              {% if current_user and current_user.is_admin %}
+              <a href="/dashboard/schedules/{{ s.id }}/detail"
+                 class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
+                 title="Edit Schedule">
+                <span class="material-symbols-outlined text-base">edit</span>
+              </a>
+              {% else %}
               <button class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10">
                 <span class="material-symbols-outlined text-base">more_horiz</span>
               </button>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
