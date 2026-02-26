@@ -167,6 +167,7 @@ class AgentInfo(BaseModel):
     )
     context_file_count: int = Field(0, description="Number of static context files attached.")
     memory_enabled: bool = Field(False, description="Whether agent memory is enabled.")
+    enabled: bool = Field(True, description="Whether the agent is enabled (can accept requests).")
 
 
 class SkillInfo(BaseModel):

@@ -178,6 +178,47 @@ Agents with `scope: personal` are visually distinguished in the dashboard:
 
 Personal agents require `AGENT_GATEWAY_SECRET_KEY` to be set for encrypting user secrets.
 
+## Admin Management
+
+Admin users have access to additional management features in the dashboard. These require logging in with the `admin_username` / `admin_password` credentials.
+
+### Agent Detail & Edit
+
+Click an agent's name on the Agents page to open the detail page (`/dashboard/agents/{id}/detail`). The detail page shows:
+
+- Current configuration (description, model, tags, execution mode)
+- An edit form for mutable frontmatter fields
+- Read-only info (skills, schedules, delegates, scope, memory)
+- An enable/disable toggle
+
+**Editable fields:** `description`, `display_name`, `tags`, `model.name`, `model.temperature`, `model.max_tokens`, `execution_mode`.
+
+**Not editable from the dashboard:** `skills`, `schedules`, `delegates_to`, `scope`, `input_schema`, `setup_schema`, `notifications`, `context`, `retrievers`, `memory`, and the markdown prompt body.
+
+Edits are written to `AGENT.md` frontmatter on disk and trigger a workspace reload. Changes take effect immediately and survive restarts.
+
+### Agent Enable/Disable
+
+Each agent has an `enabled` frontmatter field (defaults to `true` when absent). Toggling this from the dashboard:
+
+1. Writes `enabled: false` (or `true`) to `AGENT.md` frontmatter
+2. Triggers a workspace reload
+3. Disabled agents return **422** from the invoke and chat API endpoints
+4. Disabled agents show a "Disabled" badge and are grayed out on the dashboard
+
+This is a persistent change — it survives gateway restarts because it is written to disk.
+
+### Schedule Editing
+
+Admin users can click the edit icon on the Schedules page to open the schedule detail page (`/dashboard/schedules/{id}/detail`). The edit form allows changing:
+
+- **Cron expression** (5-part cron syntax)
+- **Message** (the text sent to the agent)
+- **Timezone**
+- **Enabled** toggle
+
+Schedule edits update both APScheduler (runtime) and the persistence record. However, **schedule edits do NOT update AGENT.md**. On gateway restart, `AGENT.md` values take precedence and any runtime edits are lost.
+
 ## Analytics
 
 The analytics page renders cost and execution volume charts over configurable time windows. It requires a SQL persistence backend to be configured — the in-memory default does not support the aggregation queries needed for analytics.

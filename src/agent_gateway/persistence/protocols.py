@@ -128,6 +128,15 @@ class ScheduleRepository(Protocol):
 
     async def update_enabled(self, schedule_id: str, enabled: bool) -> None: ...
 
+    async def update_schedule(
+        self,
+        schedule_id: str,
+        cron_expr: str,
+        message: str,
+        timezone: str,
+        next_run_at: datetime | None = None,
+    ) -> None: ...
+
 
 @runtime_checkable
 class AuditRepository(Protocol):

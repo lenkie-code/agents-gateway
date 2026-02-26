@@ -183,6 +183,21 @@ class NullScheduleRepository:
         if record is not None:
             record.enabled = enabled
 
+    async def update_schedule(
+        self,
+        schedule_id: str,
+        cron_expr: str,
+        message: str,
+        timezone: str,
+        next_run_at: datetime | None = None,
+    ) -> None:
+        record = self._store.get(schedule_id)
+        if record is not None:
+            record.cron_expr = cron_expr
+            record.message = message
+            record.timezone = timezone
+            record.next_run_at = next_run_at
+
 
 class NullAuditRepository:
     """No-op audit repository — used when persistence is disabled."""

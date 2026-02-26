@@ -32,6 +32,7 @@ from agent_gateway.dashboard.models import (
     format_duration,
     relative_time,
 )
+from agent_gateway.workspace.writer import update_agent_frontmatter
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -201,7 +202,9 @@ def register_dashboard(
         cards = []
         for a in agents:
             card = AgentCard.from_definition(a, user_config=user_configs_by_agent.get(a.id))
-            if a.scope == "personal" and not card.user_configured:
+            if not card.enabled:
+                card.status = "disabled"
+            elif a.scope == "personal" and not card.user_configured:
                 card.status = "setup_required"
             elif a.id in busy_agents:
                 card.status = "busy"
@@ -477,6 +480,133 @@ def register_dashboard(
         user_id = current_user.username
         if user_id and user_id != "anonymous":
             await gw._user_agent_config_repo.delete(user_id, agent_id)
+        return RedirectResponse(url="/dashboard/agents", status_code=303)
+
+    @protected.get("/agents/{agent_id}/detail", response_class=HTMLResponse)
+    async def agent_detail(
+        request: Request,
+        agent_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        """Admin-only agent detail page with edit form."""
+        gw = request.app
+        agents = gw.agents
+        agent = agents.get(agent_id)
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        card = AgentCard.from_definition(agent)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/agent_detail.html",
+            context={
+                "agent": agent,
+                "card": card,
+                "error": None,
+                "current_user": current_user,
+                "active_page": "agents",
+            },
+        )
+
+    @protected.post("/agents/{agent_id}/edit")
+    async def agent_edit(
+        request: Request,
+        agent_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+        description: str = Form(""),
+        display_name: str = Form(""),
+        tags: str = Form(""),  # comma-separated
+        model_name: str = Form(""),
+        model_temperature: str = Form(""),
+        model_max_tokens: str = Form(""),
+        execution_mode: str = Form("sync"),
+    ) -> Any:
+        """Update agent frontmatter and reload workspace."""
+        import anyio
+
+        gw = request.app
+        agent = gw.agents.get(agent_id)
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        updates: dict[str, Any] = {}
+        updates["description"] = description.strip()
+        if display_name.strip():
+            updates["display_name"] = display_name.strip()
+        if tags.strip():
+            updates["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+        else:
+            updates["tags"] = []
+
+        model_updates: dict[str, Any] = {}
+        if model_name.strip():
+            model_updates["name"] = model_name.strip()
+        if model_temperature.strip():
+            try:
+                model_updates["temperature"] = float(model_temperature)
+            except ValueError:
+                card = AgentCard.from_definition(agent)
+                return templates.TemplateResponse(
+                    request=request,
+                    name="dashboard/agent_detail.html",
+                    context={
+                        "agent": agent,
+                        "card": card,
+                        "error": "Invalid temperature value. Must be a number.",
+                        "current_user": current_user,
+                        "active_page": "agents",
+                    },
+                    status_code=422,
+                )
+        if model_max_tokens.strip():
+            try:
+                model_updates["max_tokens"] = int(model_max_tokens)
+            except ValueError:
+                card = AgentCard.from_definition(agent)
+                return templates.TemplateResponse(
+                    request=request,
+                    name="dashboard/agent_detail.html",
+                    context={
+                        "agent": agent,
+                        "card": card,
+                        "error": "Invalid max tokens value. Must be an integer.",
+                        "current_user": current_user,
+                        "active_page": "agents",
+                    },
+                    status_code=422,
+                )
+        if model_updates:
+            updates["model"] = model_updates
+
+        if execution_mode in ("sync", "async"):
+            updates["execution_mode"] = execution_mode
+
+        await anyio.to_thread.run_sync(lambda: update_agent_frontmatter(agent.path, updates))
+        await gw.reload()
+
+        return RedirectResponse(url=f"/dashboard/agents/{agent_id}/detail", status_code=303)
+
+    @protected.post("/agents/{agent_id}/toggle")
+    async def toggle_agent(
+        request: Request,
+        agent_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> RedirectResponse:
+        """Toggle agent enabled/disabled by writing to AGENT.md frontmatter."""
+        import anyio
+
+        gw = request.app
+        agent = gw.agents.get(agent_id)
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        new_enabled = not agent.enabled
+        await anyio.to_thread.run_sync(
+            lambda: update_agent_frontmatter(agent.path, {"enabled": new_enabled})
+        )
+        await gw.reload()
+
         return RedirectResponse(url="/dashboard/agents", status_code=303)
 
     @protected.get("/executions", response_class=HTMLResponse)
@@ -1046,6 +1176,118 @@ def register_dashboard(
                 await gw._scheduler.resume(schedule_id)
             else:
                 await gw._scheduler.pause(schedule_id)
+
+        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+
+    @protected.get("/schedules/{schedule_id:path}/detail", response_class=HTMLResponse)
+    async def schedule_detail(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        """Admin-only schedule detail page with edit form."""
+        gw = request.app
+        schedule = await gw.get_schedule(schedule_id)
+        if schedule is None:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        agent_name = schedule["agent_id"]
+        agent = gw.agents.get(schedule["agent_id"])
+        if agent:
+            agent_name = agent.display_name or agent.id
+
+        return templates.TemplateResponse(
+            request=request,
+            name="dashboard/schedule_detail.html",
+            context={
+                "schedule": schedule,
+                "agent_name": agent_name,
+                "error": None,
+                "current_user": current_user,
+                "active_page": "schedules",
+            },
+        )
+
+    @protected.post("/schedules/{schedule_id:path}/edit")
+    async def schedule_edit(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+        cron_expr: str = Form(...),
+        message: str = Form(...),
+        timezone: str = Form("UTC"),
+        enabled: str = Form("off"),  # checkbox value
+    ) -> Any:
+        """Update schedule configuration."""
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        from apscheduler.triggers.cron import CronTrigger
+
+        gw = request.app
+
+        # Validate cron expression
+        try:
+            CronTrigger.from_crontab(cron_expr, timezone=timezone)
+        except (ValueError, KeyError):
+            schedule = await gw.get_schedule(schedule_id)
+            if schedule is None:
+                raise HTTPException(  # noqa: B904
+                    status_code=404, detail="Schedule not found"
+                )
+            agent_name = schedule["agent_id"]
+            agent = gw.agents.get(schedule["agent_id"])
+            if agent:
+                agent_name = agent.display_name or agent.id
+            return templates.TemplateResponse(
+                request=request,
+                name="dashboard/schedule_detail.html",
+                context={
+                    "schedule": schedule,
+                    "agent_name": agent_name,
+                    "error": "Invalid cron expression.",
+                    "current_user": current_user,
+                    "active_page": "schedules",
+                },
+                status_code=422,
+            )
+
+        # Validate timezone
+        try:
+            ZoneInfo(timezone)
+        except (ZoneInfoNotFoundError, KeyError):
+            schedule = await gw.get_schedule(schedule_id)
+            if schedule is None:
+                raise HTTPException(  # noqa: B904
+                    status_code=404, detail="Schedule not found"
+                )
+            agent_name = schedule["agent_id"]
+            agent = gw.agents.get(schedule["agent_id"])
+            if agent:
+                agent_name = agent.display_name or agent.id
+            return templates.TemplateResponse(
+                request=request,
+                name="dashboard/schedule_detail.html",
+                context={
+                    "schedule": schedule,
+                    "agent_name": agent_name,
+                    "error": "Invalid timezone.",
+                    "current_user": current_user,
+                    "active_page": "schedules",
+                },
+                status_code=422,
+            )
+
+        is_enabled = enabled == "on"
+
+        ok = await gw.update_schedule(
+            schedule_id,
+            cron_expr=cron_expr,
+            message=message,
+            timezone=timezone,
+            enabled=is_enabled,
+        )
+        if not ok:
+            raise HTTPException(status_code=404, detail="Schedule not found")
 
         return RedirectResponse(url="/dashboard/schedules", status_code=303)
 

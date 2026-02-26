@@ -498,6 +498,58 @@ class SchedulerEngine:
             self._scheduler.remove_job(schedule_id)
         self._agent_map.pop(schedule_id, None)
 
+    async def update_schedule(
+        self,
+        schedule_id: str,
+        cron_expr: str | None = None,
+        message: str | None = None,
+        timezone: str | None = None,
+        enabled: bool | None = None,
+    ) -> bool:
+        """Update a system schedule's configuration at runtime.
+
+        Returns True if the schedule was found and updated.
+        """
+        if self._scheduler is None:
+            return False
+
+        config = self._schedule_configs.get(schedule_id)
+        agent_id = self._agent_map.get(schedule_id)
+        if config is None or agent_id is None:
+            return False
+
+        # Update in-memory ScheduleConfig dataclass
+        if cron_expr is not None:
+            config.cron = cron_expr
+        if message is not None:
+            config.message = message
+        if timezone is not None:
+            config.timezone = timezone
+        if enabled is not None:
+            config.enabled = enabled
+
+        # Remove and re-register the APScheduler job with new settings
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            self._scheduler.remove_job(schedule_id)
+        await self._register_job(schedule_id, agent_id, config)
+
+        # Update persistence record
+        next_run = self._get_next_run_time(schedule_id)
+        await self._schedule_repo.update_schedule(
+            schedule_id,
+            cron_expr=config.cron,
+            message=config.message,
+            timezone=config.timezone or self._timezone,
+            next_run_at=next_run,
+        )
+
+        if enabled is not None:
+            await self._schedule_repo.update_enabled(schedule_id, enabled)
+
+        return True
+
     async def get_schedule(self, schedule_id: str) -> dict[str, Any] | None:
         """Get a single schedule with full details."""
         rec = await self._schedule_repo.get(schedule_id)

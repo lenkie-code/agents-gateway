@@ -614,6 +614,25 @@ class ScheduleRepository:
             record.enabled = enabled
             await session.commit()
 
+    async def update_schedule(
+        self,
+        schedule_id: str,
+        cron_expr: str,
+        message: str,
+        timezone: str,
+        next_run_at: datetime | None = None,
+    ) -> None:
+        """Update schedule configuration fields."""
+        async with self._session_factory() as session:
+            record = await session.get(ScheduleRecord, schedule_id)
+            if record is None:
+                return
+            record.cron_expr = cron_expr
+            record.message = message
+            record.timezone = timezone
+            record.next_run_at = next_run_at
+            await session.commit()
+
 
 class AuditRepository:
     """CRUD operations for audit log entries."""
