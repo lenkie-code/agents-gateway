@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -490,8 +491,6 @@ class SchedulerEngine:
 
     async def remove_user_schedule(self, schedule_id: str) -> None:
         """Remove a per-user schedule from APScheduler."""
-        import contextlib
-
         if self._scheduler is None:
             return
         with contextlib.suppress(Exception):
@@ -529,8 +528,6 @@ class SchedulerEngine:
             config.enabled = enabled
 
         # Remove and re-register the APScheduler job with new settings
-        import contextlib
-
         with contextlib.suppress(Exception):
             self._scheduler.remove_job(schedule_id)
         await self._register_job(schedule_id, agent_id, config)

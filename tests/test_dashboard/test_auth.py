@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from agent_gateway.dashboard.auth import (
+    AdminRequiredError,
     DashboardUser,
     _hash_password,
     make_get_dashboard_user,
@@ -149,12 +150,11 @@ class TestRequireAdmin:
         user = await dep(_make_request(session={"dashboard_user": "admin"}))
         assert user.is_admin is True
 
-    async def test_non_admin_raises_403(self) -> None:
+    async def test_non_admin_raises_admin_required(self) -> None:
         cfg = make_auth_config()
         dep = make_require_admin(cfg)
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AdminRequiredError):
             await dep(_make_request(session={"dashboard_user": "testuser"}))
-        assert exc_info.value.status_code == 403
 
     async def test_non_admin_htmx_has_reswap_header(self) -> None:
         cfg = make_auth_config()

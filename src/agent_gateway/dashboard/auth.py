@@ -10,6 +10,10 @@ from typing import TYPE_CHECKING
 from fastapi import Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+
+class AdminRequiredError(Exception):
+    """Raised when a non-admin user attempts to access an admin-only dashboard page."""
+
 if TYPE_CHECKING:
     from agent_gateway.config import DashboardAuthConfig
 
@@ -72,7 +76,7 @@ def make_require_admin(auth_config: DashboardAuthConfig):  # type: ignore[no-unt
                     detail="Admin access required",
                     headers={"HX-Reswap": "none"},
                 )
-            raise HTTPException(status_code=403, detail="Admin access required")
+            raise AdminRequiredError()
         return current_user
 
     return require_admin

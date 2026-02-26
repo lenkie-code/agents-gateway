@@ -85,7 +85,21 @@ class TestScheduleDetailPage:
             ) as client:
                 await _login(client, "testuser", "testpass")
                 resp = await client.get("/dashboard/schedules/some:schedule/detail")
-                assert resp.status_code == 403
+                assert resp.status_code == 303
+
+    async def test_detail_page_404_for_nonexistent_schedule(self, tmp_path: Path) -> None:
+        """Admin gets 404 for a schedule that doesn't exist."""
+        ws = _copy_workspace(tmp_path)
+        gw = await _make_gw(ws)
+        async with gw:
+            _mock_repos(gw)
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw), base_url="http://test"
+            ) as client:
+                await _login(client, "admin", "adminpass")
+                resp = await client.get("/dashboard/schedules/nonexistent/detail")
+                assert resp.status_code == 404
 
 
 class TestScheduleEdit:
@@ -109,4 +123,109 @@ class TestScheduleEdit:
                     },
                     follow_redirects=False,
                 )
-                assert resp.status_code == 403
+                assert resp.status_code == 303
+
+    async def test_edit_nonexistent_schedule_returns_404(self, tmp_path: Path) -> None:
+        """Editing unknown schedule returns 404."""
+        ws = _copy_workspace(tmp_path)
+        gw = await _make_gw(ws)
+        async with gw:
+            _mock_repos(gw)
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw), base_url="http://test"
+            ) as client:
+                await _login(client, "admin", "adminpass")
+                resp = await client.post(
+                    "/dashboard/schedules/nonexistent/edit",
+                    data={
+                        "cron_expr": "*/5 * * * *",
+                        "message": "test",
+                        "timezone": "UTC",
+                    },
+                    follow_redirects=False,
+                )
+                assert resp.status_code == 404
+
+    async def test_edit_invalid_cron_returns_422(self, tmp_path: Path) -> None:
+        """Invalid cron expression returns 422 with inline error."""
+        ws = _copy_workspace(tmp_path)
+        gw = await _make_gw(ws)
+        async with gw:
+            _mock_repos(gw)
+            # Mock get_schedule to return a schedule so the handler renders the form
+            schedule_data = {
+                "id": "test:schedule",
+                "agent_id": next(iter(gw.agents)),
+                "cron": "*/5 * * * *",
+                "message": "hello",
+                "timezone": "UTC",
+                "enabled": True,
+                "last_run_at": None,
+                "next_run_at": None,
+            }
+            gw._schedule_repo.get.return_value = None  # type: ignore[union-attr]
+
+            async def mock_get_schedule(sid: str) -> dict[str, object] | None:
+                if sid == "test:schedule":
+                    return schedule_data
+                return None
+
+            gw.get_schedule = mock_get_schedule  # type: ignore[assignment]
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw), base_url="http://test"
+            ) as client:
+                await _login(client, "admin", "adminpass")
+                resp = await client.post(
+                    "/dashboard/schedules/test:schedule/edit",
+                    data={
+                        "cron_expr": "not a cron",
+                        "message": "test",
+                        "timezone": "UTC",
+                    },
+                    follow_redirects=False,
+                )
+                assert resp.status_code == 422
+                assert "Invalid cron" in resp.text
+
+    async def test_edit_invalid_timezone_returns_422(self, tmp_path: Path) -> None:
+        """Invalid timezone returns 422 with inline error."""
+        ws = _copy_workspace(tmp_path)
+        gw = await _make_gw(ws)
+        async with gw:
+            _mock_repos(gw)
+            schedule_data = {
+                "id": "test:schedule",
+                "agent_id": next(iter(gw.agents)),
+                "cron": "*/5 * * * *",
+                "message": "hello",
+                "timezone": "UTC",
+                "enabled": True,
+                "last_run_at": None,
+                "next_run_at": None,
+            }
+
+            async def mock_get_schedule(sid: str) -> dict[str, object] | None:
+                if sid == "test:schedule":
+                    return schedule_data
+                return None
+
+            gw.get_schedule = mock_get_schedule  # type: ignore[assignment]
+
+            async with AsyncClient(
+                transport=ASGITransport(app=gw), base_url="http://test"
+            ) as client:
+                await _login(client, "admin", "adminpass")
+                resp = await client.post(
+                    "/dashboard/schedules/test:schedule/edit",
+                    data={
+                        "cron_expr": "*/5 * * * *",
+                        "message": "test",
+                        "timezone": "Not/A/Timezone",
+                    },
+                    follow_redirects=False,
+                )
+                assert resp.status_code == 422
+                # May show "Invalid cron" or "Invalid timezone" depending on validation order
+                assert "Invalid" in resp.text

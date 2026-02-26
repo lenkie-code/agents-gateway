@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.resources
 import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+import anyio
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +17,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from starlette.responses import StreamingResponse
 
 from agent_gateway.dashboard.auth import (
+    AdminRequiredError,
     DashboardUser,
     make_get_dashboard_user,
     make_login_handler,
@@ -99,6 +102,13 @@ def register_dashboard(
         )
     except Exception:
         logger.warning("Dashboard static files not found; static assets may be missing")
+
+    # Handle admin-required errors with a styled redirect
+    @app.exception_handler(AdminRequiredError)
+    async def _handle_admin_required(
+        request: Request, exc: AdminRequiredError
+    ) -> RedirectResponse:
+        return RedirectResponse(url="/dashboard/agents", status_code=303)
 
     # Warn if admin credentials are partially configured
     auth_config = dash_config.auth
@@ -523,8 +533,6 @@ def register_dashboard(
         execution_mode: str = Form("sync"),
     ) -> Any:
         """Update agent frontmatter and reload workspace."""
-        import anyio
-
         gw = request.app
         agent = gw.agents.get(agent_id)
         if agent is None:
@@ -594,8 +602,6 @@ def register_dashboard(
         current_user: DashboardUser = Depends(require_admin),
     ) -> RedirectResponse:
         """Toggle agent enabled/disabled by writing to AGENT.md frontmatter."""
-        import anyio
-
         gw = request.app
         agent = gw.agents.get(agent_id)
         if agent is None:
@@ -631,8 +637,6 @@ def register_dashboard(
         search: str | None = request.query_params.get("search") or None
 
         # Parse date filters
-        import contextlib
-
         since_dt: datetime | None = None
         until_dt: datetime | None = None
         if date_from:
@@ -1225,57 +1229,41 @@ def register_dashboard(
 
         gw = request.app
 
-        # Validate cron expression
-        try:
-            CronTrigger.from_crontab(cron_expr, timezone=timezone)
-        except (ValueError, KeyError):
-            schedule = await gw.get_schedule(schedule_id)
-            if schedule is None:
-                raise HTTPException(  # noqa: B904
-                    status_code=404, detail="Schedule not found"
-                )
-            agent_name = schedule["agent_id"]
-            agent = gw.agents.get(schedule["agent_id"])
-            if agent:
-                agent_name = agent.display_name or agent.id
+        # Pre-fetch schedule for validation error rendering
+        schedule = await gw.get_schedule(schedule_id)
+        if schedule is None:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        agent_name = schedule["agent_id"]
+        agent = gw.agents.get(schedule["agent_id"])
+        if agent:
+            agent_name = agent.display_name or agent.id
+
+        def _render_error(error_msg: str) -> Any:
             return templates.TemplateResponse(
                 request=request,
                 name="dashboard/schedule_detail.html",
                 context={
                     "schedule": schedule,
                     "agent_name": agent_name,
-                    "error": "Invalid cron expression.",
+                    "error": error_msg,
                     "current_user": current_user,
                     "active_page": "schedules",
                 },
                 status_code=422,
             )
 
+        # Validate cron expression
+        try:
+            CronTrigger.from_crontab(cron_expr, timezone=timezone)
+        except (ValueError, KeyError):
+            return _render_error("Invalid cron expression.")
+
         # Validate timezone
         try:
             ZoneInfo(timezone)
         except (ZoneInfoNotFoundError, KeyError):
-            schedule = await gw.get_schedule(schedule_id)
-            if schedule is None:
-                raise HTTPException(  # noqa: B904
-                    status_code=404, detail="Schedule not found"
-                )
-            agent_name = schedule["agent_id"]
-            agent = gw.agents.get(schedule["agent_id"])
-            if agent:
-                agent_name = agent.display_name or agent.id
-            return templates.TemplateResponse(
-                request=request,
-                name="dashboard/schedule_detail.html",
-                context={
-                    "schedule": schedule,
-                    "agent_name": agent_name,
-                    "error": "Invalid timezone.",
-                    "current_user": current_user,
-                    "active_page": "schedules",
-                },
-                status_code=422,
-            )
+            return _render_error("Invalid timezone.")
 
         is_enabled = enabled == "on"
 
@@ -1326,8 +1314,6 @@ def register_dashboard(
         ]
 
         # Expose available notification backends for the form
-        import contextlib
-
         notification_channels: list[str] = []
         with contextlib.suppress(Exception):
             notification_channels = list(gw._notification_engine._backends.keys())

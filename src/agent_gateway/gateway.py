@@ -255,7 +255,7 @@ class Gateway(FastAPI):
         agent = self.agents.get(agent_id)
         if agent is None:
             return False
-        return agent.enabled  # type: ignore[no-any-return]
+        return bool(agent.enabled)
 
     def health(self) -> dict[str, Any]:
         """Return gateway health info (programmatic equivalent of GET /v1/health)."""

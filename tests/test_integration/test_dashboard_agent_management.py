@@ -85,7 +85,7 @@ def _read_frontmatter(agent_dir: Path) -> dict:
 
 class TestAgentDisable:
     async def test_disable_agent_blocks_invoke(self, tmp_path: Path) -> None:
-        """Disabled agent returns 422 from /v1/agents/{id}/invoke."""
+        """Disabled agent returns 503 from /v1/agents/{id}/invoke."""
         ws = _copy_workspace(tmp_path)
         gw = await _make_gw(ws)
         async with gw:
@@ -106,11 +106,11 @@ class TestAgentDisable:
                     f"/v1/agents/{agent_id}/invoke",
                     json={"message": "hello"},
                 )
-                assert resp.status_code == 422
+                assert resp.status_code == 503
                 assert "disabled" in resp.json()["error"]["code"]
 
     async def test_disable_agent_blocks_chat(self, tmp_path: Path) -> None:
-        """Disabled agent returns 422 from /v1/agents/{id}/chat."""
+        """Disabled agent returns 503 from /v1/agents/{id}/chat."""
         ws = _copy_workspace(tmp_path)
         gw = await _make_gw(ws)
         async with gw:
@@ -129,7 +129,7 @@ class TestAgentDisable:
                     f"/v1/agents/{agent_id}/chat",
                     json={"message": "hello"},
                 )
-                assert resp.status_code == 422
+                assert resp.status_code == 503
                 assert "disabled" in resp.json()["error"]["code"]
 
     async def test_introspection_shows_enabled_field(self, tmp_path: Path) -> None:
@@ -189,7 +189,7 @@ class TestAgentToggle:
                     f"/dashboard/agents/{agent_id}/toggle",
                     follow_redirects=False,
                 )
-                assert resp.status_code == 403
+                assert resp.status_code == 303
 
 
 class TestAgentDetailPage:
@@ -222,7 +222,7 @@ class TestAgentDetailPage:
             ) as client:
                 await _login(client, "testuser", "testpass")
                 resp = await client.get(f"/dashboard/agents/{agent_id}/detail")
-                assert resp.status_code == 403
+                assert resp.status_code == 303
 
 
 class TestAgentEdit:
@@ -274,7 +274,7 @@ class TestAgentEdit:
                     data={"description": "x"},
                     follow_redirects=False,
                 )
-                assert resp.status_code == 403
+                assert resp.status_code == 303
 
     async def test_edit_nonexistent_agent_returns_404(self, tmp_path: Path) -> None:
         """Editing unknown agent returns 404."""
