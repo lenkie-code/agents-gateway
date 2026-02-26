@@ -1,7 +1,7 @@
 ---
 title: "feat: Super Admin Dashboard Management — Agents, Schedules, Enable/Disable"
 type: feat
-status: draft
+status: completed
 date: 2026-02-26
 depends_on: 2026-02-23-feat-superuser-admin-system-plan
 ---
