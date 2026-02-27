@@ -78,11 +78,15 @@
   <aside class="w-64 flex-shrink-0 flex flex-col border-r border-border-dark/30 bg-background-dark/50 backdrop-blur-xl sidebar z-30">
     <div class="p-6 flex items-center gap-3 sidebar-branding">
       <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+        {% if dashboard_icon_url %}
+        <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-6 h-6 object-contain">
+        {% else %}
         <span class="material-symbols-outlined text-2xl">hub</span>
+        {% endif %}
       </div>
       <div>
         <h1 class="font-bold text-base leading-tight dark:text-white">{{ dashboard_title }}</h1>
-        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">AI Control Plane</p>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{{ dashboard_subtitle }}</p>
       </div>
     </div>
 

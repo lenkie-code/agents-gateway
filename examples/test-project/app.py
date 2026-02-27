@@ -7,6 +7,7 @@ import httpx
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from retrievers import EmailHistoryRetriever
+from starlette.staticfiles import StaticFiles
 
 from agent_gateway import Gateway
 from agent_gateway.engine.models import ExecutionOptions
@@ -42,6 +43,9 @@ if use_keycloak_api:
     gw_kwargs["swagger_ui_oauth2_redirect_url"] = "/docs/oauth2-redirect"
 
 gw = Gateway(**gw_kwargs)
+
+# Mount static files for branding assets (icon, favicon, etc.)
+gw.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Pluggable backends (fluent API) ---
 # Distributed scheduler locking: enabled in gateway.yaml (scheduler.distributed_lock)
@@ -92,6 +96,9 @@ use_keycloak_dashboard = os.environ.get("KEYCLOAK_DASHBOARD", "").strip() in ("1
 if use_keycloak_dashboard:
     gw.use_dashboard(
         title="Agent Gateway — Test Project",
+        subtitle="Intelligent Automation Hub",
+        icon_url="/static/icon.png",
+        favicon_url="/static/icon.png",
         oauth2_issuer=KEYCLOAK_ISSUER,
         oauth2_client_id=os.environ.get("KEYCLOAK_DASHBOARD_CLIENT_ID", "agw-dashboard"),
         oauth2_client_secret=os.environ.get(
@@ -104,6 +111,9 @@ if use_keycloak_dashboard:
 else:
     gw.use_dashboard(
         title="Agent Gateway — Test Project",
+        subtitle="Intelligent Automation Hub",
+        icon_url="/static/icon.png",
+        favicon_url="/static/icon.png",
         auth_username="user",
         auth_password=os.environ.get("DASHBOARD_PASSWORD", "userpass"),
         admin_username="admin",
@@ -259,7 +269,6 @@ class MathResult(BaseModel):
 
 
 # --- Lifecycle hooks ---
-
 
 
 @gw.on("agent.invoke.before")

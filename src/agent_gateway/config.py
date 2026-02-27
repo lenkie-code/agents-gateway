@@ -266,7 +266,9 @@ class DashboardThemeConfig(BaseModel):
 class DashboardConfig(BaseModel):
     enabled: bool = False  # opt-in
     title: str = "Agent Gateway"
+    subtitle: str = "AI Control Plane"
     logo_url: str | None = None
+    icon_url: str | None = None
     favicon_url: str | None = None
     auth: DashboardAuthConfig = DashboardAuthConfig()
     theme: DashboardThemeConfig = DashboardThemeConfig()

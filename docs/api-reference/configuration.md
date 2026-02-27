@@ -333,8 +333,10 @@ Env prefix: `AGENT_GATEWAY_DASHBOARD__`
 |-------|------|---------|-------------|
 | `enabled` | `bool` | `False` | Enable the dashboard at `/dashboard`. Opt-in. |
 | `title` | `str` | `"Agent Gateway"` | Browser tab title and sidebar heading. |
-| `logo_url` | `str \| None` | `None` | URL of a logo image displayed in the sidebar. |
-| `favicon_url` | `str \| None` | `None` | URL of a custom favicon. |
+| `subtitle` | `str` | `"AI Control Plane"` | Tagline displayed beneath the title in the sidebar and on the login page. |
+| `icon_url` | `str \| None` | `None` | URL of an icon image that replaces the default Material hub icon in the sidebar header and on the login page. Square images are recommended. Falls back to the built-in icon when not set. |
+| `logo_url` | `str \| None` | `None` | URL of a wordmark/logo image displayed on the login page. Distinct from `icon_url` — typically a horizontal brand lockup rather than a compact symbol. |
+| `favicon_url` | `str \| None` | `None` | URL of a custom browser tab favicon. |
 | `auth` | `DashboardAuthConfig` | — | Dashboard authentication settings. |
 | `theme` | `DashboardThemeConfig` | — | Visual theme settings. |
 

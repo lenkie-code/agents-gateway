@@ -54,7 +54,11 @@
     <!-- Branding -->
     <div class="text-center mb-8">
       <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary shadow-lg shadow-primary/30 mb-5">
+        {% if dashboard_icon_url %}
+        <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-8 h-8 object-contain">
+        {% else %}
         <span class="material-symbols-outlined text-white text-3xl">hub</span>
+        {% endif %}
       </div>
       {% if dashboard_logo_url %}
       <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="h-7 w-auto mx-auto mb-3" />
@@ -133,7 +137,7 @@
 
     <!-- Footer -->
     <p class="text-center text-xs text-slate-600 mt-6">
-      Agent Gateway &mdash; AI Control Plane
+      {{ dashboard_title }} &mdash; {{ dashboard_subtitle }}
     </p>
   </div>
 </div>

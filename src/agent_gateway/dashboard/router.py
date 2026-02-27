@@ -60,7 +60,9 @@ def _build_templates(dash_config: DashboardConfig) -> Jinja2Templates:
     env.globals["relative_time"] = relative_time
     env.globals["json_dumps"] = json.dumps
     env.globals["dashboard_title"] = dash_config.title
+    env.globals["dashboard_subtitle"] = dash_config.subtitle
     env.globals["dashboard_logo_url"] = dash_config.logo_url
+    env.globals["dashboard_icon_url"] = dash_config.icon_url
     env.globals["dashboard_favicon_url"] = dash_config.favicon_url
     colors = dash_config.theme.resolved_colors()
     env.globals["dashboard_colors"] = colors
