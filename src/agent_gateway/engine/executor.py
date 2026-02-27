@@ -111,6 +111,7 @@ class ExecutionEngine:
         memory_block: str = "",
         caller_identity: str | None = None,
         user_instructions: str | None = None,
+        schedule_instructions: str | None = None,
         user_secrets: dict[str, str] | None = None,
         user_config: dict[str, Any] | None = None,
         parent_execution_id: str | None = None,
@@ -161,6 +162,7 @@ class ExecutionEngine:
             context_retrieval_config=self._config.context_retrieval,
             memory_block=memory_block,
             user_instructions=user_instructions,
+            schedule_instructions=schedule_instructions,
         )
         if json_schema:
             system_prompt += build_schema_instruction(json_schema)

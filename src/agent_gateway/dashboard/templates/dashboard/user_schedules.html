@@ -243,6 +243,12 @@
     </div>
 
     <div class="form-group" style="margin-bottom: var(--space-3);">
+      <label for="sched-instructions" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Instructions <span class="text-muted" style="font-weight:400;">(optional)</span></label>
+      <textarea name="instructions" id="sched-instructions" class="input" style="width:100%; min-height: 4rem;" placeholder="Per-schedule instructions for the agent..."></textarea>
+      <div class="text-xs text-muted" style="margin-top: 2px;">Custom instructions injected into the agent's system prompt when this schedule fires. Max 4000 characters.</div>
+    </div>
+
+    <div class="form-group" style="margin-bottom: var(--space-3);">
       <label for="sched-tz" class="form-label" style="display:block; margin-bottom: var(--space-1); font-weight:500;">Timezone</label>
       <select name="timezone" id="sched-tz" class="input" style="width:100%;">
         <option value="UTC">UTC</option>

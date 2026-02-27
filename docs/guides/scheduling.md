@@ -27,6 +27,7 @@ schedules:
 | `input` | No | Additional structured input passed alongside the message |
 | `enabled` | No | Defaults to `true`. Set to `false` to define but not activate |
 | `timezone` | No | IANA timezone name. Defaults to UTC |
+| `instructions` | No | Additional instructions injected into the agent's system prompt when this schedule fires. See [Per-Schedule Instructions](#per-schedule-instructions) |
 
 Cron expressions follow the standard 5-field format: `minute hour day-of-month month day-of-week`. For example:
 
@@ -39,6 +40,41 @@ Cron expressions follow the standard 5-field format: `minute hour day-of-month m
 ### Schedule IDs
 
 Every schedule has a stable ID in the format `{agent_id}:{schedule_name}`. For the example above that would be `report-agent:daily-report`. Use this ID with the management API and CLI.
+
+## Per-Schedule Instructions
+
+The optional `instructions` field lets a single agent behave differently across multiple schedules. When a schedule fires, the value is injected into the agent's system prompt as a dedicated "Schedule Instructions" section — after the agent's base prompt and any user personalization, so it takes precedence for that invocation.
+
+This is useful when:
+
+- One agent produces multiple types of output depending on the day/time (e.g. a social media agent with a "tips" post on Mondays and a "news roundup" on Fridays).
+- You want to constrain the agent's response format or focus area for a specific automated run without creating a second agent.
+
+```yaml
+---
+name: social-media-agent
+schedules:
+  - name: monday-tips
+    cron: "0 9 * * 1"
+    message: "Create this week's social media post"
+    instructions: "Write a practical tip for Python developers. Use a friendly tone. Keep it under 280 characters."
+    timezone: "America/New_York"
+
+  - name: friday-roundup
+    cron: "0 9 * * 5"
+    message: "Create this week's social media post"
+    instructions: "Write a weekly roundup of interesting Python news and releases. Use three bullet points."
+    timezone: "America/New_York"
+---
+```
+
+Instructions are injected only for scheduled firings (including manual triggers via `POST /v1/schedules/{id}/trigger`). They do not affect direct `invoke` or `chat` calls.
+
+!!! note
+    Keep instructions concise and focused on the behavioral difference between schedules. For complex agents, think of this field as a "scene-setter" that adjusts tone, format, or focus — not a full replacement for the agent's system prompt. There is no hard character limit enforced by the gateway, but very long instructions will increase token usage for every scheduled run.
+
+!!! note
+    Instructions can be edited at runtime from the dashboard schedule edit form without restarting or modifying `AGENT.md`. Runtime edits update APScheduler and the persistence layer but do not write back to `AGENT.md`.
 
 ## Gateway Configuration
 
@@ -178,6 +214,133 @@ The PostgreSQL backend uses `pg_try_advisory_lock` with a hash of the schedule I
 
 !!! note
     Distributed locking applies only to **scheduled** job firings. Manual triggers via `POST /v1/schedules/{id}/trigger` always execute regardless of the lock state.
+
+## Admin-Created Schedules
+
+In addition to schedules defined in `AGENT.md` frontmatter, admin users can create and delete **admin schedules** dynamically — without modifying any workspace files or redeploying the gateway.
+
+### How admin schedules differ from workspace schedules
+
+| | Workspace schedule | Admin schedule |
+|---|---|---|
+| Defined in | `AGENT.md` frontmatter | Dashboard or API at runtime |
+| `source` field | `"workspace"` | `"admin"` |
+| Survives workspace reload | Yes (re-synced from `AGENT.md`) | Yes (loaded from database) |
+| Survives gateway restart | Yes | Yes (re-registered from database on startup) |
+| Deletable via API | No | Yes |
+| ID format | `{agent_id}:{name}` | `admin:{agent_id}:{name}` |
+
+Workspace schedules are managed exclusively through `AGENT.md`. The API and dashboard will reject attempts to delete them.
+
+### Creating admin schedules via the API
+
+Send a `POST` request to `/v1/schedules`. Requires the `schedules:manage` scope.
+
+```http
+POST /v1/schedules
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "agent_id": "report-agent",
+  "name": "weekly-summary",
+  "cron_expr": "0 10 * * 1",
+  "message": "Generate the weekly executive summary",
+  "instructions": "Focus on revenue trends and customer churn. Keep the report under 500 words.",
+  "timezone": "Europe/London",
+  "enabled": true
+}
+```
+
+A successful request returns HTTP `201 Created` with the new `schedule_id`.
+
+**Request fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `agent_id` | Yes | ID of the agent to schedule. Must refer to a known agent. |
+| `name` | Yes | Unique name within this agent. Alphanumeric, underscores, dots, and hyphens only. |
+| `cron_expr` | Yes | Standard 5-field cron expression. |
+| `message` | Yes | Message sent to the agent when the schedule fires. |
+| `instructions` | No | Per-schedule instructions injected into the system prompt. |
+| `input` | No | Additional structured input passed alongside the message. |
+| `timezone` | No | IANA timezone name. Defaults to `"UTC"`. |
+| `enabled` | No | Whether the schedule is immediately active. Defaults to `true`. |
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Invalid cron expression, unknown `agent_id`, or `name` contains disallowed characters |
+| `409` | A non-deleted schedule with the same `agent_id` and `name` already exists |
+
+### Deleting admin schedules via the API
+
+Send a `DELETE` request to `/v1/schedules/{schedule_id}`. Requires the `schedules:manage` scope.
+
+```http
+DELETE /v1/schedules/admin:report-agent:weekly-summary
+Authorization: Bearer <token>
+```
+
+Returns HTTP `200` on success. Returns `400` if the schedule is a workspace schedule (only admin schedules can be deleted this way).
+
+### Creating and deleting admin schedules programmatically
+
+Use the `create_admin_schedule()` and `delete_admin_schedule()` methods on the `Gateway` instance:
+
+```python
+# Create an admin schedule
+schedule_id = await gw.create_admin_schedule(
+    agent_id="report-agent",
+    name="weekly-summary",
+    cron_expr="0 10 * * 1",
+    message="Generate the weekly executive summary",
+    instructions="Focus on revenue trends. Keep the report under 500 words.",
+    timezone="Europe/London",
+)
+print(schedule_id)  # "admin:report-agent:weekly-summary"
+
+# Delete it when no longer needed
+deleted = await gw.delete_admin_schedule(schedule_id)
+```
+
+Both methods return `None` / `False` if the scheduler is not active.
+
+Raises `ScheduleConflictError` if a schedule with the same name already exists for the agent.
+Raises `ScheduleValidationError` if the cron expression is invalid or the agent ID is unknown.
+
+### Dashboard
+
+Admin users see a **New Schedule** button on the schedules page at `/dashboard/schedules`. Clicking it opens a form with fields for agent, name, cron expression, message, instructions, timezone, and enabled state.
+
+The schedule list displays a badge for each schedule's origin:
+
+- **Workspace** — defined in `AGENT.md`. Runtime edits are supported; deletion is not.
+- **Admin** — created dynamically. A delete button is shown alongside the standard edit controls.
+
+### The `source` field
+
+All schedule list and detail API responses include a `source` field:
+
+```json
+{
+  "id": "admin:report-agent:weekly-summary",
+  "agent_id": "report-agent",
+  "name": "weekly-summary",
+  "source": "admin",
+  "cron_expr": "0 10 * * 1",
+  "enabled": true
+}
+```
+
+Use this field to distinguish admin schedules from workspace schedules in client code.
+
+!!! note
+    Admin schedules are loaded from the database on every gateway startup via `_load_admin_schedules`. They are registered with APScheduler alongside workspace schedules and behave identically at runtime — the `source` distinction only affects management operations (creation, deletion, and workspace sync).
+
+!!! warning
+    Workspace reloads (triggered by `POST /v1/reload` or the `--reload` flag) only re-sync workspace schedules. Admin schedules in the database are left untouched and remain active after a reload.
 
 ## Per-User Schedules
 

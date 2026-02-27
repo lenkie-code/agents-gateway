@@ -17,8 +17,8 @@ workspace/
 │   │   └── BEHAVIOR.md              # Behavioral guardrails
 │   ├── data-processor/             # Long-running data processor (async + notifications)
 │   │   └── AGENT.md                # execution_mode: async, notifications on all events
-│   ├── scheduled-reporter/         # Agent with a cron schedule (disabled)
-│   │   └── AGENT.md
+│   ├── scheduled-reporter/         # Agent with cron schedules + per-schedule instructions
+│   │   └── AGENT.md                # Two schedules with different instructions
 │   └── travel-planner/             # Travel planning agent (sync + notifications)
 │       └── AGENT.md                # Notifications on complete/error
 ├── skills/

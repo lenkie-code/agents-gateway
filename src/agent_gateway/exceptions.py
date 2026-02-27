@@ -74,5 +74,13 @@ class SchedulerLockError(AgentGatewayError):
     """Failed to acquire or release a distributed scheduler lock."""
 
 
+class ScheduleConflictError(AgentGatewayError):
+    """Raised when a schedule with the same name already exists for an agent."""
+
+
+class ScheduleValidationError(AgentGatewayError):
+    """Raised when schedule configuration is invalid (e.g., bad cron expression)."""
+
+
 class AgentMemoryError(AgentGatewayError):
     """Base for memory-related errors."""

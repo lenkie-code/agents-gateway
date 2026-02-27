@@ -459,7 +459,7 @@ Each agent is defined by an `AGENT.md` file with YAML frontmatter. The following
 | `skills` | `list[str]` | `[]` | Skill IDs available to the agent. |
 | `model` | `object` | `{}` | Model configuration (`name`, `temperature`, `max_tokens`, `fallback`). |
 | `execution_mode` | `"sync" \| "async"` | `"sync"` | Default execution mode. |
-| `schedules` | `list[object]` | `[]` | Cron schedule definitions. |
+| `schedules` | `list[ScheduleConfig]` | `[]` | Cron schedule definitions. See [ScheduleConfig](#scheduleconfig) below. |
 | `scope` | `"global" \| "personal"` | `"global"` | Agent scope. Personal agents require per-user setup. |
 | `delegates_to` | `list[str]` | `[]` | Agent IDs this agent can delegate to. |
 | `input_schema` | `object \| null` | `null` | JSON Schema for input validation. |
@@ -468,3 +468,32 @@ Each agent is defined by an `AGENT.md` file with YAML frontmatter. The following
 | `context` | `list[str]` | `[]` | Explicit context file paths relative to workspace root. |
 | `retrievers` | `list[str]` | `[]` | Context retriever IDs for RAG. |
 | `memory` | `object` | `{}` | Memory configuration (`enabled`, `auto_extract`, etc.). |
+
+### ScheduleConfig
+
+Each entry in the `schedules` list supports the following fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | `str` | — | Unique schedule name within the agent. Forms the schedule ID as `{agent_id}:{name}`. |
+| `cron` | `str` | — | Standard 5-field cron expression (e.g. `"0 9 * * 1-5"`). |
+| `message` | `str` | — | Message sent to the agent when the schedule fires. |
+| `input` | `dict` | `{}` | Additional structured input passed alongside the message. |
+| `enabled` | `bool` | `true` | Whether the schedule is active. Set to `false` to define without activating. |
+| `timezone` | `str` | `"UTC"` | IANA timezone name for the cron expression (e.g. `"America/New_York"`). |
+| `instructions` | `str \| None` | `None` | Per-schedule instructions injected into the agent's system prompt when this schedule fires. Allows a single agent to behave differently across multiple schedules (e.g. different post styles per schedule). Instructions appear after the agent's base prompt and any user personalization. |
+
+See the [Scheduling guide](../guides/scheduling.md#per-schedule-instructions) for usage examples and guidance on writing effective per-schedule instructions.
+
+### Schedule `source` field
+
+Every schedule record — whether loaded from `AGENT.md` or created at runtime via the API or dashboard — carries a `source` field that identifies its origin.
+
+| Value | Meaning |
+|-------|---------|
+| `"workspace"` | Defined in `AGENT.md` frontmatter. Re-synced on every workspace reload. Cannot be deleted via the API. |
+| `"admin"` | Created at runtime by an admin user via `POST /v1/schedules` or `gw.create_admin_schedule()`. Persisted in the database. Survives workspace reloads and gateway restarts. Can be deleted via `DELETE /v1/schedules/{id}` or `gw.delete_admin_schedule()`. |
+
+The `source` field is included in all `GET /v1/schedules` and `GET /v1/schedules/{id}` responses. Workspace schedules cannot be deleted through the API or dashboard; the API returns `400` if a delete is attempted on a `"workspace"` schedule.
+
+See the [Admin-Created Schedules guide](../guides/scheduling.md#admin-created-schedules) for full usage details.

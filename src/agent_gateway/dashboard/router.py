@@ -1147,6 +1147,7 @@ def register_dashboard(
 
         ws = gw.workspace
         agent_names = {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
+        agents_list = list(ws.agents.values()) if ws else []
 
         return templates.TemplateResponse(
             request=request,
@@ -1156,6 +1157,7 @@ def register_dashboard(
                 "user_schedules": user_schedules,
                 "schedule_stats": schedule_stats,
                 "agent_names": agent_names,
+                "agents": agents_list,
                 "current_user": current_user,
                 "active_page": "schedules",
             },
@@ -1219,6 +1221,7 @@ def register_dashboard(
         current_user: DashboardUser = Depends(require_admin),
         cron_expr: str = Form(...),
         message: str = Form(...),
+        instructions: str = Form(""),
         timezone: str = Form("UTC"),
         enabled: str = Form("off"),  # checkbox value
     ) -> Any:
@@ -1273,10 +1276,79 @@ def register_dashboard(
             message=message,
             timezone=timezone,
             enabled=is_enabled,
+            instructions=instructions.strip() or "",
         )
         if not ok:
             raise HTTPException(status_code=404, detail="Schedule not found")
 
+        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+
+    @protected.post("/schedules/create")
+    async def create_admin_schedule(
+        request: Request,
+        current_user: DashboardUser = Depends(require_admin),
+        agent_id: str = Form(...),
+        name: str = Form(...),
+        cron_expr: str = Form(...),
+        message: str = Form(...),
+        instructions: str = Form(""),
+        timezone: str = Form("UTC"),
+        enabled: str = Form("off"),
+    ) -> Any:
+        """Create a new admin schedule from the dashboard."""
+        from agent_gateway.exceptions import ScheduleConflictError, ScheduleValidationError
+
+        gw = request.app
+        is_enabled = enabled == "on"
+
+        try:
+            await gw.create_admin_schedule(
+                agent_id=agent_id,
+                name=name,
+                cron_expr=cron_expr,
+                message=message,
+                instructions=instructions.strip() or None,
+                timezone=timezone,
+                enabled=is_enabled,
+            )
+        except (ScheduleValidationError, ScheduleConflictError) as e:
+            # Re-render schedules page with error
+            schedule_repo = gw._schedule_repo
+            exec_repo = gw._execution_repo
+            records = await schedule_repo.list_all()
+            schedule_stats = await exec_repo.get_schedule_stats(hours=24)
+            ws = gw.workspace
+            agent_names = (
+                {aid: (a.display_name or aid) for aid, a in ws.agents.items()} if ws else {}
+            )
+            agents_list = list(ws.agents.values()) if ws else []
+            return templates.TemplateResponse(
+                request=request,
+                name="dashboard/schedules.html",
+                context={
+                    "schedules": records,
+                    "user_schedules": [],
+                    "schedule_stats": schedule_stats,
+                    "agent_names": agent_names,
+                    "agents": agents_list,
+                    "current_user": current_user,
+                    "active_page": "schedules",
+                    "create_error": str(e),
+                },
+                status_code=422,
+            )
+
+        return RedirectResponse(url="/dashboard/schedules", status_code=303)
+
+    @protected.post("/schedules/{schedule_id:path}/delete")
+    async def delete_admin_schedule(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> RedirectResponse:
+        """Delete an admin-created schedule."""
+        gw = request.app
+        await gw.delete_admin_schedule(schedule_id)
         return RedirectResponse(url="/dashboard/schedules", status_code=303)
 
     @protected.get("/my-schedules", response_class=HTMLResponse)
@@ -1339,6 +1411,7 @@ def register_dashboard(
         cron_expr: str = Form(...),
         schedule_message: str = Form(...),
         timezone: str = Form("UTC"),
+        instructions: str = Form(""),
         current_user: DashboardUser = Depends(get_dashboard_user),
     ) -> RedirectResponse:
         import uuid
@@ -1379,6 +1452,7 @@ def register_dashboard(
                 }
 
         schedule_id = f"user:{user_id}:{agent_id}:{str(uuid.uuid4())[:8]}"
+        sched_instructions = instructions.strip() or None
         record = UserScheduleRecord(
             id=schedule_id,
             user_id=user_id,
@@ -1386,6 +1460,7 @@ def register_dashboard(
             name=name,
             cron_expr=cron_expr,
             message=schedule_message,
+            instructions=sched_instructions,
             enabled=True,
             timezone=timezone,
             notify=notify,
@@ -1402,6 +1477,7 @@ def register_dashboard(
                 message=schedule_message,
                 timezone=timezone,
                 notify=notify,
+                instructions=sched_instructions,
             )
 
         return RedirectResponse(url="/dashboard/my-schedules", status_code=303)

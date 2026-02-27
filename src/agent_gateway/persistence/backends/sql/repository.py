@@ -531,9 +531,11 @@ class ScheduleRepository:
                 existing.name = record.name
                 existing.cron_expr = record.cron_expr
                 existing.message = record.message
+                existing.instructions = record.instructions
                 existing.input = record.input
                 existing.enabled = record.enabled
                 existing.timezone = record.timezone
+                existing.source = record.source
                 existing.next_run_at = record.next_run_at
                 existing.deleted_at = None  # un-delete if re-added
             await session.commit()
@@ -548,15 +550,27 @@ class ScheduleRepository:
                 if existing is None:
                     session.add(record)
                 else:
+                    if getattr(existing, "source", "workspace") == "admin":
+                        continue  # Never overwrite admin schedules during workspace sync
                     existing.name = record.name
                     existing.cron_expr = record.cron_expr
                     existing.message = record.message
+                    existing.instructions = record.instructions
                     existing.input = record.input
                     existing.enabled = record.enabled
                     existing.timezone = record.timezone
+                    existing.source = record.source
                     existing.next_run_at = record.next_run_at
                     existing.deleted_at = None
             await session.commit()
+
+    async def soft_delete(self, schedule_id: str) -> None:
+        """Soft-delete a schedule by setting deleted_at."""
+        async with self._session_factory() as session:
+            record = await session.get(ScheduleRecord, schedule_id)
+            if record is not None:
+                record.deleted_at = datetime.now(UTC)
+                await session.commit()
 
     async def get(self, schedule_id: str) -> ScheduleRecord | None:
         """Fetch a schedule by ID."""
@@ -621,6 +635,8 @@ class ScheduleRepository:
         message: str,
         timezone: str,
         next_run_at: datetime | None = None,
+        *,
+        instructions: str | None = None,
     ) -> None:
         """Update schedule configuration fields."""
         async with self._session_factory() as session:
@@ -630,6 +646,8 @@ class ScheduleRepository:
             record.cron_expr = cron_expr
             record.message = message
             record.timezone = timezone
+            if instructions is not None:
+                record.instructions = instructions or None
             record.next_run_at = next_run_at
             await session.commit()
 

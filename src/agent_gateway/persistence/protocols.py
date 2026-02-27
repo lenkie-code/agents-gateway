@@ -128,6 +128,8 @@ class ScheduleRepository(Protocol):
 
     async def update_enabled(self, schedule_id: str, enabled: bool) -> None: ...
 
+    async def soft_delete(self, schedule_id: str) -> None: ...
+
     async def update_schedule(
         self,
         schedule_id: str,
@@ -135,6 +137,8 @@ class ScheduleRepository(Protocol):
         message: str,
         timezone: str,
         next_run_at: datetime | None = None,
+        *,
+        instructions: str | None = None,
     ) -> None: ...
 
 

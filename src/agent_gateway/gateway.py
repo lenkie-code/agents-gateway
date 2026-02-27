@@ -2391,6 +2391,9 @@ class Gateway(FastAPI):
         elif agent.scope == "personal" and not user_id:
             raise ValueError(f"Agent '{agent_id}' is a personal agent and requires authentication")
 
+        # Schedule-specific instructions (injected by scheduler engine via input dict)
+        schedule_instructions: str | None = input.get("_schedule_instructions") if input else None
+
         memory_block = await self._get_memory_block(agent_id, message, agent.memory_config)
 
         execution_id = str(uuid.uuid4())
@@ -2430,6 +2433,7 @@ class Gateway(FastAPI):
                 tool_executor=execute_tool,
                 memory_block=memory_block,
                 user_instructions=user_instructions,
+                schedule_instructions=schedule_instructions,
                 caller_identity=user_id,
                 user_secrets=user_secrets,
                 user_config=user_config_values,
@@ -2840,6 +2844,7 @@ class Gateway(FastAPI):
         message: str | None = None,
         timezone: str | None = None,
         enabled: bool | None = None,
+        instructions: str | None = None,
     ) -> bool:
         """Update a schedule's configuration at runtime. Admin operation."""
         if self._scheduler is None:
@@ -2850,7 +2855,39 @@ class Gateway(FastAPI):
             message=message,
             timezone=timezone,
             enabled=enabled,
+            instructions=instructions,
         )
+
+    async def create_admin_schedule(
+        self,
+        agent_id: str,
+        name: str,
+        cron_expr: str,
+        message: str,
+        instructions: str | None = None,
+        input_data: dict[str, Any] | None = None,
+        timezone: str = "UTC",
+        enabled: bool = True,
+    ) -> str | None:
+        """Create an admin-managed schedule. Returns schedule_id or None if scheduler inactive."""
+        if self._scheduler is None:
+            return None
+        return await self._scheduler.create_admin_schedule(
+            agent_id=agent_id,
+            name=name,
+            cron_expr=cron_expr,
+            message=message,
+            instructions=instructions,
+            input_data=input_data,
+            timezone=timezone,
+            enabled=enabled,
+        )
+
+    async def delete_admin_schedule(self, schedule_id: str) -> bool:
+        """Delete an admin-created schedule. Returns True if found and deleted."""
+        if self._scheduler is None:
+            return False
+        return await self._scheduler.delete_admin_schedule(schedule_id)
 
     # --- Execution management ---
 

@@ -7,10 +7,26 @@
 <div class="px-8 py-6">
 
   <!-- Page Header -->
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-white tracking-tight">Schedules &amp; Cronjobs</h1>
-    <p class="text-slate-400 text-sm mt-1">Manage and monitor your automated workflows.</p>
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white tracking-tight">Schedules &amp; Cronjobs</h1>
+      <p class="text-slate-400 text-sm mt-1">Manage and monitor your automated workflows.</p>
+    </div>
+    {% if current_user and current_user.is_admin %}
+    <button onclick="document.getElementById('create-schedule-modal').classList.remove('hidden')"
+      class="px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
+      <span class="material-symbols-outlined text-base">add</span>
+      New Schedule
+    </button>
+    {% endif %}
   </div>
+
+  {% if create_error %}
+  <div class="p-4 mb-5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex gap-3">
+    <span class="material-symbols-outlined text-rose-500 flex-shrink-0">error</span>
+    <span class="text-sm">{{ create_error }}</span>
+  </div>
+  {% endif %}
 
   <!-- Stats Bar -->
   <div class="stats-bar mb-6">
@@ -86,13 +102,17 @@
               <span class="cron-chip">{{ s.cron_expr }}</span>
             </td>
             <td class="px-5 py-4 whitespace-nowrap">
-              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary uppercase">Global</span>
+              {% if s.source == 'admin' %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 uppercase">Admin</span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary uppercase">Workspace</span>
+              {% endif %}
             </td>
             <td class="px-5 py-4 whitespace-nowrap text-center">
               {% if current_user and current_user.is_admin %}
               <label class="toggle-switch">
                 <input type="checkbox" {% if s.enabled %}checked{% endif %}
-                  hx-post="/dashboard/my-schedules/{{ s.id }}/toggle"
+                  hx-post="/dashboard/schedules/{{ s.id }}/toggle"
                   hx-swap="none"
                   onchange="this.closest('tr').dataset.enabled = this.checked ? 'true' : 'false'" />
                 <span class="toggle-track"></span>
@@ -109,11 +129,23 @@
             </td>
             <td class="px-5 py-4 whitespace-nowrap text-right">
               {% if current_user and current_user.is_admin %}
-              <a href="/dashboard/schedules/{{ s.id }}/detail"
-                 class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
-                 title="Edit Schedule">
-                <span class="material-symbols-outlined text-base">edit</span>
-              </a>
+              <div class="flex items-center justify-end gap-1">
+                <a href="/dashboard/schedules/{{ s.id }}/detail"
+                   class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10"
+                   title="Edit Schedule">
+                  <span class="material-symbols-outlined text-base">edit</span>
+                </a>
+                {% if s.source == 'admin' %}
+                <form method="POST" action="/dashboard/schedules/{{ s.id }}/delete"
+                      onsubmit="return confirm('Delete this schedule?')">
+                  <button type="submit"
+                    class="p-1.5 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10"
+                    title="Delete Schedule">
+                    <span class="material-symbols-outlined text-base">delete</span>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
               {% else %}
               <button class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10">
                 <span class="material-symbols-outlined text-base">more_horiz</span>
@@ -173,7 +205,7 @@
 
     <!-- Footer -->
     <div class="px-5 py-3 border-t border-border-dark/50 bg-surface-2/30">
-      <p class="text-[10px] text-slate-600">Schedules are derived from agent <code class="text-slate-500">AGENT.md</code> files or manually created personal tasks.</p>
+      <p class="text-[10px] text-slate-600">Schedules are derived from agent <code class="text-slate-500">AGENT.md</code> files, admin-created, or personal tasks.</p>
     </div>
   </div>
 
@@ -183,11 +215,81 @@
       <span class="material-symbols-outlined text-3xl">calendar_month</span>
     </div>
     <h3 class="text-base font-bold text-white mb-1">No schedules configured</h3>
-    <p class="text-sm text-slate-500 max-w-sm">Add <code class="text-slate-400">schedules:</code> to your agent's <code class="text-slate-400">AGENT.md</code> or <a href="/dashboard/my-schedules" class="text-primary font-bold">create a personal schedule</a>.</p>
+    <p class="text-sm text-slate-500 max-w-sm">Add <code class="text-slate-400">schedules:</code> to your agent's <code class="text-slate-400">AGENT.md</code>, <a href="/dashboard/my-schedules" class="text-primary font-bold">create a personal schedule</a>, or use the "New Schedule" button above.</p>
   </div>
   {% endif %}
 
 </div>
+
+<!-- Create Schedule Modal -->
+{% if current_user and current_user.is_admin %}
+<div id="create-schedule-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface border border-border-dark rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-border-dark">
+      <h2 class="text-lg font-bold text-white">New Admin Schedule</h2>
+      <button onclick="document.getElementById('create-schedule-modal').classList.add('hidden')"
+        class="p-1 text-slate-500 hover:text-white transition-colors rounded-lg">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <form method="POST" action="/dashboard/schedules/create" class="p-5 space-y-4">
+      <div>
+        <label for="cs-agent" class="block text-sm font-medium text-slate-300 mb-1">Agent</label>
+        <select id="cs-agent" name="agent_id" required
+          class="input w-full">
+          {% for a in agents %}
+          <option value="{{ a.id }}">{{ a.display_name or a.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="cs-name" class="block text-sm font-medium text-slate-300 mb-1">Name</label>
+        <input type="text" id="cs-name" name="name" required pattern="^[a-zA-Z0-9_.\-]+$"
+          class="input w-full" style="font-family: var(--font-mono, monospace);"
+          placeholder="weekly-report">
+        <p class="text-[10px] text-slate-500 mt-1">Letters, digits, dashes, underscores, dots only.</p>
+      </div>
+      <div>
+        <label for="cs-cron" class="block text-sm font-medium text-slate-300 mb-1">Cron Expression</label>
+        <input type="text" id="cs-cron" name="cron_expr" required
+          class="input w-full" style="font-family: var(--font-mono, monospace);"
+          placeholder="0 9 * * 1-5">
+      </div>
+      <div>
+        <label for="cs-message" class="block text-sm font-medium text-slate-300 mb-1">Message</label>
+        <textarea id="cs-message" name="message" rows="3" required
+          class="input w-full"
+          placeholder="Generate the weekly report..."></textarea>
+      </div>
+      <div>
+        <label for="cs-instructions" class="block text-sm font-medium text-slate-300 mb-1">Instructions <span class="text-slate-500 font-normal">(optional)</span></label>
+        <textarea id="cs-instructions" name="instructions" rows="3"
+          class="input w-full"
+          placeholder="Custom system prompt instructions..."></textarea>
+      </div>
+      <div>
+        <label for="cs-timezone" class="block text-sm font-medium text-slate-300 mb-1">Timezone</label>
+        <input type="text" id="cs-timezone" name="timezone" value="UTC"
+          class="input w-full">
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" name="enabled" value="on" checked class="sr-only peer">
+          <div class="w-9 h-5 bg-surface-2 border border-border-dark rounded-full peer peer-checked:bg-primary/20 peer-checked:border-primary/50 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:bg-primary"></div>
+        </label>
+        <span class="text-sm text-slate-300">Enabled</span>
+      </div>
+      <div class="pt-2 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('create-schedule-modal').classList.add('hidden')"
+          class="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors">Cancel</button>
+        <button type="submit" class="px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
+          Create Schedule
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 <script>
 function filterSchedules(filter) {

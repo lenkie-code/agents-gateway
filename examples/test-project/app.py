@@ -261,6 +261,7 @@ class MathResult(BaseModel):
 # --- Lifecycle hooks ---
 
 
+
 @gw.on("agent.invoke.before")
 async def log_invoke(agent_id, message, execution_id, **kw):
     print(f"[hook] invoke start: agent={agent_id} exec={execution_id}")

@@ -23,6 +23,7 @@ class ScheduleConfig:
     input: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
     timezone: str | None = None
+    instructions: str | None = None
 
 
 @dataclass
@@ -450,6 +451,25 @@ def _parse_schedules(
             )
             continue
 
+        # Parse optional instructions
+        raw_instructions: str | None = s.get("instructions")
+        if raw_instructions is not None:
+            if not isinstance(raw_instructions, str):
+                logger.warning(
+                    "Schedule '%s' in %s has non-string instructions, ignoring",
+                    name,
+                    agent_dir,
+                )
+                raw_instructions = None
+            elif len(raw_instructions) > 4000:
+                logger.warning(
+                    "Schedule '%s' in %s instructions truncated from %d to 4000 chars",
+                    name,
+                    agent_dir,
+                    len(raw_instructions),
+                )
+                raw_instructions = raw_instructions[:4000]
+
         schedules.append(
             ScheduleConfig(
                 name=name,
@@ -458,6 +478,7 @@ def _parse_schedules(
                 input=s.get("input", {}),
                 enabled=s.get("enabled", True),
                 timezone=tz,
+                instructions=raw_instructions,
             )
         )
 
