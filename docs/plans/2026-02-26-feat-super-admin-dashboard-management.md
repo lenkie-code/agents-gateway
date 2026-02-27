@@ -10,7 +10,7 @@ depends_on: 2026-02-23-feat-superuser-admin-system-plan
 
 ## Overview
 
-Extend the dashboard with admin-only management capabilities: editing agent configuration, enabling/disabling agents at runtime, and managing cron job schedules (update cron expression, message, enable/disable). These features build on the superuser/admin system from the [admin plan](2026-02-23-feat-superuser-admin-system-plan.md) -- all new routes require `is_admin`.
+Extend the dashboard with admin-only management capabilities: editing agent configuration, enabling/disabling agents at runtime, and managing cron job schedules (update cron expression, message, enable/disable). These features build on the superuser/admin system from the admin plan -- all new routes require `is_admin`.
 
 ## Problem Statement
 
@@ -63,7 +63,7 @@ Add three admin dashboard features behind `require_admin`:
 
 ## Prerequisites
 
-1. The superuser/admin system from the [admin plan](2026-02-23-feat-superuser-admin-system-plan.md) must be implemented first (`require_admin` dependency, `admin_emails` config, `is_admin` on sessions).
+1. The superuser/admin system from the admin plan must be implemented first (`require_admin` dependency, `admin_emails` config, `is_admin` on sessions).
 
 ## Architecture & Design
 
