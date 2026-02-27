@@ -24,6 +24,7 @@ def upgrade() -> None:
         "schedules",
         ["next_run_at"],
         postgresql_where=text("enabled = true"),
+        if_not_exists=True,
     )
 
 

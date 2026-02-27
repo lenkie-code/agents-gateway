@@ -288,6 +288,60 @@ async def update_schedule(
 
 Update a schedule's configuration at runtime. Only provided fields are changed. Updates both APScheduler and the persistence record. Returns `True` if the schedule was found and updated. Note: runtime schedule edits do NOT update AGENT.md.
 
+### `create_admin_schedule`
+
+```python
+async def create_admin_schedule(
+    agent_id: str,
+    name: str,
+    cron_expr: str,
+    message: str,
+    instructions: str | None = None,
+    input_data: dict[str, Any] | None = None,
+    timezone: str = "UTC",
+    enabled: bool = True,
+) -> str | None
+```
+
+Create a new admin-managed schedule for any agent. Admin schedules are persisted in the database and survive workspace reloads and gateway restarts. Returns the `schedule_id` (format: `admin:{agent_id}:{name}`), or `None` if the scheduler is not active.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agent_id` | `str` | ID of the agent to schedule. Must refer to a known agent. |
+| `name` | `str` | Unique name for this schedule within the agent. Alphanumeric, underscores, dots, and hyphens only. |
+| `cron_expr` | `str` | Standard 5-field cron expression (e.g. `"0 9 * * 1-5"`). |
+| `message` | `str` | Message sent to the agent when the schedule fires. |
+| `instructions` | `str \| None` | Per-schedule instructions injected into the agent's system prompt. |
+| `input_data` | `dict \| None` | Additional structured input passed alongside the message. |
+| `timezone` | `str` | IANA timezone name. Defaults to `"UTC"`. |
+| `enabled` | `bool` | Whether the schedule is immediately active. Defaults to `True`. |
+
+Raises `ScheduleConflictError` if a non-deleted schedule with the same name already exists for the agent. Raises `ScheduleValidationError` if the cron expression is invalid or the agent ID is unknown.
+
+```python
+schedule_id = await gw.create_admin_schedule(
+    agent_id="report-agent",
+    name="weekly-summary",
+    cron_expr="0 10 * * 1",
+    message="Generate the weekly executive summary",
+    instructions="Focus on revenue trends. Keep the report under 500 words.",
+    timezone="Europe/London",
+)
+# schedule_id == "admin:report-agent:weekly-summary"
+```
+
+### `delete_admin_schedule`
+
+```python
+async def delete_admin_schedule(schedule_id: str) -> bool
+```
+
+Soft-delete an admin-created schedule. Removes the schedule from APScheduler immediately and marks the database record as deleted so it is not re-registered on the next startup. Returns `True` if the schedule was found and deleted, `False` if the schedule does not exist, has already been deleted, or has `source="workspace"` (workspace schedules cannot be deleted via this method).
+
+```python
+deleted = await gw.delete_admin_schedule("admin:report-agent:weekly-summary")
+```
+
 ### `is_agent_enabled`
 
 ```python

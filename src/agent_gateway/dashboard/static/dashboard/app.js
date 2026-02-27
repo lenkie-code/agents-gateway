@@ -52,7 +52,7 @@ function createAssistantBubble() {
   div.className = 'message message-assistant';
   div.innerHTML = `
     <div class="message-avatar" style="font-size:0.75rem;">AI</div>
-    <div class="message-bubble"></div>
+    <div class="message-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>
   `;
   return div;
 }
@@ -104,7 +104,6 @@ async function sendChatMessage(form) {
   if (submitBtn) submitBtn.disabled = true;
 
   const indicator = document.getElementById('chat-loading');
-  if (indicator) indicator.style.display = 'flex';
 
   const bubble = createAssistantBubble();
   messagesArea.appendChild(bubble);

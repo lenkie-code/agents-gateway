@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass
@@ -72,9 +72,11 @@ class ScheduleRecord:
     name: str
     cron_expr: str
     message: str
+    instructions: str | None = None
     input: dict[str, Any] | None = None
     enabled: bool = True
     timezone: str = "UTC"
+    source: Literal["workspace", "admin"] = "workspace"
     last_run_at: datetime | None = None
     next_run_at: datetime | None = None
     deleted_at: datetime | None = None
@@ -117,6 +119,7 @@ class UserScheduleRecord:
     name: str
     cron_expr: str
     message: str
+    instructions: str | None = None
     input: dict[str, Any] | None = None
     enabled: bool = True
     timezone: str = "UTC"

@@ -70,6 +70,7 @@ class SchedulerEngine:
         # Schedule definitions keyed by schedule_id for lookup at fire time
         self._schedule_configs: dict[str, ScheduleConfig] = {}
         self._agent_map: dict[str, str] = {}  # schedule_id -> agent_id
+        self._known_agent_ids: set[str] = set()  # all loaded agent IDs
 
     async def start(
         self,
@@ -77,6 +78,9 @@ class SchedulerEngine:
     ) -> None:
         """Register schedules and start the APScheduler background loop."""
         await self._distributed_lock.initialize()
+
+        # Track all known agent IDs (for validation in create_admin_schedule)
+        self._known_agent_ids = set(agents.keys())
 
         # Build schedule_id -> config mapping
         for agent in agents.values():
@@ -105,11 +109,15 @@ class SchedulerEngine:
 
         # Sync to persistence (after start so next_run_time is computed)
         await self._sync_schedule_records(agents)
-        all_scheds = [s for a in agents.values() for s in a.schedules]
-        enabled_count = sum(1 for s in all_scheds if s.enabled)
+
+        # Load admin-created schedules from DB
+        await self._load_admin_schedules()
+
+        total = len(self._schedule_configs)
+        enabled_count = sum(1 for c in self._schedule_configs.values() if c.enabled)
         logger.info(
             "Scheduler started: %d schedules (%d enabled)",
-            len(all_scheds),
+            total,
             enabled_count,
         )
 
@@ -142,6 +150,8 @@ class SchedulerEngine:
         input_data["source"] = "scheduled"
         input_data["schedule_id"] = schedule_id
         input_data["schedule_name"] = sched_config.name
+        if sched_config.instructions:
+            input_data["_schedule_instructions"] = sched_config.instructions
 
         self._scheduler.add_job(
             run_scheduled_job,
@@ -186,14 +196,41 @@ class SchedulerEngine:
                         name=sched.name,
                         cron_expr=sched.cron,
                         message=sched.message,
+                        instructions=sched.instructions,
                         input=dict(sched.input) if sched.input else None,
                         enabled=sched.enabled,
                         timezone=sched.timezone or self._timezone,
+                        source="workspace",
                         next_run_at=next_run,
                         created_at=now,
                     )
                 )
         await self._schedule_repo.upsert_batch(records)
+
+    async def _load_admin_schedules(self) -> None:
+        """Load admin-created schedules from persistence and register as APScheduler jobs."""
+        from agent_gateway.workspace.agent import ScheduleConfig as _ScheduleConfig
+
+        records = await self._schedule_repo.list_all()
+        count = 0
+        for rec in records:
+            if rec.source != "admin" or rec.deleted_at is not None:
+                continue
+            config = _ScheduleConfig(
+                name=rec.name,
+                cron=rec.cron_expr,
+                message=rec.message,
+                instructions=rec.instructions,
+                input=rec.input or {},
+                enabled=rec.enabled,
+                timezone=rec.timezone,
+            )
+            self._schedule_configs[rec.id] = config
+            self._agent_map[rec.id] = rec.agent_id
+            await self._register_job(rec.id, rec.agent_id, config)
+            count += 1
+        if count:
+            logger.info("Loaded %d admin schedules from persistence", count)
 
     def _get_next_run_time(self, schedule_id: str) -> datetime | None:
         """Get the next fire time for a schedule from APScheduler."""
@@ -275,12 +312,17 @@ class SchedulerEngine:
 
         execution_id = str(uuid.uuid4())
 
+        # Strip internal keys (prefixed with '_') from persisted input
+        # to avoid leaking schedule_instructions / notify_config via the API.
+        # The original dict with internal keys is still passed to invoke_fn.
+        persisted_input = {k: v for k, v in input.items() if not k.startswith("_")}
+
         record = ExecutionRecord(
             id=execution_id,
             agent_id=agent_id,
             status="queued",
             message=message,
-            input=input,
+            input=persisted_input,
             schedule_id=schedule_id,
             schedule_name=input.get("schedule_name", ""),
             created_at=datetime.now(UTC),
@@ -371,15 +413,18 @@ class SchedulerEngine:
         input_data["source"] = "manual_trigger"
         input_data["schedule_id"] = schedule_id
         input_data["schedule_name"] = config.name
+        if config.instructions:
+            input_data["_schedule_instructions"] = config.instructions
 
         from agent_gateway.persistence.domain import ExecutionRecord
 
+        persisted_input = {k: v for k, v in input_data.items() if not k.startswith("_")}
         record = ExecutionRecord(
             id=execution_id,
             agent_id=agent_id,
             status="queued",
             message=config.message,
-            input=input_data,
+            input=persisted_input,
             schedule_id=schedule_id,
             schedule_name=config.name,
             created_at=datetime.now(UTC),
@@ -437,6 +482,7 @@ class SchedulerEngine:
                     "cron_expr": rec.cron_expr,
                     "enabled": rec.enabled,
                     "timezone": rec.timezone,
+                    "source": rec.source,
                     "next_run_at": next_run,
                     "last_run_at": rec.last_run_at,
                     "created_at": rec.created_at,
@@ -454,6 +500,7 @@ class SchedulerEngine:
         timezone: str = "UTC",
         enabled: bool = True,
         notify: dict[str, Any] | None = None,
+        instructions: str | None = None,
     ) -> None:
         """Register a per-user schedule as a cron job."""
         if self._scheduler is None:
@@ -466,6 +513,8 @@ class SchedulerEngine:
         job_input["schedule_id"] = schedule_id
         if notify:
             job_input["_notify_config"] = notify
+        if instructions:
+            job_input["_schedule_instructions"] = instructions
 
         self._scheduler.add_job(
             run_scheduled_job,
@@ -504,6 +553,7 @@ class SchedulerEngine:
         message: str | None = None,
         timezone: str | None = None,
         enabled: bool | None = None,
+        instructions: str | None = None,
     ) -> bool:
         """Update a system schedule's configuration at runtime.
 
@@ -526,6 +576,8 @@ class SchedulerEngine:
             config.timezone = timezone
         if enabled is not None:
             config.enabled = enabled
+        if instructions is not None:
+            config.instructions = instructions or None
 
         # Remove and re-register the APScheduler job with new settings
         with contextlib.suppress(Exception):
@@ -540,6 +592,7 @@ class SchedulerEngine:
             message=config.message,
             timezone=config.timezone or self._timezone,
             next_run_at=next_run,
+            instructions=config.instructions,
         )
 
         if enabled is not None:
@@ -560,10 +613,102 @@ class SchedulerEngine:
             "name": rec.name,
             "cron_expr": rec.cron_expr,
             "message": rec.message,
+            "instructions": rec.instructions,
             "input": rec.input or {},
             "enabled": rec.enabled,
             "timezone": rec.timezone,
+            "source": rec.source,
             "next_run_at": next_run,
             "last_run_at": rec.last_run_at,
             "created_at": rec.created_at,
         }
+
+    async def create_admin_schedule(
+        self,
+        agent_id: str,
+        name: str,
+        cron_expr: str,
+        message: str,
+        instructions: str | None = None,
+        input_data: dict[str, Any] | None = None,
+        timezone: str = "UTC",
+        enabled: bool = True,
+    ) -> str:
+        """Create a new admin schedule. Returns the schedule_id."""
+        from agent_gateway.exceptions import ScheduleConflictError, ScheduleValidationError
+        from agent_gateway.workspace.agent import ScheduleConfig as _ScheduleConfig
+
+        # Validate agent exists
+        if agent_id not in self._known_agent_ids:
+            raise ScheduleValidationError(f"Unknown agent: {agent_id}")
+
+        schedule_id = f"admin:{agent_id}:{name}"
+
+        # Check for duplicates
+        existing = await self._schedule_repo.get(schedule_id)
+        if existing is not None and existing.deleted_at is None:
+            raise ScheduleConflictError(f"Schedule '{name}' already exists for agent '{agent_id}'")
+
+        # Validate cron expression
+        try:
+            CronTrigger.from_crontab(cron_expr, timezone=timezone)
+        except (ValueError, KeyError) as e:
+            raise ScheduleValidationError(str(e)) from e
+
+        config = _ScheduleConfig(
+            name=name,
+            cron=cron_expr,
+            message=message,
+            instructions=instructions,
+            input=input_data or {},
+            enabled=enabled,
+            timezone=timezone,
+        )
+
+        # Persist FIRST
+        now = datetime.now(UTC)
+        record = ScheduleRecord(
+            id=schedule_id,
+            agent_id=agent_id,
+            name=name,
+            cron_expr=cron_expr,
+            message=message,
+            instructions=instructions,
+            input=input_data,
+            enabled=enabled,
+            timezone=timezone,
+            source="admin",
+            created_at=now,
+        )
+        await self._schedule_repo.upsert(record)
+
+        # Then register in memory + APScheduler
+        try:
+            self._schedule_configs[schedule_id] = config
+            self._agent_map[schedule_id] = agent_id
+            await self._register_job(schedule_id, agent_id, config)
+        except Exception:
+            self._schedule_configs.pop(schedule_id, None)
+            self._agent_map.pop(schedule_id, None)
+            raise
+
+        return schedule_id
+
+    async def delete_admin_schedule(self, schedule_id: str) -> bool:
+        """Delete an admin-created schedule. Returns False if not found or not admin-sourced."""
+        rec = await self._schedule_repo.get(schedule_id)
+        if rec is None or rec.source != "admin":
+            return False
+
+        # Remove from APScheduler
+        if self._scheduler is not None:
+            with contextlib.suppress(Exception):
+                self._scheduler.remove_job(schedule_id)
+
+        # Remove from in-memory maps
+        self._schedule_configs.pop(schedule_id, None)
+        self._agent_map.pop(schedule_id, None)
+
+        # Soft-delete via dedicated method (NOT upsert, which resets deleted_at)
+        await self._schedule_repo.soft_delete(schedule_id)
+        return True

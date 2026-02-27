@@ -27,6 +27,7 @@ async def assemble_system_prompt(
     memory_block: str = "",
     chat_mode: bool = False,
     user_instructions: str | None = None,
+    schedule_instructions: str | None = None,
 ) -> str:
     """Build the full system prompt for an agent.
 
@@ -76,7 +77,18 @@ async def assemble_system_prompt(
             "</user-instructions>"
         )
 
-    # 4.6. Chat schema guidance (only in chat mode)
+    # 4.6. Schedule instructions (per-schedule customization)
+    if schedule_instructions:
+        parts.append(
+            "## Schedule Instructions\n\n"
+            "<schedule-instructions>\n"
+            "The following are additional instructions specific to this scheduled invocation. "
+            "They customize your behavior for this particular schedule.\n\n"
+            f"{schedule_instructions}\n"
+            "</schedule-instructions>"
+        )
+
+    # 4.7. Chat schema guidance (only in chat mode)
     if chat_mode and agent.input_schema:
         schema_section = _format_chat_schema_guidance(agent.input_schema)
         parts.append(schema_section)

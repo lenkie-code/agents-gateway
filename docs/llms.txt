@@ -71,6 +71,7 @@ schedules:
   - name: daily
     cron: "0 9 * * 1-5"
     message: "Generate report"
+    instructions: "Focus on error rates and system uptime. Use bullet points."
 notifications:
   on_error:
     - channel: slack
@@ -171,6 +172,8 @@ All endpoints include OpenAPI summaries, descriptions, and error response docume
 | GET | /v1/users/me/conversations/{id}/messages | Conversations | Get conversation messages |
 | GET | /v1/schedules | Schedules | List schedules |
 | GET | /v1/schedules/{id} | Schedules | Schedule details |
+| POST | /v1/schedules | Schedules | Create admin schedule |
+| DELETE | /v1/schedules/{id} | Schedules | Delete admin schedule |
 | POST | /v1/schedules/{id}/pause | Schedules | Pause schedule |
 | POST | /v1/schedules/{id}/resume | Schedules | Resume schedule |
 | POST | /v1/schedules/{id}/trigger | Schedules | Trigger schedule |
@@ -254,7 +257,11 @@ Session rehydration: when persistence is enabled, chat sessions survive server r
 
 Distributed scheduler locking: when `scheduler.distributed_lock.enabled: true`, only one gateway instance fires each scheduled job. The `backend: auto` setting selects Redis (via `SET NX EX`) when a Redis queue is configured, or PostgreSQL (`pg_try_advisory_lock`) when a PostgreSQL persistence backend is in use. The lock expires after `lock_ttl_seconds` so a crashed instance cannot permanently block a schedule. Manual triggers via the API are not affected by the lock.
 
+Per-schedule instructions: each schedule definition in `AGENT.md` accepts an optional `instructions` field (string). When the schedule fires, the value is injected into the agent's system prompt as a "Schedule Instructions" section after the base prompt and any user personalization. This allows a single agent to behave differently per schedule — for example, a social media agent that writes tips posts on Mondays and news roundups on Fridays using the same underlying agent. Instructions also apply to manual triggers (`POST /v1/schedules/{id}/trigger`). The field is visible and editable in the dashboard schedule edit form; runtime edits update APScheduler and the database but do not modify `AGENT.md`. Returned in `GET /v1/schedules/{id}` response body.
+
 Notification delivery tracking: when persistence is configured, Agent Gateway automatically records every notification dispatch in a `notification_log` table (`NotificationDeliveryRecord`). Each record captures the channel, target, status (`delivered`/`failed`), attempt count, error message, and timestamps. Query records via `GET /v1/notifications` (filterable by `status`, `agent_id`, `channel`, `execution_id`; paginated with `limit`/`offset`). Failed deliveries can be retried from the dashboard notifications page at `/dashboard/notifications`; the retry preserves the original execution message so the re-fired notification is identical to the initial attempt.
+
+Admin-created dynamic schedules: admins can create and delete system-level schedules for any agent at runtime without modifying `AGENT.md` or redeploying. Create via `POST /v1/schedules` (requires `schedules:manage` scope) or `gw.create_admin_schedule()`. Delete via `DELETE /v1/schedules/{id}` or `gw.delete_admin_schedule()`. Every schedule record includes a `source` field: `"workspace"` for schedules defined in `AGENT.md` frontmatter, and `"admin"` for runtime-created schedules. Admin schedules are persisted in the database with IDs in the format `admin:{agent_id}:{name}`, survive workspace reloads and gateway restarts, and are re-registered with APScheduler on startup. Workspace schedules (`source="workspace"`) cannot be deleted via the API — the delete endpoint returns `400` for those. `ScheduleConflictError` is raised (HTTP 409) if a schedule with the same name already exists for the agent; `ScheduleValidationError` is raised (HTTP 400) for invalid cron expressions or unknown agent IDs. The dashboard shows Workspace/Admin badges on the schedules page and provides a New Schedule form and delete button for admin schedules (admin users only).
 
 Environment variable overrides use prefix `AGENT_GATEWAY_` with `__` nesting:
 `AGENT_GATEWAY_SERVER__PORT=9000`
@@ -305,8 +312,11 @@ async with Gateway(workspace="./workspace") as gw:
 - Admin dashboard supports agent editing (frontmatter fields: description, display_name, tags, model, execution_mode)
 - Agents can be disabled at runtime via dashboard; disabled agents return 422 from invoke/chat
 - Agent enable/disable writes `enabled: true/false` to AGENT.md frontmatter and reloads the workspace
-- Schedules can be edited at runtime (cron, message, timezone, enabled) via admin dashboard
+- Schedules can be edited at runtime (cron, message, timezone, enabled, instructions) via admin dashboard
 - Runtime schedule edits update APScheduler + persistence but do NOT update AGENT.md
+- Admin users can create new schedules for any agent via the dashboard "New Schedule" form or `POST /v1/schedules`
+- Admin-created schedules show an "Admin" badge; workspace schedules show a "Workspace" badge
+- Admin schedules can be deleted from the dashboard or via `DELETE /v1/schedules/{id}`; workspace schedules cannot be deleted
 
 ## Links
 

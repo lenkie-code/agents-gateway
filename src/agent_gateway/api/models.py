@@ -265,6 +265,7 @@ class ScheduleInfo(BaseModel):
     cron_expr: str = Field(..., description="Cron expression (e.g. '0 9 * * 1-5').")
     enabled: bool = Field(True, description="Whether the schedule is active.")
     timezone: str = Field("UTC", description="IANA timezone for cron evaluation.")
+    source: Literal["workspace", "admin"] = Field("workspace", description="Schedule origin.")
     next_run_at: datetime | None = Field(None, description="Next scheduled execution time.")
     last_run_at: datetime | None = Field(None, description="Most recent execution time.")
     created_at: datetime | None = Field(None, description="When the schedule was created.")
@@ -301,6 +302,10 @@ class ScheduleDetailInfo(ScheduleInfo):
     """Schedule detail with message and input."""
 
     message: str = Field("", description="Message sent to the agent on each trigger.")
+    instructions: str | None = Field(
+        None,
+        description="Per-schedule instructions injected into the agent's system prompt.",
+    )
     input: dict[str, Any] = Field(
         default_factory=dict, description="Input variables for scheduled invocations."
     )

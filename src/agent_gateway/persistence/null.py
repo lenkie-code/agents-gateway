@@ -5,7 +5,7 @@ Same interface as the real repositories, but does nothing.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from agent_gateway.persistence.domain import (
@@ -147,6 +147,9 @@ class NullScheduleRepository:
 
     async def upsert_batch(self, records: list[ScheduleRecord]) -> None:
         for record in records:
+            existing = self._store.get(record.id)
+            if existing is not None and getattr(existing, "source", "workspace") == "admin":
+                continue  # Never overwrite admin schedules during workspace sync
             self._store[record.id] = record
 
     async def get(self, schedule_id: str) -> ScheduleRecord | None:
@@ -157,6 +160,11 @@ class NullScheduleRepository:
         if agent_id is not None:
             records = [r for r in records if r.agent_id == agent_id]
         return records
+
+    async def soft_delete(self, schedule_id: str) -> None:
+        record = self._store.get(schedule_id)
+        if record is not None:
+            record.deleted_at = datetime.now(UTC)
 
     async def update_last_run(
         self,
@@ -190,12 +198,16 @@ class NullScheduleRepository:
         message: str,
         timezone: str,
         next_run_at: datetime | None = None,
+        *,
+        instructions: str | None = None,
     ) -> None:
         record = self._store.get(schedule_id)
         if record is not None:
             record.cron_expr = cron_expr
             record.message = message
             record.timezone = timezone
+            if instructions is not None:
+                record.instructions = instructions or None
             record.next_run_at = next_run_at
 
 

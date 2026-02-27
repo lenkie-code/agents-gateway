@@ -822,7 +822,8 @@ html.light .glass-card {
 
 .chat-input-area {
   border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  flex-shrink: 0;
 }
 
 .chat-input-row {
