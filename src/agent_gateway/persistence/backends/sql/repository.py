@@ -149,6 +149,7 @@ class ExecutionRepository:
         search: str | None = None,
         min_cost: float | None = None,
         max_cost: float | None = None,
+        schedule_id: str | None = None,
     ) -> list[ExecutionRecord]:
         """List executions across all agents, most recent first."""
         async with self._session_factory() as session:
@@ -174,6 +175,10 @@ class ExecutionRepository:
             if session_id is not None:
                 stmt = stmt.where(
                     ExecutionRecord.session_id == session_id  # type: ignore[arg-type]
+                )
+            if schedule_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.schedule_id == schedule_id  # type: ignore[arg-type]
                 )
             if search is not None:
                 like_pattern = f"%{search}%"
@@ -207,10 +212,15 @@ class ExecutionRepository:
         search: str | None = None,
         min_cost: float | None = None,
         max_cost: float | None = None,
+        schedule_id: str | None = None,
     ) -> int:
         """Count executions with optional filters."""
         async with self._session_factory() as session:
             stmt = select(func.count()).select_from(ExecutionRecord)
+            if schedule_id is not None:
+                stmt = stmt.where(
+                    ExecutionRecord.schedule_id == schedule_id  # type: ignore[arg-type]
+                )
             if agent_id is not None:
                 stmt = stmt.where(
                     ExecutionRecord.agent_id == agent_id  # type: ignore[arg-type]

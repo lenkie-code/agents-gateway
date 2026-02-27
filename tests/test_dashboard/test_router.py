@@ -439,3 +439,60 @@ class TestAdminRoutes:
                     follow_redirects=False,
                 )
                 assert resp.status_code == 404
+
+
+class TestScheduleDetailPage:
+    async def test_schedule_detail_returns_200_with_recent_runs(self) -> None:
+        gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
+        async with gw:
+            _mock_repos(gw)
+            # Mock get_schedule to return a schedule dict
+            schedule_dict = {
+                "id": "sched-test",
+                "agent_id": "test-agent",
+                "name": "test schedule",
+                "cron_expr": "*/5 * * * *",
+                "message": "run",
+                "instructions": "",
+                "input": {},
+                "enabled": True,
+                "timezone": "UTC",
+                "source": "workspace",
+                "next_run_at": None,
+                "last_run_at": None,
+                "created_at": None,
+            }
+            gw.get_schedule = AsyncMock(return_value=schedule_dict)  # type: ignore[method-assign]
+            client = await _make_client(gw)
+            async with client:
+                await _login(client, username="admin", password="adminpass")
+                resp = await client.get("/dashboard/schedules/sched-test/detail")
+                assert resp.status_code == 200
+                assert "text/html" in resp.headers["content-type"]
+                # Verify list_all was called with schedule_id filter
+                exec_repo = gw._execution_repo
+                assert isinstance(exec_repo, AsyncMock)
+                exec_repo.list_all.assert_called_with(schedule_id="sched-test", limit=20)
+
+    async def test_schedule_detail_not_found(self) -> None:
+        gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
+        async with gw:
+            _mock_repos(gw)
+            gw.get_schedule = AsyncMock(return_value=None)  # type: ignore[method-assign]
+            client = await _make_client(gw)
+            async with client:
+                await _login(client, username="admin", password="adminpass")
+                resp = await client.get("/dashboard/schedules/nonexistent/detail")
+                assert resp.status_code == 404

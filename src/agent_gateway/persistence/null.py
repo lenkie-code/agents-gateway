@@ -78,6 +78,7 @@ class NullExecutionRepository:
         search: str | None = None,
         min_cost: float | None = None,
         max_cost: float | None = None,
+        schedule_id: str | None = None,
     ) -> list[ExecutionRecord]:
         return []
 
@@ -91,6 +92,7 @@ class NullExecutionRepository:
         search: str | None = None,
         min_cost: float | None = None,
         max_cost: float | None = None,
+        schedule_id: str | None = None,
     ) -> int:
         return 0
 
