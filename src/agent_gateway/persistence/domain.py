@@ -25,6 +25,7 @@ class ExecutionRecord:
     error: str | None = None
     usage: dict[str, Any] | None = None
     session_id: str | None = None
+    user_id: str | None = None
     schedule_id: str | None = None
     schedule_name: str | None = None
     parent_execution_id: str | None = None

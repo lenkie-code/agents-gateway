@@ -109,6 +109,14 @@ if use_keycloak_dashboard:
         login_button_text="Sign in with Keycloak",
     )
 else:
+    # Dashboard role-based access:
+    #   Admin user (admin/adminpass):
+    #     - Full access to all pages: Agents, Executions, Analytics, Conversations, Schedules
+    #     - Conversations page shows ALL conversations including those with no user_id
+    #   Regular user (user/userpass):
+    #     - Can access: Agents, Conversations, Notifications, Chat
+    #     - Cannot access: Executions, Analytics, Schedules (redirected to Agents page)
+    #     - Conversations page shows only their own conversations
     gw.use_dashboard(
         title="Agent Gateway — Test Project",
         subtitle="Intelligent Automation Hub",

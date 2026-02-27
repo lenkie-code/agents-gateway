@@ -317,6 +317,7 @@ class SchedulerEngine:
         # The original dict with internal keys is still passed to invoke_fn.
         persisted_input = {k: v for k, v in input.items() if not k.startswith("_")}
 
+        # user_id=None for scheduler-initiated executions
         record = ExecutionRecord(
             id=execution_id,
             agent_id=agent_id,
@@ -419,6 +420,7 @@ class SchedulerEngine:
         from agent_gateway.persistence.domain import ExecutionRecord
 
         persisted_input = {k: v for k, v in input_data.items() if not k.startswith("_")}
+        # user_id=None for scheduler-initiated executions
         record = ExecutionRecord(
             id=execution_id,
             agent_id=agent_id,

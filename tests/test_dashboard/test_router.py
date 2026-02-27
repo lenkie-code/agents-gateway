@@ -97,7 +97,12 @@ async def _login(
 class TestLoginPage:
     async def test_get_login_returns_200(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -108,7 +113,12 @@ class TestLoginPage:
 
     async def test_post_valid_creds_redirects(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -123,7 +133,12 @@ class TestLoginPage:
 
     async def test_post_invalid_creds_returns_401(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -139,7 +154,12 @@ class TestLoginPage:
 class TestLogout:
     async def test_logout_redirects_to_login(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -153,7 +173,12 @@ class TestLogout:
 class TestProtectedRoutes:
     async def test_unauthenticated_redirects(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -166,7 +191,12 @@ class TestProtectedRoutes:
 class TestAgentsPage:
     async def test_agents_page_returns_200(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -178,7 +208,12 @@ class TestAgentsPage:
 
     async def test_agents_htmx_partial(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -194,23 +229,33 @@ class TestAgentsPage:
 class TestExecutionsPage:
     async def test_executions_page_returns_200(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
             async with client:
-                await _login(client)
+                await _login(client, username="admin", password="adminpass")
                 resp = await client.get("/dashboard/executions")
                 assert resp.status_code == 200
 
     async def test_executions_with_filters(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
             async with client:
-                await _login(client)
+                await _login(client, username="admin", password="adminpass")
                 resp = await client.get(
                     "/dashboard/executions",
                     params={"agent_id": "x", "status": "completed"},
@@ -219,12 +264,17 @@ class TestExecutionsPage:
 
     async def test_execution_detail_not_found(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
             async with client:
-                await _login(client)
+                await _login(client, username="admin", password="adminpass")
                 resp = await client.get("/dashboard/executions/nonexistent")
                 assert resp.status_code == 404
 
@@ -232,7 +282,12 @@ class TestExecutionsPage:
 class TestConversationsPage:
     async def test_conversations_page_returns_200(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -243,7 +298,12 @@ class TestConversationsPage:
 
     async def test_conversation_detail_not_found(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
@@ -256,23 +316,33 @@ class TestConversationsPage:
 class TestAnalyticsPage:
     async def test_analytics_page_returns_200(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
             async with client:
-                await _login(client)
+                await _login(client, username="admin", password="adminpass")
                 resp = await client.get("/dashboard/analytics")
                 assert resp.status_code == 200
 
     async def test_analytics_charts_htmx(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
             async with client:
-                await _login(client)
+                await _login(client, username="admin", password="adminpass")
                 resp = await client.get(
                     "/dashboard/analytics",
                     headers={"HX-Request": "true"},
@@ -283,12 +353,17 @@ class TestAnalyticsPage:
 class TestSchedulesPage:
     async def test_schedules_page_returns_200(self) -> None:
         gw = Gateway(workspace=str(FIXTURE_WORKSPACE), auth=False, title="Test")
-        gw.use_dashboard(auth_password="testpass", auth_username="testuser")
+        gw.use_dashboard(
+            auth_password="testpass",
+            auth_username="testuser",
+            admin_username="admin",
+            admin_password="adminpass",
+        )
         async with gw:
             _mock_repos(gw)
             client = await _make_client(gw)
             async with client:
-                await _login(client)
+                await _login(client, username="admin", password="adminpass")
                 resp = await client.get("/dashboard/schedules")
                 assert resp.status_code == 200
 

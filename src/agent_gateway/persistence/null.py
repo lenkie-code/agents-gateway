@@ -50,7 +50,9 @@ class NullExecutionRepository:
     async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None:
         return None
 
-    async def list_by_session(self, session_id: str, limit: int = 50) -> list[ExecutionRecord]:
+    async def list_by_session(
+        self, session_id: str, limit: int = 50, user_id: str | None = None,
+    ) -> list[ExecutionRecord]:
         return []
 
     async def cost_by_session(self, session_id: str) -> dict[str, Any]:
@@ -90,11 +92,11 @@ class NullExecutionRepository:
         return 0
 
     async def list_conversations_summary(
-        self, limit: int = 50, offset: int = 0
+        self, limit: int = 50, offset: int = 0, user_id: str | None = None
     ) -> list[dict[str, Any]]:
         return []
 
-    async def count_conversations(self) -> int:
+    async def count_conversations(self, user_id: str | None = None) -> int:
         return 0
 
     async def cost_by_day(self, days: int = 30) -> list[dict[str, Any]]:
