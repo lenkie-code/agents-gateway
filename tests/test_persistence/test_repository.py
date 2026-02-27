@@ -258,6 +258,44 @@ async def test_list_all_with_session_filter(
     assert results[0].id == "exec-filt-1"
 
 
+async def test_list_all_with_schedule_id_filter(
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    """Should filter list_all by schedule_id."""
+    repo = ExecutionRepository(session_factory)
+
+    await repo.create(
+        ExecutionRecord(
+            id="exec-sched-1",
+            agent_id="test-agent",
+            status="completed",
+            message="A",
+            schedule_id="sched-abc",
+        )
+    )
+    await repo.create(
+        ExecutionRecord(
+            id="exec-sched-2",
+            agent_id="test-agent",
+            status="completed",
+            message="B",
+            schedule_id="sched-xyz",
+        )
+    )
+    await repo.create(
+        ExecutionRecord(
+            id="exec-sched-3",
+            agent_id="test-agent",
+            status="completed",
+            message="C",
+        )
+    )
+
+    results = await repo.list_all(schedule_id="sched-abc")
+    assert len(results) == 1
+    assert results[0].id == "exec-sched-1"
+
+
 async def test_audit_log(session_factory: async_sessionmaker[AsyncSession]):
     """Should write and retrieve audit log entries."""
     repo = AuditRepository(session_factory)

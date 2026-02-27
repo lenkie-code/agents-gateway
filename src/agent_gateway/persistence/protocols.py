@@ -56,6 +56,7 @@ class ExecutionRepository(Protocol):
         search: str | None = None,
         min_cost: float | None = None,
         max_cost: float | None = None,
+        schedule_id: str | None = None,
     ) -> list[ExecutionRecord]: ...
 
     async def count_all(
@@ -68,6 +69,7 @@ class ExecutionRepository(Protocol):
         search: str | None = None,
         min_cost: float | None = None,
         max_cost: float | None = None,
+        schedule_id: str | None = None,
     ) -> int: ...
 
     async def list_conversations_summary(

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/icon.png" alt="Agent Gateway" width="120">
+</p>
+
 # Agent Gateway
 
 [![PyPI version](https://img.shields.io/pypi/v/agents-gateway)](https://pypi.org/project/agents-gateway/)

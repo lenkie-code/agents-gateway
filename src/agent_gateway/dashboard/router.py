@@ -1187,13 +1187,14 @@ def register_dashboard(
 
         return RedirectResponse(url="/dashboard/schedules", status_code=303)
 
-    @protected.get("/schedules/{schedule_id:path}/detail", response_class=HTMLResponse)
-    async def schedule_detail(
+    async def _render_schedule_detail(
         request: Request,
         schedule_id: str,
-        current_user: DashboardUser = Depends(require_admin),
+        current_user: DashboardUser,
+        error: str | None = None,
+        status_code: int = 200,
     ) -> HTMLResponse:
-        """Admin-only schedule detail page with edit form."""
+        """Shared helper to render the schedule detail page."""
         gw = request.app
         schedule = await gw.get_schedule(schedule_id)
         if schedule is None:
@@ -1204,17 +1205,39 @@ def register_dashboard(
         if agent:
             agent_name = agent.display_name or agent.id
 
+        recent_runs = await gw._execution_repo.list_all(schedule_id=schedule["id"], limit=20)
+
         return templates.TemplateResponse(
             request=request,
             name="dashboard/schedule_detail.html",
             context={
                 "schedule": schedule,
                 "agent_name": agent_name,
-                "error": None,
+                "recent_runs": recent_runs,
+                "error": error,
                 "current_user": current_user,
                 "active_page": "schedules",
             },
+            status_code=status_code,
         )
+
+    @protected.get("/schedules/{schedule_id}", response_class=HTMLResponse)
+    async def schedule_detail_shortcut(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        """Serve schedule detail at /schedules/{id} (canonical URL)."""
+        return await _render_schedule_detail(request, schedule_id, current_user)
+
+    @protected.get("/schedules/{schedule_id:path}/detail", response_class=HTMLResponse)
+    async def schedule_detail(
+        request: Request,
+        schedule_id: str,
+        current_user: DashboardUser = Depends(require_admin),
+    ) -> HTMLResponse:
+        """Admin-only schedule detail page with edit form."""
+        return await _render_schedule_detail(request, schedule_id, current_user)
 
     @protected.post("/schedules/{schedule_id:path}/edit")
     async def schedule_edit(
@@ -1234,41 +1257,29 @@ def register_dashboard(
 
         gw = request.app
 
-        # Pre-fetch schedule for validation error rendering
-        schedule = await gw.get_schedule(schedule_id)
-        if schedule is None:
-            raise HTTPException(status_code=404, detail="Schedule not found")
-
-        agent_name = schedule["agent_id"]
-        agent = gw.agents.get(schedule["agent_id"])
-        if agent:
-            agent_name = agent.display_name or agent.id
-
-        def _render_error(error_msg: str) -> Any:
-            return templates.TemplateResponse(
-                request=request,
-                name="dashboard/schedule_detail.html",
-                context={
-                    "schedule": schedule,
-                    "agent_name": agent_name,
-                    "error": error_msg,
-                    "current_user": current_user,
-                    "active_page": "schedules",
-                },
-                status_code=422,
-            )
-
         # Validate cron expression
         try:
             CronTrigger.from_crontab(cron_expr, timezone=timezone)
         except (ValueError, KeyError):
-            return _render_error("Invalid cron expression.")
+            return await _render_schedule_detail(
+                request,
+                schedule_id,
+                current_user,
+                error="Invalid cron expression.",
+                status_code=422,
+            )
 
         # Validate timezone
         try:
             ZoneInfo(timezone)
         except (ZoneInfoNotFoundError, KeyError):
-            return _render_error("Invalid timezone.")
+            return await _render_schedule_detail(
+                request,
+                schedule_id,
+                current_user,
+                error="Invalid timezone.",
+                status_code=422,
+            )
 
         is_enabled = enabled == "on"
 
