@@ -661,7 +661,10 @@ gw.use_security_headers(x_frame_options="SAMEORIGIN")
 def use_dashboard(
     *,
     title: str | None = None,
+    subtitle: str | None = None,
+    icon_url: str | None = None,
     logo_url: str | None = None,
+    favicon_url: str | None = None,
     auth_username: str | None = None,
     auth_password: str | None = None,
     theme: str | None = None,            # "light" | "dark" | "auto"
@@ -687,8 +690,25 @@ Password auth and OAuth2 are mutually exclusive. Setting both raises `ConfigErro
 
 Optionally configure a separate admin account with `admin_username`/`admin_password`. Admin users can toggle schedules and retry executions. OAuth2 users are always non-admin.
 
+**Branding parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `title` | `str \| None` | Browser tab title and sidebar heading. |
+| `subtitle` | `str \| None` | Tagline beneath the title in the sidebar and login page. Defaults to `"AI Control Plane"`. |
+| `icon_url` | `str \| None` | URL of an icon image replacing the default Material hub icon in the sidebar and login page. Square images are recommended. |
+| `logo_url` | `str \| None` | URL of a wordmark/logo image on the login page. Distinct from `icon_url`. |
+| `favicon_url` | `str \| None` | URL of a custom browser tab favicon. |
+
 ```python
-gw.use_dashboard(auth_password="secret", title="My Agents")
+gw.use_dashboard(
+    auth_password="secret",
+    title="My Agents",
+    subtitle="Powered by ACME Corp",
+    icon_url="/static/icon.png",
+    logo_url="/static/logo.png",
+    favicon_url="/static/favicon.ico",
+)
 
 # OAuth2/SSO:
 gw.use_dashboard(

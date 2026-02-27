@@ -117,6 +117,87 @@ dashboard:
     client_secret: "your-client-secret"
 ```
 
+## Branding
+
+You can customise the dashboard's visual identity beyond just colours. Three dedicated fields control the service name, icon, and favicon displayed throughout the dashboard.
+
+### Title
+
+The `title` field sets the browser tab title and the heading displayed in the sidebar navigation.
+
+```yaml
+dashboard:
+  enabled: true
+  title: My Agent Service
+```
+
+### Subtitle
+
+The `subtitle` field replaces the default `"AI Control Plane"` tagline shown beneath the service name in the sidebar and on the login page branding widget.
+
+```yaml
+dashboard:
+  enabled: true
+  subtitle: "Powered by ACME Corp"
+```
+
+### Icon
+
+The `icon_url` field replaces the default Material hub icon in the sidebar header and on the login page. Provide a URL (absolute or relative to your server root) pointing to any image format the browser can render — SVG, PNG, and WebP all work well. The icon is displayed at a fixed size so square images are recommended.
+
+```yaml
+dashboard:
+  enabled: true
+  icon_url: /static/icon.png
+```
+
+When `icon_url` is not set, the dashboard falls back to the built-in Material `hub` icon.
+
+### Logo
+
+The `logo_url` field controls a separate wordmark image shown on the login page. This is distinct from `icon_url`: the logo is typically a horizontal brand lockup, while the icon is a compact symbol.
+
+```yaml
+dashboard:
+  enabled: true
+  logo_url: /static/logo.png
+```
+
+### Favicon
+
+Set `favicon_url` to replace the default browser tab icon.
+
+```yaml
+dashboard:
+  enabled: true
+  favicon_url: /static/favicon.ico
+```
+
+### Full branding example
+
+```python
+gw.use_dashboard(
+    title="ACME Agent Platform",
+    subtitle="Powered by ACME Corp",
+    icon_url="/static/icon.png",
+    logo_url="/static/wordmark.png",
+    favicon_url="/static/favicon.ico",
+    auth_password="s3cr3t",
+)
+```
+
+Or in `gateway.yaml`:
+
+```yaml
+dashboard:
+  enabled: true
+  title: ACME Agent Platform
+  subtitle: "Powered by ACME Corp"
+  icon_url: /static/icon.png
+  logo_url: /static/wordmark.png
+  favicon_url: /static/favicon.ico
+```
+
 ## Fluent API Reference
 
 `gw.use_dashboard()` accepts keyword arguments to configure the dashboard inline without a config file:
@@ -124,7 +205,10 @@ dashboard:
 ```python
 gw.use_dashboard(
     title="My Agent Service",          # Browser tab title and header text
-    logo_url="/static/logo.png",       # URL for the header logo image
+    subtitle="AI Control Plane",       # Tagline beneath the title
+    icon_url="/static/icon.png",       # Replaces the Material hub icon
+    logo_url="/static/logo.png",       # Wordmark image on the login page
+    favicon_url="/static/favicon.ico", # Browser tab favicon
     auth_username="admin",             # Password auth username
     auth_password="s3cr3t",            # Password auth password
     admin_username="admin",            # Separate admin account username

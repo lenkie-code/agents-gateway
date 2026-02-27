@@ -1371,7 +1371,10 @@ class Gateway(FastAPI):
         self,
         *,
         title: str | None = None,
+        subtitle: str | None = None,
         logo_url: str | None = None,
+        icon_url: str | None = None,
+        favicon_url: str | None = None,
         auth_username: str | None = None,
         auth_password: str | None = None,
         theme: str | None = None,
@@ -1397,7 +1400,10 @@ class Gateway(FastAPI):
 
         Args:
             title: Dashboard page title (default: "Agent Gateway").
+            subtitle: Dashboard subtitle shown below the title (default: "AI Control Plane").
             logo_url: URL of a logo image to display in the sidebar.
+            icon_url: URL of an icon image for the sidebar brand mark.
+            favicon_url: URL of a favicon image for the browser tab.
             auth_username: Dashboard login username (default: "admin").
             auth_password: Dashboard login password. Empty = no password.
             theme: Color scheme — "light", "dark", or "auto" (default).
@@ -1416,8 +1422,14 @@ class Gateway(FastAPI):
         self._pending_dashboard_overrides["enabled"] = True
         if title is not None:
             self._pending_dashboard_overrides["title"] = title
+        if subtitle is not None:
+            self._pending_dashboard_overrides["subtitle"] = subtitle
         if logo_url is not None:
             self._pending_dashboard_overrides["logo_url"] = logo_url
+        if icon_url is not None:
+            self._pending_dashboard_overrides["icon_url"] = icon_url
+        if favicon_url is not None:
+            self._pending_dashboard_overrides["favicon_url"] = favicon_url
         if auth_username is not None:
             self._pending_dashboard_overrides.setdefault("auth", {})["username"] = auth_username
         if auth_password is not None:
