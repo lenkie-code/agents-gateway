@@ -56,6 +56,108 @@
     </div>
   </div>
 
+  <!-- Recent Runs -->
+  <div class="bg-surface border border-border-dark rounded-xl mb-5 overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-border-dark">
+      <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider">Recent Runs</h2>
+    </div>
+
+    {% if recent_runs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-surface-2 border-b border-border-dark text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+            <th class="px-5 py-3">Status</th>
+            <th class="px-5 py-3">Started</th>
+            <th class="px-5 py-3">Duration</th>
+            <th class="px-5 py-3">Cost</th>
+            <th class="px-5 py-3">Error</th>
+            <th class="px-5 py-3 text-right">Details</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border-dark/50">
+          {% for run in recent_runs %}
+          <tr class="hover:bg-surface-2 transition-colors">
+            <td class="px-5 py-3.5 whitespace-nowrap">
+              {% if run.status == 'completed' %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Completed
+              </span>
+              {% elif run.status == 'failed' %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Failed
+              </span>
+              {% elif run.status == 'running' %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>Running
+              </span>
+              {% elif run.status == 'timeout' %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Timeout
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-500/10 border border-slate-500/20 text-slate-400">
+                {{ run.status | capitalize }}
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3.5 whitespace-nowrap">
+              <div class="flex flex-col">
+                <span class="text-sm text-slate-300">{{ format_datetime(run.started_at) if run.started_at else '—' }}</span>
+                <span class="text-[10px] text-slate-500">{{ relative_time(run.started_at) if run.started_at else '' }}</span>
+              </div>
+            </td>
+            <td class="px-5 py-3.5 whitespace-nowrap">
+              {% if run.usage and run.usage.duration_ms is not none %}
+                {% set dur_ms = run.usage.duration_ms %}
+                {% if dur_ms < 1000 %}
+                  <span class="text-sm text-slate-300">{{ dur_ms }}ms</span>
+                {% elif dur_ms < 60000 %}
+                  <span class="text-sm text-slate-300">{{ "%.1f"|format(dur_ms / 1000) }}s</span>
+                {% else %}
+                  <span class="text-sm text-slate-300">{{ "%.0f"|format(dur_ms / 60000) }}m {{ "%.0f"|format((dur_ms % 60000) / 1000) }}s</span>
+                {% endif %}
+              {% else %}
+                <span class="text-slate-500">—</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3.5 whitespace-nowrap">
+              {% if run.usage and run.usage.cost_usd is not none %}
+                <span class="text-sm text-slate-300">${{ "%.4f"|format(run.usage.cost_usd) }}</span>
+              {% else %}
+                <span class="text-slate-500">—</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3.5">
+              {% if run.error %}
+                <span class="text-xs text-rose-400 font-mono" title="{{ run.error }}">{{ run.error[:60] }}{% if run.error | length > 60 %}…{% endif %}</span>
+              {% else %}
+                <span class="text-slate-600">—</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3.5 whitespace-nowrap text-right">
+              <a href="/dashboard/executions/{{ run.id }}"
+                 class="p-1.5 text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/10 inline-flex"
+                 title="View execution details">
+                <span class="material-symbols-outlined text-base">open_in_new</span>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-5 py-10 flex flex-col items-center text-center">
+      <div class="w-10 h-10 bg-surface-2 border border-border-dark rounded-full flex items-center justify-center text-slate-600 mb-3">
+        <span class="material-symbols-outlined text-xl">history</span>
+      </div>
+      <p class="text-sm font-medium text-slate-400">No runs yet</p>
+      <p class="text-xs text-slate-600 mt-1">Execution history will appear here once the schedule fires.</p>
+    </div>
+    {% endif %}
+  </div>
+
   {% if error %}
   <div class="p-4 mb-5 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 flex gap-3">
     <span class="material-symbols-outlined text-rose-500 flex-shrink-0">error</span>
@@ -69,12 +171,137 @@
       <h2 class="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Edit Schedule</h2>
       <div class="space-y-4">
 
+        <!-- Cron Schedule Builder -->
         <div>
-          <label for="cron_expr" class="block text-sm font-medium text-slate-300 mb-1">Cron Expression</label>
-          <input type="text" id="cron_expr" name="cron_expr" value="{{ schedule.cron_expr }}" required
-            class="input w-full" style="font-family: var(--font-mono, monospace);"
-            placeholder="*/5 * * * *">
-          <p class="text-[10px] text-slate-500 mt-1">5-part cron expression, e.g. <code class="text-slate-400">*/5 * * * *</code> (every 5 minutes)</p>
+          <label class="block text-sm font-medium text-slate-300 mb-2">Frequency</label>
+
+          <!-- Preset buttons -->
+          <div id="sd-freq-presets" style="display:flex; flex-wrap:wrap; gap: var(--space-2); margin-bottom: var(--space-3);">
+            <button type="button" class="btn btn-ghost btn-sm sd-freq-btn" data-freq="every-minutes">Every N minutes</button>
+            <button type="button" class="btn btn-ghost btn-sm sd-freq-btn" data-freq="hourly">Hourly</button>
+            <button type="button" class="btn btn-ghost btn-sm sd-freq-btn active" data-freq="daily">Daily</button>
+            <button type="button" class="btn btn-ghost btn-sm sd-freq-btn" data-freq="weekly">Weekly</button>
+            <button type="button" class="btn btn-ghost btn-sm sd-freq-btn" data-freq="monthly">Monthly</button>
+            <button type="button" class="btn btn-ghost btn-sm sd-freq-btn" data-freq="custom">Custom cron</button>
+          </div>
+
+          <!-- Every N minutes -->
+          <div id="sd-freq-every-minutes" class="sd-freq-options" style="display:none;">
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Run every</label>
+            <div style="display:flex; align-items:center; gap: var(--space-2);">
+              <select id="sd-interval-minutes" class="input" style="width: 6rem;">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15" selected>15</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+              </select>
+              <span class="text-sm text-muted">minutes</span>
+            </div>
+          </div>
+
+          <!-- Hourly -->
+          <div id="sd-freq-hourly" class="sd-freq-options" style="display:none;">
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">At minute</label>
+            <select id="sd-hourly-minute" class="input" style="width: 6rem;">
+              <option value="0">:00</option>
+              <option value="15">:15</option>
+              <option value="30">:30</option>
+              <option value="45">:45</option>
+            </select>
+          </div>
+
+          <!-- Daily -->
+          <div id="sd-freq-daily" class="sd-freq-options">
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Time</label>
+            <div style="display:flex; align-items:center; gap: var(--space-2);">
+              <select id="sd-daily-hour" class="input" style="width: 6rem;">
+                {% for h in range(24) %}
+                <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+                {% endfor %}
+              </select>
+              <select id="sd-daily-minute" class="input" style="width: 6rem;">
+                <option value="0" selected>:00</option>
+                <option value="15">:15</option>
+                <option value="30">:30</option>
+                <option value="45">:45</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Weekly -->
+          <div id="sd-freq-weekly" class="sd-freq-options" style="display:none;">
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Days</label>
+            <div id="sd-weekday-picker" style="display:flex; gap: var(--space-1); margin-bottom: var(--space-2);">
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn" data-day="1">Mon</button>
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn active" data-day="2">Tue</button>
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn" data-day="3">Wed</button>
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn" data-day="4">Thu</button>
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn" data-day="5">Fri</button>
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn" data-day="6">Sat</button>
+              <button type="button" class="btn btn-ghost btn-sm sd-weekday-btn" data-day="0">Sun</button>
+            </div>
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Time</label>
+            <div style="display:flex; align-items:center; gap: var(--space-2);">
+              <select id="sd-weekly-hour" class="input" style="width: 6rem;">
+                {% for h in range(24) %}
+                <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+                {% endfor %}
+              </select>
+              <select id="sd-weekly-minute" class="input" style="width: 6rem;">
+                <option value="0" selected>:00</option>
+                <option value="15">:15</option>
+                <option value="30">:30</option>
+                <option value="45">:45</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Monthly -->
+          <div id="sd-freq-monthly" class="sd-freq-options" style="display:none;">
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Day of month</label>
+            <div style="display:flex; align-items:center; gap: var(--space-2); margin-bottom: var(--space-2);">
+              <select id="sd-monthly-day" class="input" style="width: 6rem;">
+                {% for d in range(1, 29) %}
+                <option value="{{ d }}">{{ d }}{{ "st" if d == 1 else ("nd" if d == 2 else ("rd" if d == 3 else "th")) }}</option>
+                {% endfor %}
+              </select>
+              <span class="text-sm text-muted">of each month</span>
+            </div>
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Time</label>
+            <div style="display:flex; align-items:center; gap: var(--space-2);">
+              <select id="sd-monthly-hour" class="input" style="width: 6rem;">
+                {% for h in range(24) %}
+                <option value="{{ h }}" {% if h == 9 %}selected{% endif %}>{{ "%02d"|format(h) }}:00</option>
+                {% endfor %}
+              </select>
+              <select id="sd-monthly-minute" class="input" style="width: 6rem;">
+                <option value="0" selected>:00</option>
+                <option value="15">:15</option>
+                <option value="30">:30</option>
+                <option value="45">:45</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Custom cron -->
+          <div id="sd-freq-custom" class="sd-freq-options" style="display:none;">
+            <label class="form-label text-sm" style="margin-bottom: var(--space-1);">Cron expression</label>
+            <input type="text" id="sd-custom-cron-input" class="input" style="width:100%; font-family: var(--font-mono, monospace);" placeholder="*/15 * * * *" />
+            <div class="text-xs text-muted" style="margin-top: var(--space-1);">Format: minute hour day-of-month month day-of-week</div>
+          </div>
+
+          <!-- Preview -->
+          <div id="sd-cron-preview" style="margin-top: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--color-surface-alt, rgba(0,0,0,0.03)); border-radius: 6px; display:flex; align-items:center; gap: var(--space-2);">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="opacity:0.5; flex-shrink:0;">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-sm"><strong>Cron:</strong> <code id="sd-cron-display" class="text-mono">{{ schedule.cron_expr }}</code></span>
+            <span class="text-sm text-muted" style="margin-left: var(--space-2);" id="sd-cron-human"></span>
+          </div>
+
+          <!-- Hidden cron field submitted with form -->
+          <input type="hidden" name="cron_expr" id="sd-cron-value" value="{{ schedule.cron_expr }}" />
         </div>
 
         <div>
@@ -143,4 +370,191 @@
   </div>
 
 </div>
+
+<style>
+  .sd-freq-btn.active,
+  .sd-weekday-btn.active {
+    background: var(--color-primary, #6366f1) !important;
+    color: #fff !important;
+    border-color: var(--color-primary, #6366f1) !important;
+  }
+  .sd-freq-btn:hover, .sd-weekday-btn:hover {
+    background: var(--color-surface-hover, rgba(0,0,0,0.06));
+  }
+</style>
+
+<script>
+(function() {
+  const freqBtns = document.querySelectorAll('.sd-freq-btn');
+  const freqPanels = document.querySelectorAll('.sd-freq-options');
+  const cronValue = document.getElementById('sd-cron-value');
+  const cronDisplay = document.getElementById('sd-cron-display');
+  const cronHuman = document.getElementById('sd-cron-human');
+  const weekdayBtns = document.querySelectorAll('.sd-weekday-btn');
+
+  let currentFreq = 'daily';
+
+  function showPanel(freq) {
+    currentFreq = freq;
+    freqPanels.forEach(p => p.style.display = 'none');
+    const panel = document.getElementById('sd-freq-' + freq);
+    if (panel) panel.style.display = '';
+    freqBtns.forEach(b => b.classList.toggle('active', b.dataset.freq === freq));
+    updateCron();
+  }
+
+  function getSelectedWeekdays() {
+    const days = [];
+    weekdayBtns.forEach(b => { if (b.classList.contains('active')) days.push(b.dataset.day); });
+    return days.length ? days : ['1'];
+  }
+
+  function padTime(h, m) {
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  function dayName(d) {
+    return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][parseInt(d)];
+  }
+
+  function selectOption(selectId, val) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    for (const opt of sel.options) {
+      if (String(opt.value) === String(val)) { opt.selected = true; return; }
+    }
+  }
+
+  function updateCron() {
+    let cron = '';
+    let human = '';
+
+    switch (currentFreq) {
+      case 'every-minutes': {
+        const mins = document.getElementById('sd-interval-minutes').value;
+        cron = '*/' + mins + ' * * * *';
+        human = 'Every ' + mins + ' minutes';
+        break;
+      }
+      case 'hourly': {
+        const m = document.getElementById('sd-hourly-minute').value;
+        cron = m + ' * * * *';
+        human = 'Every hour at :' + String(m).padStart(2, '0');
+        break;
+      }
+      case 'daily': {
+        const h = document.getElementById('sd-daily-hour').value;
+        const m = document.getElementById('sd-daily-minute').value;
+        cron = m + ' ' + h + ' * * *';
+        human = 'Every day at ' + padTime(h, m);
+        break;
+      }
+      case 'weekly': {
+        const h = document.getElementById('sd-weekly-hour').value;
+        const m = document.getElementById('sd-weekly-minute').value;
+        const days = getSelectedWeekdays();
+        cron = m + ' ' + h + ' * * ' + days.join(',');
+        const dayNames = days.map(dayName).join(', ');
+        human = 'Every ' + dayNames + ' at ' + padTime(h, m);
+        break;
+      }
+      case 'monthly': {
+        const h = document.getElementById('sd-monthly-hour').value;
+        const m = document.getElementById('sd-monthly-minute').value;
+        const d = document.getElementById('sd-monthly-day').value;
+        cron = m + ' ' + h + ' ' + d + ' * *';
+        human = 'Day ' + d + ' of each month at ' + padTime(h, m);
+        break;
+      }
+      case 'custom': {
+        cron = document.getElementById('sd-custom-cron-input').value || '* * * * *';
+        human = 'Custom expression';
+        break;
+      }
+    }
+
+    cronValue.value = cron;
+    cronDisplay.textContent = cron;
+    cronHuman.textContent = human;
+  }
+
+  // Parse existing cron_expr and auto-select matching preset
+  function parseCronExpr(expr) {
+    if (!expr) return;
+    const parts = expr.trim().split(/\s+/);
+    if (parts.length !== 5) { showPanel('custom'); document.getElementById('sd-custom-cron-input').value = expr; return; }
+
+    const [min, hour, dom, month, dow] = parts;
+
+    // Every N minutes: */N * * * *
+    const everyMinMatch = min.match(/^\*\/(\d+)$/);
+    if (everyMinMatch && hour === '*' && dom === '*' && month === '*' && dow === '*') {
+      const interval = everyMinMatch[1];
+      selectOption('sd-interval-minutes', interval);
+      showPanel('every-minutes');
+      return;
+    }
+
+    // Hourly: M * * * * (where M is a plain number)
+    if (/^\d+$/.test(min) && hour === '*' && dom === '*' && month === '*' && dow === '*') {
+      selectOption('sd-hourly-minute', min);
+      showPanel('hourly');
+      return;
+    }
+
+    // Daily: M H * * * (plain numbers, dow=*)
+    if (/^\d+$/.test(min) && /^\d+$/.test(hour) && dom === '*' && month === '*' && dow === '*') {
+      selectOption('sd-daily-hour', hour);
+      selectOption('sd-daily-minute', min);
+      showPanel('daily');
+      return;
+    }
+
+    // Monthly: M H D * * (plain numbers, month=*, dow=*)
+    if (/^\d+$/.test(min) && /^\d+$/.test(hour) && /^\d+$/.test(dom) && month === '*' && dow === '*') {
+      selectOption('sd-monthly-hour', hour);
+      selectOption('sd-monthly-minute', min);
+      selectOption('sd-monthly-day', dom);
+      showPanel('monthly');
+      return;
+    }
+
+    // Weekly: M H * * DOW (dow is one or more digits/commas)
+    if (/^\d+$/.test(min) && /^\d+$/.test(hour) && dom === '*' && month === '*' && /^[\d,]+$/.test(dow)) {
+      selectOption('sd-weekly-hour', hour);
+      selectOption('sd-weekly-minute', min);
+      // Set weekday buttons
+      const activeDays = dow.split(',');
+      weekdayBtns.forEach(b => {
+        b.classList.toggle('active', activeDays.includes(b.dataset.day));
+      });
+      showPanel('weekly');
+      return;
+    }
+
+    // Fall back to custom
+    showPanel('custom');
+    document.getElementById('sd-custom-cron-input').value = expr;
+  }
+
+  freqBtns.forEach(btn => {
+    btn.addEventListener('click', () => showPanel(btn.dataset.freq));
+  });
+
+  weekdayBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('active');
+      updateCron();
+    });
+  });
+
+  document.querySelectorAll('.sd-freq-options select, .sd-freq-options input').forEach(el => {
+    el.addEventListener('change', updateCron);
+    el.addEventListener('input', updateCron);
+  });
+
+  // Parse the existing cron expression on page load
+  parseCronExpr({{ (schedule.cron_expr or '') | tojson }});
+})();
+</script>
 {% endblock %}

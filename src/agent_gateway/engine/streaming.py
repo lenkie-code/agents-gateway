@@ -160,6 +160,9 @@ async def stream_chat_execution(
                         # Stream LLM response
                         accumulated_text = ""
                         pending_tool_calls: list[ToolCall] = []
+                        iter_model = ""
+                        iter_input_tokens = 0
+                        iter_output_tokens = 0
 
                         try:
                             async for chunk in engine._llm.stream_completion(
@@ -196,10 +199,13 @@ async def stream_chat_execution(
                                     )
 
                                 elif chunk["type"] == "usage":
+                                    iter_model = chunk.get("model", "")
+                                    iter_input_tokens = chunk.get("input_tokens", 0)
+                                    iter_output_tokens = chunk.get("output_tokens", 0)
                                     usage.add_llm_usage(
-                                        model=chunk.get("model", ""),
-                                        input_tokens=chunk.get("input_tokens", 0),
-                                        output_tokens=chunk.get("output_tokens", 0),
+                                        model=iter_model,
+                                        input_tokens=iter_input_tokens,
+                                        output_tokens=iter_output_tokens,
                                         cost=chunk.get("cost", 0.0),
                                     )
 
@@ -214,6 +220,9 @@ async def stream_chat_execution(
 
                         # Record LLM call step
                         llm_step_data: dict[str, Any] = {
+                            "model": iter_model,
+                            "input_tokens": iter_input_tokens,
+                            "output_tokens": iter_output_tokens,
                             "has_tool_calls": len(pending_tool_calls) > 0,
                             "content": (accumulated_text or "")[:2048],
                             "tool_calls_count": len(pending_tool_calls),
