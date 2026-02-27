@@ -41,7 +41,10 @@ class ExecutionRepository(Protocol):
     async def get_with_steps(self, execution_id: str) -> ExecutionRecord | None: ...
 
     async def list_by_session(
-        self, session_id: str, limit: int = 50, user_id: str | None = None,
+        self,
+        session_id: str,
+        limit: int = 50,
+        user_id: str | None = None,
     ) -> list[ExecutionRecord]: ...
 
     async def cost_by_session(self, session_id: str) -> dict[str, Any]: ...

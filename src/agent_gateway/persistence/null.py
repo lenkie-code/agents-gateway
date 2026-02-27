@@ -51,7 +51,10 @@ class NullExecutionRepository:
         return None
 
     async def list_by_session(
-        self, session_id: str, limit: int = 50, user_id: str | None = None,
+        self,
+        session_id: str,
+        limit: int = 50,
+        user_id: str | None = None,
     ) -> list[ExecutionRecord]:
         return []
 
