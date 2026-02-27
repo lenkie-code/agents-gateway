@@ -10,7 +10,9 @@ A **coordinator** agent can delegate subtasks to **specialist** agents using the
 
 ### Agent Setup
 
-Add `delegates_to` to an agent's `AGENT.md` frontmatter to specify which agents it can delegate to:
+The `delegate_to_agent` tool is **automatically available to all agents** in any workspace with two or more agents. No configuration is required — agents can discover and delegate to any other enabled agent.
+
+To **restrict** which agents a particular agent can delegate to, add `delegates_to` to its `AGENT.md` frontmatter:
 
 ```yaml
 ---
@@ -22,7 +24,10 @@ delegates_to:
 ---
 ```
 
-The delegation tool (`delegate_to_agent`) is automatically registered for agents with `delegates_to` configured. No skill registration is needed.
+When `delegates_to` is specified, it acts as an **allow-list filter** — the agent can only delegate to the listed targets. When omitted, the agent can delegate to any other enabled agent in the workspace.
+
+!!! note
+    In a single-agent workspace, the delegation tool is not registered since there are no peers to delegate to.
 
 ### Guardrails
 
@@ -56,8 +61,11 @@ The `delegate_to_agent` tool accepts:
 
 ### Permission Model
 
-- Agents can only delegate to agents listed in their `delegates_to` configuration
-- Attempting to delegate to an unlisted agent returns an error message (not an exception)
+- **No `delegates_to`** (default): The agent can delegate to any other enabled agent except itself
+- **With `delegates_to`**: The agent can only delegate to the listed agents
+- **Self-delegation** is always blocked — an agent cannot delegate to itself
+- **Disabled agents** cannot be delegation targets — attempting to delegate to a disabled agent returns an error
+- **Non-existent agents** return an error listing available agents
 - The delegation depth is enforced globally via `max_delegation_depth`
 
 ## Execution Lineage
@@ -92,7 +100,7 @@ The execution detail page in the dashboard shows:
 
 ## Example
 
-### Coordinator Agent (`workspace/agents/coordinator/AGENT.md`)
+### Coordinator with Allow-List (`workspace/agents/coordinator/AGENT.md`)
 
 ```yaml
 ---
@@ -103,18 +111,9 @@ delegates_to:
 ---
 ```
 
-```markdown
-# Coordinator
+This coordinator can **only** delegate to `researcher` and `writer`.
 
-You coordinate research and writing tasks.
-
-When asked to create a report:
-1. Delegate research to the researcher agent
-2. Use the research results to delegate writing to the writer agent
-3. Review and present the final output
-```
-
-### Specialist Agent (`workspace/agents/researcher/AGENT.md`)
+### Specialist with Auto-Delegation (`workspace/agents/researcher/AGENT.md`)
 
 ```yaml
 ---
@@ -122,12 +121,7 @@ description: "Research specialist"
 ---
 ```
 
-```markdown
-# Researcher
-
-You gather and analyze information on requested topics.
-Provide structured, well-organized research summaries.
-```
+This researcher has **no** `delegates_to` — it can delegate to any other enabled agent in the workspace (e.g., hand off email drafting to an `email-drafter` agent).
 
 ### Programmatic Usage
 

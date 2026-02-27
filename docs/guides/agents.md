@@ -86,7 +86,7 @@ delegates_to:
   - writer
 ```
 
-When `delegates_to` is configured, the agent gains access to a `delegate_to_agent` tool that allows it to invoke other agents and receive their results. See the [Delegation Guide](delegation.md) for details.
+The `delegate_to_agent` tool is automatically available to all agents in workspaces with two or more agents. The `delegates_to` field is **optional** — when specified, it restricts which agents this agent can delegate to. When omitted, the agent can delegate to any other enabled agent. See the [Delegation Guide](delegation.md) for details.
 
 ### Execution mode
 

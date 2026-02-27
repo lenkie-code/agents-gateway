@@ -27,3 +27,4 @@ Replace `{topic}` with the URL-encoded topic (e.g., `microservices`, `kubernetes
 - Structure your research with clear headings and bullet points
 - Include the source URL in your response
 - Keep responses focused and actionable
+- If a task requires drafting an email, delegate to the `email-drafter` agent using `delegate_to_agent` (available automatically — no `delegates_to` config needed)
