@@ -77,7 +77,10 @@ class TestTemplateBranding:
         cfg = DashboardConfig()
         templates = _build_templates(cfg)
         assert templates.env.globals["dashboard_subtitle"] == "AI Control Plane"
-        assert templates.env.globals["dashboard_icon_url"] == "/dashboard/static/dashboard/default-icon.png"
+        assert (
+            templates.env.globals["dashboard_icon_url"]
+            == "/dashboard/static/dashboard/default-icon.png"
+        )
 
     def test_build_templates_custom_branding(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
