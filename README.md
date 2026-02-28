@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/icon.png" alt="Agent Gateway" width="120">
+  <img src="https://raw.githubusercontent.com/vince-nyanga/agents-gateway/main/docs/assets/icon.png" alt="Agent Gateway" width="120">
 </p>
 
 # Agent Gateway
