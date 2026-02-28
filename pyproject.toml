@@ -49,6 +49,7 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "greenlet>=3.3.1",
     "cryptography>=42.0",
+    "mcp>=1.20",
 ]
 
 [project.optional-dependencies]
@@ -59,6 +60,7 @@ otlp = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.24",
     "opentelemetry-exporter-otlp-proto-http>=1.24",
 ]
+gcp = ["google-auth>=2.20"]
 oauth2 = ["PyJWT[crypto]>=2.8"]
 slack = ["slack-bolt>=1.18"]
 redis = ["redis>=5.0"]
@@ -102,7 +104,7 @@ all = ["agents-gateway[sqlite,postgres,otlp,oauth2,slack,webhooks,redis,rabbitmq
 agents-gateway = "agent_gateway.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/vince-nyanga/agents-gateway"
+Homepage = "https://honesdev.com/agents-gateway"
 Repository = "https://github.com/vince-nyanga/agents-gateway"
 Documentation = "https://vince-nyanga.github.io/agents-gateway/"
 Issues = "https://github.com/vince-nyanga/agents-gateway/issues"
@@ -204,4 +206,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "slowapi.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "google.*"
 ignore_missing_imports = true
