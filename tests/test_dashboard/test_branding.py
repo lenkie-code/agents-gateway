@@ -13,17 +13,17 @@ class TestDashboardConfigDefaults:
         cfg = DashboardConfig()
         assert cfg.subtitle == "AI Control Plane"
 
-    def test_default_icon_url_is_none(self) -> None:
+    def test_default_icon_url(self) -> None:
         cfg = DashboardConfig()
-        assert cfg.icon_url is None
+        assert cfg.icon_url == "/dashboard/static/dashboard/default-icon.png"
 
     def test_default_title(self) -> None:
         cfg = DashboardConfig()
         assert cfg.title == "Agent Gateway"
 
-    def test_default_favicon_url_is_none(self) -> None:
+    def test_default_favicon_url(self) -> None:
         cfg = DashboardConfig()
-        assert cfg.favicon_url is None
+        assert cfg.favicon_url == "/dashboard/static/dashboard/default-icon.png"
 
 
 class TestDashboardConfigCustom:
@@ -77,7 +77,10 @@ class TestTemplateBranding:
         cfg = DashboardConfig()
         templates = _build_templates(cfg)
         assert templates.env.globals["dashboard_subtitle"] == "AI Control Plane"
-        assert templates.env.globals["dashboard_icon_url"] is None
+        assert (
+            templates.env.globals["dashboard_icon_url"]
+            == "/dashboard/static/dashboard/default-icon.png"
+        )
 
     def test_build_templates_custom_branding(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
@@ -96,7 +99,7 @@ class TestTemplateBranding:
         tmpl = templates.env.from_string("{{ dashboard_subtitle }}")
         assert tmpl.render() == "Custom Platform"
 
-    def test_template_renders_default_material_icon(self) -> None:
+    def test_template_renders_default_icon(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
 
         cfg = DashboardConfig()
@@ -109,8 +112,7 @@ class TestTemplateBranding:
             "{% endif %}"
         )
         result = tmpl.render()
-        assert "hub" in result
-        assert "<img" not in result
+        assert '<img src="/dashboard/static/dashboard/default-icon.png">' in result
 
     def test_template_renders_custom_icon(self) -> None:
         from agent_gateway.dashboard.router import _build_templates

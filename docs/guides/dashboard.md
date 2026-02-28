@@ -117,6 +117,22 @@ dashboard:
     client_secret: "your-client-secret"
 ```
 
+#### Admin Fallback Login with OAuth2
+
+When OAuth2 is configured as the primary login method, you can also configure admin credentials to provide break-glass access. This is useful when the OAuth2 provider is unavailable or when you need direct admin access without going through SSO.
+
+```python
+gw.use_dashboard(
+    oauth2_issuer="https://accounts.google.com",
+    oauth2_client_id="your-client-id",
+    oauth2_client_secret="your-client-secret",
+    admin_username="admin",
+    admin_password="supersecret",
+)
+```
+
+When both OAuth2 and admin credentials are configured, the login page shows the SSO button as the primary option with a collapsible "Sign in with admin credentials" section below it. The admin form auto-expands if a login error occurs.
+
 ## Branding
 
 You can customise the dashboard's visual identity beyond just colours. Three dedicated fields control the service name, icon, and favicon displayed throughout the dashboard.

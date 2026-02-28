@@ -53,13 +53,13 @@
 
     <!-- Branding -->
     <div class="text-center mb-8">
+      {% if dashboard_icon_url %}
+      <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-14 h-14 rounded-2xl object-contain mb-5 mx-auto">
+      {% else %}
       <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary shadow-lg shadow-primary/30 mb-5">
-        {% if dashboard_icon_url %}
-        <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-8 h-8 object-contain">
-        {% else %}
         <span class="material-symbols-outlined text-white text-3xl">hub</span>
-        {% endif %}
       </div>
+      {% endif %}
       {% if dashboard_logo_url %}
       <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="h-7 w-auto mx-auto mb-3" />
       {% endif %}
@@ -84,21 +84,79 @@
         <span class="material-symbols-outlined text-lg">login</span>
         {{ login_button_text }}
       </a>
+      {% if show_admin_login %}
+      <div class="flex items-center gap-3 my-5">
+        <div class="flex-1 h-px bg-border-dark"></div>
+        <span class="text-xs text-slate-500 uppercase tracking-wider">or</span>
+        <div class="flex-1 h-px bg-border-dark"></div>
+      </div>
+      <details{% if admin_error %} open{% endif %}>
+        <summary class="text-sm text-slate-400 hover:text-slate-300 cursor-pointer transition-colors text-center">Sign in with admin credentials</summary>
+        <form action="/dashboard/login" method="post" class="space-y-4 mt-4">
+          <div>
+            <label for="username" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
+            <div class="relative">
+              <input
+                type="text"
+                id="username"
+                name="username"
+                class="input w-full h-10 px-3"
+                style="background-color:#161b26;color:#f8fafc"
+                autocomplete="username"
+                required
+                placeholder="admin"
+              />
+            </div>
+          </div>
+          <div>
+            <label for="password" class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+            <div class="relative">
+              <input
+                type="password"
+                id="password"
+                name="password"
+                class="input w-full h-10 px-3 pr-10"
+                style="background-color:#161b26;color:#f8fafc"
+                autocomplete="current-password"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onclick="const i=document.getElementById('password'); i.type=i.type==='password'?'text':'password'; this.querySelector('span').textContent=i.type==='password'?'visibility':'visibility_off';"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                tabindex="-1"
+              >
+                <span class="material-symbols-outlined text-lg">visibility</span>
+              </button>
+            </div>
+          </div>
+          <button
+            type="submit"
+            class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 mt-2"
+          >
+            <span class="material-symbols-outlined text-base">login</span>
+            Sign in
+          </button>
+        </form>
+      </details>
+      {% endif %}
       {% else %}
       <form action="/dashboard/login" method="post" class="space-y-4">
         <div>
           <label for="username" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
-          <input
-            type="text"
-            id="username"
-            name="username"
-            class="input w-full h-10 px-3"
-            style="background-color:#161b26;color:#f8fafc"
-            autocomplete="username"
-            autofocus
-            required
-            placeholder="admin"
-          />
+          <div class="relative">
+            <input
+              type="text"
+              id="username"
+              name="username"
+              class="input w-full h-10 px-3"
+              style="background-color:#161b26;color:#f8fafc"
+              autocomplete="username"
+              autofocus
+              required
+              placeholder="admin"
+            />
+          </div>
         </div>
 
         <div>
@@ -145,6 +203,8 @@
 <style>
   /* Override Tailwind forms plugin base reset which injects after linked CSS */
   .input { background-color: var(--color-surface) !important; color: var(--color-text) !important; }
+  /* Override app.css input[type="text"].input { width: 14rem } which breaks full-width login inputs */
+  input[type="text"].input { width: 100%; display: block; }
   .input:-webkit-autofill,
   .input:-webkit-autofill:hover,
   .input:-webkit-autofill:focus {

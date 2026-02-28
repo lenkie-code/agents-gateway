@@ -23,8 +23,8 @@ use_keycloak_api = os.environ.get("KEYCLOAK_API", "").strip() in ("1", "true")
 
 gw_kwargs: dict = {
     "workspace": "./workspace",
-    "title": "Test Project",
-    "description": "Example agent-gateway project for development and testing.",
+    "title": "Acme AI Hub",
+    "description": "Acme Corp's intelligent automation platform powered by agent-gateway.",
     "version": "0.1.0",
     # Caller-supplied tags are merged with gateway defaults (de-duplicated by name).
     # Gateway defaults (Health, Agents, Chat, etc.) are always included automatically.
@@ -94,9 +94,11 @@ else:
 use_keycloak_dashboard = os.environ.get("KEYCLOAK_DASHBOARD", "").strip() in ("1", "true")
 
 if use_keycloak_dashboard:
+    # Admin credentials enable a fallback username/password login alongside SSO,
+    # useful for break-glass access when the OAuth2 provider is unavailable.
     gw.use_dashboard(
-        title="Agent Gateway — Test Project",
-        subtitle="Intelligent Automation Hub",
+        title="Acme AI Hub",
+        subtitle="Intelligent Automation Platform",
         icon_url="/static/icon.png",
         favicon_url="/static/icon.png",
         oauth2_issuer=KEYCLOAK_ISSUER,
@@ -107,6 +109,8 @@ if use_keycloak_dashboard:
         primary_color="#2563eb",
         sidebar_color="#0f172a",
         login_button_text="Sign in with Keycloak",
+        admin_username="admin",
+        admin_password=os.environ.get("DASHBOARD_ADMIN_PASSWORD", "adminpass"),
     )
 else:
     # Dashboard role-based access:
@@ -118,8 +122,8 @@ else:
     #     - Cannot access: Executions, Analytics, Schedules (redirected to Agents page)
     #     - Conversations page shows only their own conversations
     gw.use_dashboard(
-        title="Agent Gateway — Test Project",
-        subtitle="Intelligent Automation Hub",
+        title="Acme AI Hub",
+        subtitle="Intelligent Automation Platform",
         icon_url="/static/icon.png",
         favicon_url="/static/icon.png",
         auth_username="user",

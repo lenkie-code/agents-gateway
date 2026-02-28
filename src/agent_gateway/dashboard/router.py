@@ -90,6 +90,11 @@ def register_dashboard(
     templates = _build_templates(dash_config)
     templates.env.globals["auth_method"] = auth_method
     templates.env.globals["login_button_text"] = dash_config.auth.login_button_text
+    templates.env.globals["show_admin_login"] = (
+        oauth2_config is not None
+        and dash_config.auth.admin_username is not None
+        and dash_config.auth.admin_password is not None
+    )
     get_dashboard_user = make_get_dashboard_user(dash_config.auth)
     require_admin = make_require_admin(dash_config.auth)
     login_handler = make_login_handler(dash_config.auth)
@@ -146,7 +151,7 @@ def register_dashboard(
             return templates.TemplateResponse(
                 request=request,
                 name="dashboard/login.html",
-                context={"error": result["error"]},
+                context={"error": result["error"], "admin_error": True},
                 status_code=401,
             )
         return result

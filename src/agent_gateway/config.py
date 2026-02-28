@@ -268,8 +268,8 @@ class DashboardConfig(BaseModel):
     title: str = "Agent Gateway"
     subtitle: str = "AI Control Plane"
     logo_url: str | None = None
-    icon_url: str | None = None
-    favicon_url: str | None = None
+    icon_url: str = "/dashboard/static/dashboard/default-icon.png"
+    favicon_url: str = "/dashboard/static/dashboard/default-icon.png"
     auth: DashboardAuthConfig = DashboardAuthConfig()
     theme: DashboardThemeConfig = DashboardThemeConfig()
 

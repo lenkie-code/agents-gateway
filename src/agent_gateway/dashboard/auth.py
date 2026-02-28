@@ -112,6 +112,9 @@ def make_login_handler(auth_config: DashboardAuthConfig):  # type: ignore[no-unt
                 return {"error": "Invalid username or password"}
 
         request.session["dashboard_user"] = username
+        if admin_ok:
+            request.session["auth_method"] = "password"
+            request.session["display_name"] = username
         # Rotate CSRF token on login
         request.session["csrf_token"] = secrets.token_hex(32)
         return RedirectResponse(url="/dashboard/", status_code=303)
