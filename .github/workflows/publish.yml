@@ -39,11 +39,10 @@ jobs:
           name: dist
           path: dist/
 
-  publish-testpypi:
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testpypi')
+  publish:
     needs: build
     runs-on: ubuntu-latest
-    environment: testpypi
+    environment: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi') && 'pypi' || 'testpypi' }}
     permissions:
       id-token: write
     steps:
@@ -51,26 +50,9 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Publish to TestPyPI
+      - name: Publish to ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi') && 'PyPI' || 'TestPyPI' }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
+          repository-url: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi') && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
           attestations: false
           verbose: true
-
-  publish-pypi:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi'
-    needs: build
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          attestations: false
