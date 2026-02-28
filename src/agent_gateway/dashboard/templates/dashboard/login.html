@@ -203,6 +203,8 @@
 <style>
   /* Override Tailwind forms plugin base reset which injects after linked CSS */
   .input { background-color: var(--color-surface) !important; color: var(--color-text) !important; }
+  /* Override app.css input[type="text"].input { width: 14rem } which breaks full-width login inputs */
+  input[type="text"].input { width: 100%; display: block; }
   .input:-webkit-autofill,
   .input:-webkit-autofill:hover,
   .input:-webkit-autofill:focus {
