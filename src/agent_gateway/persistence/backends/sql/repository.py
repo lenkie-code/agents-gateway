@@ -266,6 +266,7 @@ class ExecutionRepository:
         self,
         session_id: str,
         limit: int = 50,
+        user_id: str | None = None,
     ) -> list[ExecutionRecord]:
         """List executions for a session, most recent first."""
         async with self._session_factory() as session:
@@ -275,6 +276,8 @@ class ExecutionRepository:
                 .order_by(ExecutionRecord.created_at.desc())  # type: ignore[union-attr]
                 .limit(limit)
             )
+            if user_id is not None:
+                stmt = stmt.where(ExecutionRecord.user_id == user_id)  # type: ignore[arg-type]
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
@@ -302,11 +305,13 @@ class ExecutionRepository:
         self,
         limit: int = 50,
         offset: int = 0,
+        user_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """List conversations grouped by session_id with aggregated stats."""
         cost = _json_field("usage", "cost_usd", is_postgres=self._pg)
         inp = _json_field("usage", "input_tokens", is_postgres=self._pg)
         out = _json_field("usage", "output_tokens", is_postgres=self._pg)
+        user_filter = " AND user_id = :user_id" if user_id is not None else ""
         async with self._session_factory() as session:
             stmt = text(f"""
                 SELECT
@@ -319,23 +324,30 @@ class ExecutionRepository:
                     MIN(created_at) as first_activity,
                     MAX(created_at) as last_activity
                 FROM executions
-                WHERE session_id IS NOT NULL
+                WHERE session_id IS NOT NULL{user_filter}
                 GROUP BY session_id, agent_id
                 ORDER BY last_activity DESC
                 LIMIT :limit OFFSET :offset
                 """)
-            result = await session.execute(stmt, {"limit": limit, "offset": offset})
+            params: dict[str, Any] = {"limit": limit, "offset": offset}
+            if user_id is not None:
+                params["user_id"] = user_id
+            result = await session.execute(stmt, params)
             return [_normalize_row(row._mapping) for row in result]
 
-    async def count_conversations(self) -> int:
+    async def count_conversations(self, user_id: str | None = None) -> int:
         """Count distinct conversations (unique session_ids)."""
+        user_filter = " AND user_id = :user_id" if user_id is not None else ""
         async with self._session_factory() as session:
-            stmt = text("""
+            stmt = text(f"""
                 SELECT COUNT(DISTINCT session_id) as cnt
                 FROM executions
-                WHERE session_id IS NOT NULL
+                WHERE session_id IS NOT NULL{user_filter}
                 """)
-            result = await session.execute(stmt)
+            params: dict[str, Any] = {}
+            if user_id is not None:
+                params["user_id"] = user_id
+            result = await session.execute(stmt, params)
             return int(result.scalar_one())
 
     async def list_by_root_execution(self, root_execution_id: str) -> list[ExecutionRecord]:

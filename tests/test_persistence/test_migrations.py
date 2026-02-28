@@ -59,7 +59,7 @@ def test_current_revision_after_upgrade(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "010"
+    assert rev == "011"
 
 
 def test_downgrade_removes_tables(tmp_db) -> None:
@@ -89,7 +89,7 @@ def test_upgrade_is_idempotent(tmp_db) -> None:
 
     with tmp_db.connect() as conn:
         rev = get_current_revision(conn)
-    assert rev == "010"
+    assert rev == "011"
 
 
 def test_current_revision_on_empty_db(tmp_db) -> None:
@@ -110,6 +110,7 @@ def test_upgrade_creates_indexes(tmp_db) -> None:
     exec_indexes = {idx["name"] for idx in inspector.get_indexes("executions")}
     assert "ix_executions_created_at" in exec_indexes
     assert "ix_executions_status" in exec_indexes
+    assert "ix_executions_user_id" in exec_indexes
 
     conv_indexes = {idx["name"] for idx in inspector.get_indexes("conversations")}
     assert "ix_conversations_created_at" in conv_indexes

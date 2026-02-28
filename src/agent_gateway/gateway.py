@@ -1817,6 +1817,17 @@ class Gateway(FastAPI):
                 "Set dashboard.auth.password in gateway.yaml or use_dashboard(auth_password=...)."
             )
 
+        # Require admin credentials when password auth is enabled
+        if (
+            dash_config.auth.enabled
+            and not dash_config.auth.oauth2
+            and (not dash_config.auth.admin_username or not dash_config.auth.admin_password)
+        ):
+            raise ConfigError(
+                "Dashboard requires admin_username and admin_password when password auth "
+                "is enabled. Set both to define the super-admin account."
+            )
+
         # Generate session secret if not set
         import secrets as _secrets
 

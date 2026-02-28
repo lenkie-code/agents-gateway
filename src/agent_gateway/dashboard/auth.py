@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING
 from fastapi import Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from agent_gateway.exceptions import AgentGatewayError
 
-class AdminRequiredError(Exception):
+
+class AdminRequiredError(AgentGatewayError):
     """Raised when a non-admin user attempts to access an admin-only dashboard page."""
 
 
@@ -36,7 +38,7 @@ def make_get_dashboard_user(auth_config: DashboardAuthConfig):  # type: ignore[n
 
     async def get_dashboard_user(request: Request) -> DashboardUser:
         if not auth_config.enabled:
-            return DashboardUser(username="anonymous")
+            return DashboardUser(username="anonymous", is_admin=True)
         user_id = request.session.get("dashboard_user")
         if not user_id:
             hx = request.headers.get("HX-Request")

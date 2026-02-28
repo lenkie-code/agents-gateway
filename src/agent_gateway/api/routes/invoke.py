@@ -164,6 +164,10 @@ async def invoke_agent(
         output_schema=body.options.output_schema,
     )
 
+    # Derive user_id from auth context (before creating execution record)
+    auth = request.scope.get("auth")
+    user_id = gw._derive_user_id(auth) if auth else None
+
     # Create execution record
     initial_status = ExecutionStatus.QUEUED if should_queue else ExecutionStatus.RUNNING
     record = ExecutionRecord(
@@ -172,6 +176,7 @@ async def invoke_agent(
         status=initial_status,
         message=body.message,
         input=body.input or None,
+        user_id=user_id,
         started_at=datetime.now(UTC),
     )
     await gw._execution_repo.create(record)
@@ -217,8 +222,6 @@ async def invoke_agent(
     start = time.monotonic()
 
     # Load per-user agent config for personal agents
-    auth = request.scope.get("auth")
-    user_id = gw._derive_user_id(auth) if auth else None
     user_instructions: str | None = None
     user_secrets: dict[str, str] = {}
     user_config_values: dict[str, Any] = {}

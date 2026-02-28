@@ -628,7 +628,7 @@ def register_dashboard(
         date_to: str | None = None,
         min_cost: str | None = None,
         max_cost: str | None = None,
-        current_user: DashboardUser = Depends(get_dashboard_user),
+        current_user: DashboardUser = Depends(require_admin),
     ) -> HTMLResponse:
         from datetime import UTC, datetime, timedelta
 
@@ -720,7 +720,7 @@ def register_dashboard(
     async def execution_detail(
         request: Request,
         execution_id: str,
-        current_user: DashboardUser = Depends(get_dashboard_user),
+        current_user: DashboardUser = Depends(require_admin),
     ) -> HTMLResponse:
         gw = request.app
         repo = gw._execution_repo
@@ -865,8 +865,12 @@ def register_dashboard(
         repo = gw._execution_repo
         offset = (page - 1) * _PAGE_SIZE
 
-        rows_raw = await repo.list_conversations_summary(limit=_PAGE_SIZE, offset=offset)
-        total = await repo.count_conversations()
+        # Non-admin users see only their own conversations
+        filter_user_id = None if current_user.is_admin else current_user.username
+        rows_raw = await repo.list_conversations_summary(
+            limit=_PAGE_SIZE, offset=offset, user_id=filter_user_id
+        )
+        total = await repo.count_conversations(user_id=filter_user_id)
         rows = [ConversationSummaryRow.from_row(r) for r in rows_raw]
 
         ws = gw.workspace
@@ -897,7 +901,8 @@ def register_dashboard(
         gw = request.app
         repo = gw._execution_repo
 
-        records = await repo.list_by_session(session_id, limit=200)
+        user_filter = None if current_user.is_admin else current_user.username
+        records = await repo.list_by_session(session_id, limit=200, user_id=user_filter)
         if not records:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -1129,7 +1134,7 @@ def register_dashboard(
     @protected.get("/schedules", response_class=HTMLResponse)
     async def schedules_page(
         request: Request,
-        current_user: DashboardUser = Depends(get_dashboard_user),
+        current_user: DashboardUser = Depends(require_admin),
     ) -> HTMLResponse:
         gw = request.app
         schedule_repo = gw._schedule_repo
@@ -1539,7 +1544,7 @@ def register_dashboard(
     async def analytics_page(
         request: Request,
         days: int = 30,
-        current_user: DashboardUser = Depends(get_dashboard_user),
+        current_user: DashboardUser = Depends(require_admin),
     ) -> HTMLResponse:
         gw = request.app
         repo = gw._execution_repo

@@ -96,16 +96,19 @@
         <span class="text-sm font-semibold">Agents</span>
       </a>
 
+      {% if current_user and current_user.is_admin %}
       <a href="/dashboard/executions" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'executions' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'executions' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">terminal</span>
         <span class="text-sm font-semibold">Executions</span>
       </a>
+      {% endif %}
 
       <a href="/dashboard/conversations" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'conversations' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'conversations' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">forum</span>
         <span class="text-sm font-semibold">Conversations</span>
       </a>
 
+      {% if current_user and current_user.is_admin %}
       <a href="/dashboard/schedules" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'schedules' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'schedules' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">calendar_month</span>
         <span class="text-sm font-semibold">Schedules</span>
@@ -115,6 +118,7 @@
         <span class="material-symbols-outlined text-xl {% if active_page == 'analytics' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">bar_chart</span>
         <span class="text-sm font-semibold">Analytics</span>
       </a>
+      {% endif %}
 
       <a href="/dashboard/notifications" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'notifications' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'notifications' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">notifications</span>
