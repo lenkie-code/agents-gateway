@@ -29,8 +29,23 @@ async def run_delegation(
     input: dict[str, Any] | None = None,
 ) -> str:
     """Execute delegation to another agent, return result string."""
-    # Permission check
-    if agent_id not in delegates_to:
+    # Block self-delegation
+    if agent_id == caller_agent_id:
+        return f"Error: Agent '{caller_agent_id}' cannot delegate to itself."
+
+    # Check agent exists
+    if gateway.agents.get(agent_id) is None:
+        return (
+            f"Error: Agent '{agent_id}' does not exist. "
+            f"Available agents: {list(gateway.agents.keys())}"
+        )
+
+    # Check agent is enabled
+    if not gateway.is_agent_enabled(agent_id):
+        return f"Error: Agent '{agent_id}' is currently disabled."
+
+    # If delegates_to is configured (non-empty list), enforce allow-list
+    if delegates_to is not None and len(delegates_to) > 0 and agent_id not in delegates_to:
         return (
             f"Error: Agent '{caller_agent_id}' is not allowed to delegate to '{agent_id}'. "
             f"Allowed targets: {delegates_to}"

@@ -515,66 +515,13 @@ class Gateway(FastAPI):
                 logger.warning("Failed to init memory backend", exc_info=True)
                 self._memory_manager = None
 
-        # 7.3: Register delegation tool for agents with delegates_to
-        delegation_agents = [aid for aid, a in workspace.agents.items() if a.delegates_to]
-        if delegation_agents:
-            from agent_gateway.engine.delegation import run_delegation
-
-            async def _delegate_to_agent(
-                agent_id: str,
-                message: str,
-                input: dict[str, Any] | None = None,
-                context: Any = None,
-            ) -> str:
-                """Delegate a task to another agent and get their result."""
-                from agent_gateway.engine.models import ToolContext
-
-                ctx: ToolContext = context
-                return await run_delegation(
-                    self,
-                    caller_agent_id=ctx.agent_id,
-                    delegates_to=ctx.delegates_to,
-                    execution_id=ctx.execution_id,
-                    root_execution_id=ctx.root_execution_id or ctx.execution_id,
-                    delegation_depth=ctx.delegation_depth,
-                    user_id=ctx.caller_identity,
-                    agent_id=agent_id,
-                    message=message,
-                    input=input,
-                )
-
-            delegation_tool = CodeTool(
-                name="delegate_to_agent",
-                description=(
-                    "Delegate a task to another agent and get their result. "
-                    "Use this to hand off specialized work to another agent."
-                ),
-                fn=_delegate_to_agent,
-                parameters_schema={
-                    "type": "object",
-                    "properties": {
-                        "agent_id": {
-                            "type": "string",
-                            "description": "The ID of the agent to delegate to.",
-                        },
-                        "message": {
-                            "type": "string",
-                            "description": "The task/message to send to the target agent.",
-                        },
-                        "input": {
-                            "type": "object",
-                            "description": "Optional structured input for the target agent.",
-                        },
-                    },
-                    "required": ["agent_id", "message"],
-                },
-                allowed_agents=delegation_agents,
-            )
+        # 7.3: Register delegation tool when workspace has 2+ agents
+        if len(workspace.agents) >= 2:
+            delegation_tool = self._build_delegation_tool(workspace)
             tool_registry.register_code_tool(delegation_tool)
             logger.info(
-                "Delegation tool registered for %d agent(s): %s",
-                len(delegation_agents),
-                ", ".join(delegation_agents),
+                "Delegation tool registered for all agents (%d agents in workspace)",
+                len(workspace.agents),
             )
 
         # 7.5. Apply code-registered input schemas (overrides frontmatter)
@@ -1690,6 +1637,67 @@ class Gateway(FastAPI):
 
         self.openapi = patched_openapi  # type: ignore[method-assign]
 
+    def _build_delegation_tool(self, workspace: WorkspaceState) -> CodeTool:
+        """Build the delegate_to_agent CodeTool for the given workspace."""
+        from agent_gateway.engine.delegation import run_delegation
+
+        agent_ids = list(workspace.agents.keys())
+
+        async def _delegate_to_agent(
+            agent_id: str,
+            message: str,
+            input: dict[str, Any] | None = None,
+            context: Any = None,
+        ) -> str:
+            """Delegate a task to another agent and get their result."""
+            from agent_gateway.engine.models import ToolContext
+
+            ctx: ToolContext = context
+            return await run_delegation(
+                self,
+                caller_agent_id=ctx.agent_id,
+                delegates_to=ctx.delegates_to,
+                execution_id=ctx.execution_id,
+                root_execution_id=ctx.root_execution_id or ctx.execution_id,
+                delegation_depth=ctx.delegation_depth,
+                user_id=ctx.caller_identity,
+                agent_id=agent_id,
+                message=message,
+                input=input,
+            )
+
+        return CodeTool(
+            name="delegate_to_agent",
+            description=(
+                "Delegate a task to another agent and get their result. "
+                "Use this to hand off specialized work to another agent. "
+                f"Available agents: {', '.join(agent_ids)}"
+            ),
+            fn=_delegate_to_agent,
+            parameters_schema={
+                "type": "object",
+                "properties": {
+                    "agent_id": {
+                        "type": "string",
+                        "description": (
+                            "The ID of the agent to delegate to. "
+                            f"Available agents: {', '.join(agent_ids)}"
+                        ),
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "The task/message to send to the target agent.",
+                    },
+                    "input": {
+                        "type": "object",
+                        "description": "Optional structured input for the target agent.",
+                    },
+                },
+                "required": ["agent_id", "message"],
+            },
+            allowed_agents=None,
+        )
+
     def _apply_pending_input_schemas(self, workspace: WorkspaceState) -> None:
         """Apply code-registered input schemas to workspace agents."""
         if not self._pending_input_schemas:
@@ -1941,6 +1949,11 @@ class Gateway(FastAPI):
                             allowed_agents=memory_agents,
                         )
                         new_registry.register_code_tool(code_tool)
+
+            # Re-register delegation tool when workspace has 2+ agents
+            if len(new_workspace.agents) >= 2:
+                delegation_tool = self._build_delegation_tool(new_workspace)
+                new_registry.register_code_tool(delegation_tool)
 
             # Re-apply code-registered input schemas
             self._apply_pending_input_schemas(new_workspace)
@@ -2452,7 +2465,7 @@ class Gateway(FastAPI):
                 parent_execution_id=parent_execution_id,
                 root_execution_id=effective_root_id,
                 delegation_depth=delegation_depth,
-                delegates_to=agent.delegates_to if agent.delegates_to else None,
+                delegates_to=agent.delegates_to,
             )
 
             # Fire notifications

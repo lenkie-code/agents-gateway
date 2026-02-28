@@ -463,7 +463,7 @@ Each agent is defined by an `AGENT.md` file with YAML frontmatter. The following
 | `execution_mode` | `"sync" \| "async"` | `"sync"` | Default execution mode. |
 | `schedules` | `list[ScheduleConfig]` | `[]` | Cron schedule definitions. See [ScheduleConfig](#scheduleconfig) below. |
 | `scope` | `"global" \| "personal"` | `"global"` | Agent scope. Personal agents require per-user setup. |
-| `delegates_to` | `list[str]` | `[]` | Agent IDs this agent can delegate to. |
+| `delegates_to` | `list[str]` | `[]` | Optional allow-list of agent IDs this agent can delegate to. When empty (default), the agent can delegate to any enabled agent. |
 | `input_schema` | `object \| null` | `null` | JSON Schema for input validation. |
 | `setup_schema` | `object \| null` | `null` | JSON Schema for personal agent setup form. |
 | `notifications` | `object` | `{}` | Notification targets for `on_complete`, `on_error`, `on_timeout`. |

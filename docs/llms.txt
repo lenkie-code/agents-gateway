@@ -64,7 +64,7 @@ model:
   name: gemini/gemini-2.0-flash
   temperature: 0.1
 execution_mode: sync
-delegates_to:
+delegates_to:            # optional allow-list; omit to delegate to any agent
   - researcher
   - writer
 schedules:
