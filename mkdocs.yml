@@ -32,6 +32,8 @@ theme:
     - search.highlight
     - search.suggest
     - toc.follow
+  logo: assets/icon.png
+  favicon: assets/icon.png
   icon:
     repo: fontawesome/brands/github
 
