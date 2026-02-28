@@ -324,6 +324,7 @@ async with Gateway(workspace="./workspace") as gw:
 - Admin users can create new schedules for any agent via the dashboard "New Schedule" form or `POST /v1/schedules`
 - Admin-created schedules show an "Admin" badge; workspace schedules show a "Workspace" badge
 - Admin schedules can be deleted from the dashboard or via `DELETE /v1/schedules/{id}`; workspace schedules cannot be deleted
+- When OAuth2 is the primary auth method, admin credentials (`admin_username`/`admin_password`) can be configured alongside it for break-glass access. The login page shows a collapsible admin password form below the SSO button.
 
 ## Links
 

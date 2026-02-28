@@ -94,6 +94,8 @@ else:
 use_keycloak_dashboard = os.environ.get("KEYCLOAK_DASHBOARD", "").strip() in ("1", "true")
 
 if use_keycloak_dashboard:
+    # Admin credentials enable a fallback username/password login alongside SSO,
+    # useful for break-glass access when the OAuth2 provider is unavailable.
     gw.use_dashboard(
         title="Agent Gateway — Test Project",
         subtitle="Intelligent Automation Hub",
@@ -107,6 +109,8 @@ if use_keycloak_dashboard:
         primary_color="#2563eb",
         sidebar_color="#0f172a",
         login_button_text="Sign in with Keycloak",
+        admin_username="admin",
+        admin_password=os.environ.get("DASHBOARD_ADMIN_PASSWORD", "adminpass"),
     )
 else:
     # Dashboard role-based access:
