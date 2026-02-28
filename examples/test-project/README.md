@@ -101,6 +101,69 @@ uv run --directory examples/test-project python app.py
 
 The server starts at `http://localhost:8000`. OpenAPI docs are at `http://localhost:8000/docs`.
 
+### Server Configurations
+
+The test project supports several configurations controlled by environment variables.
+Combine them as needed.
+
+#### Default (password auth + static API key)
+
+```bash
+make dev
+```
+
+Dashboard login: `admin`/`adminpass` (full access) or `user`/`userpass` (limited access).
+API key: `dev-api-key-change-me` via `Authorization: Bearer` header.
+
+#### Keycloak OAuth2 for dashboard SSO
+
+```bash
+KEYCLOAK_DASHBOARD=1 make dev
+```
+
+The dashboard login page shows a "Sign in with Keycloak" SSO button.
+Admin credentials (`admin`/`adminpass`) are available as a collapsible fallback
+beneath the SSO button for break-glass access.
+
+Requires a running Keycloak instance (see `KEYCLOAK_URL`, `KEYCLOAK_REALM` env vars).
+
+#### Keycloak OAuth2 for API auth
+
+```bash
+KEYCLOAK_API=1 make dev
+```
+
+Replaces static API keys with OAuth2 JWT validation on all `/v1/` endpoints.
+Swagger UI shows a login button for obtaining tokens.
+
+#### Both Keycloak OAuth2 (dashboard + API)
+
+```bash
+KEYCLOAK_DASHBOARD=1 KEYCLOAK_API=1 make dev
+```
+
+#### Environment variable reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KEYCLOAK_DASHBOARD` | _(unset)_ | Set to `1` to use Keycloak SSO for the dashboard |
+| `KEYCLOAK_API` | _(unset)_ | Set to `1` to use Keycloak OAuth2 for API auth |
+| `KEYCLOAK_URL` | `http://localhost:8080` | Keycloak server URL |
+| `KEYCLOAK_REALM` | `agent-gateway` | Keycloak realm name |
+| `KEYCLOAK_DASHBOARD_CLIENT_ID` | `agw-dashboard` | OAuth2 client ID for dashboard |
+| `KEYCLOAK_DASHBOARD_CLIENT_SECRET` | `agw-dashboard-secret` | OAuth2 client secret for dashboard |
+| `KEYCLOAK_API_CLIENT_ID` | `agw-api` | OAuth2 client ID for API |
+| `KEYCLOAK_API_CLIENT_SECRET` | `agw-api-secret` | OAuth2 client secret for API |
+| `DASHBOARD_ADMIN_PASSWORD` | `adminpass` | Admin password for dashboard |
+| `DASHBOARD_PASSWORD` | `userpass` | Regular user password for dashboard |
+| `AGENT_GATEWAY_API_KEY` | `dev-api-key-change-me` | Static API key (when not using OAuth2) |
+| `GEMINI_API_KEY` | _(required)_ | API key for the Gemini LLM |
+| `POSTGRES_URL` | `postgresql+asyncpg://...localhost:54320/...` | PostgreSQL connection string |
+| `RABBITMQ_URL` | `amqp://...localhost:56720/` | RabbitMQ connection string |
+| `SLACK_BOT_TOKEN` | _(unset)_ | Slack bot token for notifications |
+| `SLACK_DEFAULT_CHANNEL` | `#agent-alerts` | Default Slack channel |
+| `WEBHOOK_URL` | _(unset)_ | Webhook URL for notifications |
+
 ## CLI Output Formats
 
 The `agents`, `skills`, and `schedules` commands support `--format` (`-f`) to
