@@ -114,6 +114,96 @@ class TestTemplateBranding:
         result = tmpl.render()
         assert '<img src="/dashboard/static/dashboard/default-icon.png">' in result
 
+    def test_logo_replaces_icon_on_login(self) -> None:
+        """When logo_url is set, login page renders logo and NOT icon."""
+        from agent_gateway.dashboard.router import _build_templates
+
+        cfg = DashboardConfig(logo_url="/static/logo.png", icon_url="/static/icon.png")
+        templates = _build_templates(cfg)
+        tmpl = templates.env.from_string(
+            "{% if dashboard_logo_url %}"
+            '<img src="{{ dashboard_logo_url }}" class="logo">'
+            "{% elif dashboard_icon_url %}"
+            '<img src="{{ dashboard_icon_url }}" class="icon">'
+            "{% else %}"
+            '<span class="material-symbols-outlined">hub</span>'
+            "{% endif %}"
+        )
+        result = tmpl.render()
+        assert '<img src="/static/logo.png" class="logo">' in result
+        assert "icon" not in result
+        assert "hub" not in result
+
+    def test_logo_replaces_icon_on_sidebar(self) -> None:
+        """When logo_url is set, sidebar renders logo and NOT icon."""
+        from agent_gateway.dashboard.router import _build_templates
+
+        cfg = DashboardConfig(logo_url="/static/logo.png", icon_url="/static/icon.png")
+        templates = _build_templates(cfg)
+        tmpl = templates.env.from_string(
+            "{% if dashboard_logo_url %}"
+            '<img src="{{ dashboard_logo_url }}" class="sidebar-logo">'
+            "{% elif dashboard_icon_url %}"
+            '<img src="{{ dashboard_icon_url }}" class="sidebar-icon">'
+            "{% else %}"
+            '<span class="material-symbols-outlined">hub</span>'
+            "{% endif %}"
+        )
+        result = tmpl.render()
+        assert '<img src="/static/logo.png" class="sidebar-logo">' in result
+        assert "sidebar-icon" not in result
+
+    def test_icon_renders_when_no_logo(self) -> None:
+        """When only icon_url is set (no logo), icon renders normally."""
+        from agent_gateway.dashboard.router import _build_templates
+
+        cfg = DashboardConfig(icon_url="/static/icon.png")
+        templates = _build_templates(cfg)
+        tmpl = templates.env.from_string(
+            "{% if dashboard_logo_url %}"
+            '<img src="{{ dashboard_logo_url }}" class="logo">'
+            "{% elif dashboard_icon_url %}"
+            '<img src="{{ dashboard_icon_url }}" class="icon">'
+            "{% else %}"
+            '<span class="material-symbols-outlined">hub</span>'
+            "{% endif %}"
+        )
+        result = tmpl.render()
+        assert '<img src="/static/icon.png" class="icon">' in result
+        assert "logo" not in result
+
+    def test_avatar_uses_display_name(self) -> None:
+        """Avatar uses display_name when available."""
+        from agent_gateway.dashboard.auth import DashboardUser
+        from agent_gateway.dashboard.router import _build_templates
+
+        cfg = DashboardConfig()
+        templates = _build_templates(cfg)
+        user = DashboardUser(username="jdoe", display_name="Jane Doe")
+        tmpl = templates.env.from_string(
+            "{{ current_user.display_name if current_user and "
+            "current_user.display_name else "
+            "(current_user.username if current_user else 'Admin') }}"
+        )
+        result = tmpl.render(current_user=user)
+        assert result == "Jane Doe"
+
+    def test_avatar_falls_back_to_username(self) -> None:
+        """Avatar falls back to username when display_name is empty."""
+        from agent_gateway.dashboard.auth import DashboardUser
+        from agent_gateway.dashboard.router import _build_templates
+
+        cfg = DashboardConfig()
+        templates = _build_templates(cfg)
+        user = DashboardUser(username="jdoe")
+        tmpl = templates.env.from_string(
+            "{{ current_user.display_name if current_user and "
+            "current_user.display_name else "
+            "(current_user.username if current_user else 'Admin') }}"
+        )
+        result = tmpl.render(current_user=user)
+        assert result == "jdoe"
+
     def test_template_renders_custom_icon(self) -> None:
         from agent_gateway.dashboard.router import _build_templates
 

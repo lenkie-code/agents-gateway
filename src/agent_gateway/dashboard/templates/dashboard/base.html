@@ -77,7 +77,9 @@
   <!-- Sidebar Navigation (Premium Style) -->
   <aside class="w-64 flex-shrink-0 flex flex-col border-r border-border-dark/30 bg-background-dark/50 backdrop-blur-xl sidebar z-30">
     <div class="p-6 flex items-center gap-3 sidebar-branding">
-      {% if dashboard_icon_url %}
+      {% if dashboard_logo_url %}
+      <img src="{{ dashboard_logo_url }}" alt="{{ dashboard_title }}" class="w-10 h-10 rounded-xl object-contain">
+      {% elif dashboard_icon_url %}
       <img src="{{ dashboard_icon_url }}" alt="{{ dashboard_title }}" class="w-10 h-10 rounded-xl object-contain">
       {% else %}
       <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
@@ -103,10 +105,12 @@
       </a>
       {% endif %}
 
+      {% if current_user and current_user.is_admin %}
       <a href="/dashboard/conversations" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'conversations' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
         <span class="material-symbols-outlined text-xl {% if active_page == 'conversations' %}text-primary{% else %}text-slate-500 group-hover:text-white{% endif %}">forum</span>
         <span class="text-sm font-semibold">Conversations</span>
       </a>
+      {% endif %}
 
       {% if current_user and current_user.is_admin %}
       <a href="/dashboard/schedules" class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group {% if active_page == 'schedules' %}bg-primary/10 text-primary border border-primary/20 shadow-sm{% else %}text-slate-400 hover:bg-white/5 hover:text-white{% endif %}">
@@ -187,7 +191,7 @@
           {% endif %}
           <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-purple-600 p-[1px]">
             <div class="h-full w-full rounded-xl bg-background-dark flex items-center justify-center overflow-hidden">
-               <img src="https://ui-avatars.com/api/?name={{ current_user.username if current_user else 'Admin' }}&background=0b0f1a&color=fff" alt="User Profile" />
+               <img src="https://ui-avatars.com/api/?name={{ current_user.display_name if current_user and current_user.display_name else (current_user.username if current_user else 'Admin') }}&background=0b0f1a&color=fff" alt="User Profile" />
             </div>
           </div>
         </div>
