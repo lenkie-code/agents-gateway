@@ -267,7 +267,12 @@ class LLMClient:
             # Tool calls
             if delta.tool_calls:
                 for tc_delta in delta.tool_calls:
-                    idx = tc_delta.index if hasattr(tc_delta, "index") else 0
+                    raw_idx = tc_delta.index if hasattr(tc_delta, "index") else 0
+                    try:
+                        idx = int(raw_idx)
+                    except (TypeError, ValueError):
+                        logger.debug("Skipping tool call delta with non-integer index: %r", raw_idx)
+                        continue
 
                     if idx not in active_tool_calls:
                         # New tool call
