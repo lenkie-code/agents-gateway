@@ -4,7 +4,7 @@ display_name: "ICP Screener"
 tags: ["icp", "screening", "outbound", "leads"]
 version: "2.0.0"
 model:
-  name: gemini/gemini-2.5-flash
+  name: gemini/gemini-3.1-flash-lite-preview
   temperature: 0.1
 context:
   - context/lenkie-icp.md
