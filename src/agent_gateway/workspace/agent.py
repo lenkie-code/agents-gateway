@@ -285,7 +285,8 @@ def _load_context_files(
         if not isinstance(raw_path, str):
             logger.warning("Agent '%s': context path must be a string, skipping", agent_dir.name)
             continue
-        target = workspace_root / raw_path
+        # Resolve relative to agent dir first; fall back to workspace root for absolute-style paths
+        target = agent_dir / raw_path if not Path(raw_path).is_absolute() else workspace_root / raw_path
         # Path safety: prevent traversal outside workspace
         try:
             resolved = target.resolve()
