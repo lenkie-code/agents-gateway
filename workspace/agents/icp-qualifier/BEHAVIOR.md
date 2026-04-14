@@ -27,8 +27,8 @@
   reasoning "No SIC codes available — cannot screen for sector fit."
 - If `incorporation_date` is missing or unparseable: return `passed: false` with
   reasoning "Incorporation date not available — cannot verify trading duration."
-- If `company_status` is empty: treat as unknown and note it in reasoning, but do not
-  auto-fail solely on this basis if status is simply absent.
+- If `company_status` is empty or not 'Active': return `passed: false` with
+  reasoning "Company status is not Active or is missing."
 
 ## Response format
 
