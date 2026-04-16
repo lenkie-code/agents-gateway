@@ -154,6 +154,8 @@ class Gateway(FastAPI):
         self._session_cleanup_task: asyncio.Task[None] | None = None
         self._queue_backend: ExecutionQueue | NullQueue | None = None  # fluent API
         self._queue: ExecutionQueue | NullQueue = NullQueue()
+        self._celery_app: Any = None  # set by use_celery_queue()
+        self._celery_task_name: str = "agents_gateway.run_agent_execution"
         self._worker_pool: Any = None  # WorkerPool, set during startup
         self._notification_engine = NotificationEngine()
         self._notification_backends: list[NotificationBackend] = []  # pre-startup buffer
@@ -1123,6 +1125,34 @@ class Gateway(FastAPI):
         self._notification_queue_backend = RabbitMQNotificationQueue(url=url)
         return self
 
+    def use_celery_queue(
+        self,
+        broker_url: str = "amqp://guest:guest@localhost:5672/",
+        task_name: str = "agents_gateway.run_agent_execution",
+    ) -> Gateway:
+        """Dispatch async agent executions to a Celery worker via RabbitMQ.
+
+        The gateway's built-in WorkerPool is not started; a separate
+        ``worker.py`` Celery process consumes jobs and fires the webhook
+        callback when each execution completes.
+
+        Args:
+            broker_url: AMQP broker URL (same as CELERY_BROKER_URL).
+            task_name: Fully-qualified Celery task name defined in worker.py.
+        """
+        if self._started:
+            raise RuntimeError("Cannot configure queue after gateway has started")
+        from celery import Celery
+
+        app = Celery("agents_gateway", broker=broker_url)
+        app.conf.task_serializer = "json"
+        app.conf.accept_content = ["json"]
+        app.conf.task_ignore_result = True
+
+        self._celery_app = app
+        self._celery_task_name = task_name
+        return self
+
     def use_queue(self, backend: ExecutionQueue | None) -> Gateway:
         """Configure a custom queue backend, or None to disable.
 
@@ -1273,6 +1303,7 @@ class Gateway(FastAPI):
         secret: str = "",
         events: list[str] | None = None,
         payload_template: str | None = None,
+        allow_private_networks: bool = False,
     ) -> Gateway:
         """Add a webhook notification endpoint.
 
@@ -1285,6 +1316,8 @@ class Gateway(FastAPI):
             secret: HMAC-SHA256 signing secret.
             events: Event types to filter (empty = all events).
             payload_template: Jinja2 template for custom payloads.
+            allow_private_networks: Disable SSRF protection to allow localhost/private
+                network URLs. Only set to True in local development environments.
         """
         if self._started:
             raise RuntimeError("Cannot configure notifications after gateway has started")
@@ -1307,8 +1340,13 @@ class Gateway(FastAPI):
         )
         if existing is not None:
             existing.add_endpoint(endpoint)
+            if allow_private_networks:
+                existing._allow_private_networks = True
         else:
-            backend = WebhookBackend(endpoints=[endpoint])
+            backend = WebhookBackend(
+                endpoints=[endpoint],
+                allow_private_networks=allow_private_networks,
+            )
             self._notification_backends.append(backend)
         return self
 

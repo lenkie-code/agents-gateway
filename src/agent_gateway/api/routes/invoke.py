@@ -183,7 +183,24 @@ async def invoke_agent(
 
     # Queued execution: enqueue to backend, return 202
     if should_queue:
-        if isinstance(gw._queue, NullQueue):
+        job = ExecutionJob(
+            execution_id=execution_id,
+            agent_id=agent_id,
+            message=body.message,
+            input=body.input or None,
+            timeout_ms=body.options.timeout_ms,
+            enqueued_at=datetime.now(UTC).isoformat(),
+        )
+        if gw._celery_app is not None:
+            # Celery queue — send task to broker (e.g. RabbitMQ) for parallel processing
+            import json as _json
+
+            gw._celery_app.send_task(
+                gw._celery_task_name,
+                args=[_json.loads(job.to_json())],
+            )
+            _metrics.queue_jobs_enqueued.add(1, {"agent_id": agent_id})
+        elif isinstance(gw._queue, NullQueue):
             # No queue configured — fall back to asyncio.create_task
             handle = ExecutionHandle(execution_id)
             gw._execution_handles[execution_id] = handle
@@ -194,14 +211,6 @@ async def invoke_agent(
             gw._background_tasks.add(task)
             task.add_done_callback(gw._background_tasks.discard)
         else:
-            job = ExecutionJob(
-                execution_id=execution_id,
-                agent_id=agent_id,
-                message=body.message,
-                input=body.input or None,
-                timeout_ms=body.options.timeout_ms,
-                enqueued_at=datetime.now(UTC).isoformat(),
-            )
             await gw._queue.enqueue(job)
             _metrics.queue_jobs_enqueued.add(1, {"agent_id": agent_id})
             _metrics.queue_depth.add(1, {"agent_id": agent_id})

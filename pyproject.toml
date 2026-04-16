@@ -51,6 +51,7 @@ dependencies = [
     "greenlet>=3.3.1",
     "cryptography>=42.0",
     "mcp>=1.20",
+    "celery>=5.3",
 ]
 
 [project.optional-dependencies]
@@ -216,3 +217,8 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "google.*"
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "flower>=2.0.1",
+]

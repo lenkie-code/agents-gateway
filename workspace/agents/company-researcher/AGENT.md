@@ -6,6 +6,18 @@ version: "1.0.0"
 model:
   name: gemini/gemini-3-flash-preview
   temperature: 0.1
+timeout_ms: 600000
+execution_mode: async
+notifications:
+  on_complete:
+    - channel: webhook
+      target: core-api
+  on_error:
+    - channel: webhook
+      target: core-api
+  on_timeout:
+    - channel: webhook
+      target: core-api
 tools:
   - deep-research
 input_schema:
