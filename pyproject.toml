@@ -32,6 +32,7 @@ classifiers = [
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
+    "google-genai>=1.0",
     "litellm>=1.40",
     "sqlalchemy>=2.0",
     "python-frontmatter>=1.1",
