@@ -21,8 +21,8 @@ try:
     import google.auth.transport.requests as google_requests
     from google.oauth2 import service_account as sa
 except ImportError:
-    sa = None
-    google_requests = None
+    sa = None  # type: ignore[assignment]
+    google_requests = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class GoogleServiceAccountProvider:
             )
 
         self.server_name = server_name
-        self._credentials: Any = sa.Credentials.from_service_account_info(
+        self._credentials: Any = sa.Credentials.from_service_account_info(  # type: ignore[no-untyped-call]
             service_account_info, scopes=scopes
         )
         self._lock = asyncio.Lock()
