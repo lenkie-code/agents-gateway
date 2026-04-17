@@ -98,10 +98,12 @@ class WebhookBackend:
         endpoints: list[WebhookEndpoint] | None = None,
         default_secret: str = "",
         timeout_s: float = 10.0,
+        allow_private_networks: bool = False,
     ) -> None:
         self._endpoints: dict[str, WebhookEndpoint] = {}
         self._default_secret = default_secret
         self._timeout_s = timeout_s
+        self._allow_private_networks = allow_private_networks
         self._client: httpx.AsyncClient | None = None
 
         for ep in endpoints or []:
@@ -168,7 +170,8 @@ class WebhookBackend:
             headers["X-AgentGateway-Signature"] = f"sha256={signature}"
             headers["X-AgentGateway-Timestamp"] = timestamp
 
-        _validate_webhook_url(url)
+        if not self._allow_private_networks:
+            _validate_webhook_url(url)
         response = await self._client.post(url, content=body, headers=headers)
         response.raise_for_status()
 

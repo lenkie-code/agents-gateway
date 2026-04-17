@@ -4,7 +4,7 @@ display_name: "ICP Lead Finder"
 tags: ["leads", "icp", "sales", "prospecting"]
 version: "1.0.0"
 model:
-  name: anthropic/claude-sonnet-4-5
+  name: gemini/gemini-2.5-flash
   temperature: 0.1
 skills:
   - icp-tools

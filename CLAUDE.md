@@ -47,6 +47,7 @@ examples/test-project/  # Example app (run with `make dev`)
 - **Exceptions**: always subclass `AgentGatewayError` from `exceptions.py`
 - **Pending registration pattern**: store items in `_pending_*` dicts/lists, apply after workspace loads
 - **Agents**: defined in `workspace/agents/<name>/` with `AGENT.md` + optional `BEHAVIOR.md`
+- **Default model for new agents**: `gemini/gemini-3-flash-preview` (full flash) or `gemini/gemini-3.1-flash-lite-preview` (lite). Do not use older Gemini versions (2.5-flash, 2.5-pro, etc.) for new agents unless there is a specific reason.
 - **Tests**: use `pytest-asyncio` (auto mode). Mark e2e tests with `@pytest.mark.e2e`, postgres tests with `@pytest.mark.postgres`, etc.
 
 ## Example Project
