@@ -216,16 +216,9 @@ ignore_missing_imports = true
 module = "google.*"
 ignore_missing_imports = true
 
-# SQLAlchemy column expressions on class objects are a known mypy limitation —
-# accessing Model.column for WHERE clauses raises [misc] which cannot be suppressed
-# inline without breaking the existing [arg-type] ignores on the same lines.
 [[tool.mypy.overrides]]
-module = "agent_gateway.persistence.backends.sql.repository"
-disable_error_codes = ["misc"]
-
-[[tool.mypy.overrides]]
-module = "agent_gateway.memory.backends.sql"
-disable_error_codes = ["misc"]
+module = "celery.*"
+ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
