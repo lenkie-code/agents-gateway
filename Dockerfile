@@ -6,12 +6,13 @@ WORKDIR /app
 
 # Install dependencies first (layer-cached until pyproject.toml/uv.lock change)
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --extra sqlite
+RUN uv sync --frozen --no-dev --no-install-project --extra sqlite
 
-# Copy application source
+# Copy application source and install the project itself
 COPY src/ ./src/
 COPY app.py ./
 COPY workspace/ ./workspace/
+RUN uv sync --frozen --no-dev --extra sqlite
 
 EXPOSE 9001
 
