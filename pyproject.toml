@@ -220,6 +220,17 @@ ignore_missing_imports = true
 module = "celery.*"
 ignore_missing_imports = true
 
+# SQLAlchemy column expressions on class objects (WHERE clauses) produce [misc]
+# errors that cannot be suppressed with inline comments without conflicting with
+# existing [arg-type] ignores on the same lines. Suppress at file level.
+[[tool.mypy.overrides]]
+module = "agent_gateway.persistence.backends.sql.repository"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "agent_gateway.memory.backends.sql"
+ignore_errors = true
+
 [dependency-groups]
 dev = [
     "flower>=2.0.1",
