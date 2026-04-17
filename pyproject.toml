@@ -215,3 +215,29 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "google.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "celery.*"
+ignore_missing_imports = true
+
+# google-auth is an optional dependency — type: ignore comments are needed on
+# older mypy but flagged as unused on newer versions. Suppress the warning.
+[[tool.mypy.overrides]]
+module = "agent_gateway.mcp.auth_google"
+warn_unused_ignores = false
+
+# SQLAlchemy column expressions on class objects (WHERE clauses) produce [misc]
+# errors that cannot be suppressed with inline comments without conflicting with
+# existing [arg-type] ignores on the same lines. Suppress at file level.
+[[tool.mypy.overrides]]
+module = "agent_gateway.persistence.backends.sql.repository"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "agent_gateway.memory.backends.sql"
+ignore_errors = true
+
+[dependency-groups]
+dev = [
+    "flower>=2.0.1",
+]
