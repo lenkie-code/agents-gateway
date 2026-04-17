@@ -222,6 +222,12 @@ ignore_missing_imports = true
 module = "celery.*"
 ignore_missing_imports = true
 
+# google-auth is an optional dependency — type: ignore comments are needed on
+# older mypy but flagged as unused on newer versions. Suppress the warning.
+[[tool.mypy.overrides]]
+module = "agent_gateway.mcp.auth_google"
+warn_unused_ignores = false
+
 # SQLAlchemy column expressions on class objects (WHERE clauses) produce [misc]
 # errors that cannot be suppressed with inline comments without conflicting with
 # existing [arg-type] ignores on the same lines. Suppress at file level.
