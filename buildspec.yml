@@ -13,19 +13,19 @@ phases:
     commands:
       - echo Build started `date`
       - echo Building Docker Image
-      - docker build -t $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:latest -f ./Dockerfile ./
-      - docker tag $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:latest $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:$IMAGE_TAG
-      - docker tag $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:latest $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:beta-$IMAGE_TAG
+      - docker build -t $REPOSITORY_URI/lenkie/prod/agents-gateway:latest -f ./Dockerfile ./
+      - docker tag $REPOSITORY_URI/lenkie/prod/agents-gateway:latest $REPOSITORY_URI/lenkie/prod/agents-gateway:$IMAGE_TAG
+      - docker tag $REPOSITORY_URI/lenkie/prod/agents-gateway:latest $REPOSITORY_URI/lenkie/prod/agents-gateway:beta-$IMAGE_TAG
       - echo docker images
   post_build:
     commands:
       - echo Build completed `date`
       - echo Pushing Docker images
-      - docker push $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:latest
-      - docker push $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:$IMAGE_TAG
-      - docker push $REPOSITORY_URI/lenkie/prod/agents-gateway.svc:beta-$IMAGE_TAG
+      - docker push $REPOSITORY_URI/lenkie/prod/agents-gateway:latest
+      - docker push $REPOSITORY_URI/lenkie/prod/agents-gateway:$IMAGE_TAG
+      - docker push $REPOSITORY_URI/lenkie/prod/agents-gateway:beta-$IMAGE_TAG
       - echo "Creating imagedefinitions.json"
-      - printf '[{"name":"%s","imageUri":"%s"}]' "$CONTAINER_NAME" "$REPOSITORY_URI/lenkie/prod/agents-gateway.svc:$IMAGE_TAG" > imagedefinitions.json
+      - printf '[{"name":"%s","imageUri":"%s"}]' "$CONTAINER_NAME" "$REPOSITORY_URI/lenkie/prod/agents-gateway:$IMAGE_TAG" > imagedefinitions.json
 
 artifacts:
   files:
