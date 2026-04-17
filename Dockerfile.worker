@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+
+# Install dependencies first (layer-cached until pyproject.toml/uv.lock change)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --extra sqlite
+
+# Copy application source
+COPY src/ ./src/
+COPY app.py ./
+COPY worker.py ./
+COPY workspace/ ./workspace/
+
+CMD ["uv", "run", "celery", "-A", "worker", "worker", "--pool=solo", "-l", "info", "-E"]
