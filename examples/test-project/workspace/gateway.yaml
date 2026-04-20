@@ -2,7 +2,7 @@ server:
   port: 8000
 
 model:
-  default: "gemini/gemini-2.0-flash"
+  default: "groq/qwen/qwen3-32b"
   temperature: 0.1
 
 memory:
